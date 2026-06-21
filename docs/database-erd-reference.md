@@ -1,0 +1,191 @@
+# QMS-Pharma Database Entity Relationship Reference
+
+## Table Count: 40 tables across 16 groups
+
+---
+
+## Entity Relationship Diagram (Text)
+
+```
+                    ┌──────────────────┐
+                    │  organizations   │
+                    └────────┬─────────┘
+                             │ 1:N
+                    ┌────────▼─────────┐
+                    │   plant_sites    │
+                    └────────┬─────────┘
+                             │ 1:N
+                    ┌────────▼─────────┐
+                    │   departments    │◄──── self-referencing (parent)
+                    └────────┬─────────┘
+                             │
+          ┌──────────────────┼──────────────────┐
+          │                  │                  │
+   ┌──────▼──────┐   ┌──────▼──────┐   ┌──────▼──────┐
+   │   users     │   │  products   │   │  batches    │
+   └──────┬──────┘   └─────────────┘   └─────────────┘
+          │
+    ┌─────┴──────────────────────────────┐
+    │                                    │
+    │  ┌─────────────────┐               │
+    ├──► application_roles│               │
+    │  └────────┬────────┘               │
+    │           │                        │
+    │  ┌────────▼────────┐               │
+    │  │ role_permissions │               │
+    │  └────────┬────────┘               │
+    │           │                        │
+    │  ┌────────▼────────┐               │
+    │  │  permissions    │               │
+    │  └─────────────────┘               │
+    │                                    │
+    │  ┌─────────────────┐               │
+    ├──► security_profiles│               │
+    │  └─────────────────┘               │
+    │                                    │
+    │  ┌─────────────────┐               │
+    ├──► user_roles      │               │
+    │  └─────────────────┘               │
+    │                                    │
+    │  ┌─────────────────┐               │
+    └──► user_login_audit│               │
+       └─────────────────┘               │
+                                         │
+    ═══════════════════════════════════════
+    ║         QUALITY RECORDS            ║
+    ═══════════════════════════════════════
+                                         │
+    ┌────────────────────────────────────┘
+    │
+    │   ┌────────────────┐        ┌─────────────────────┐
+    ├───► deviations     ├───────►│ deviation_           │
+    │   └───┬──────┬─────┘        │ investigations      │
+    │       │      │              ├─────────────────────┤
+    │       │      │              │ deviation_           │
+    │       │      │              │ impact_assessments   │
+    │       │      │              ├─────────────────────┤
+    │       │      │              │ deviation_           │
+    │       │      │              │ dispositions         │
+    │       │      │              ├─────────────────────┤
+    │       │      │              │ deviation_           │
+    │       │      │              │ affected_batches     │
+    │       │      │              ├─────────────────────┤
+    │       │      │              │ deviation_           │
+    │       │      │              │ immediate_actions    │
+    │       │      │              └─────────────────────┘
+    │       │      │
+    │       │      └──── FK (capa_id) ──────┐
+    │       │                               │
+    │   ┌───▼────────────┐                  │
+    ├───► capas          ◄──────────────────┘
+    │   └───┬────────────┘
+    │       │   ┌───────────────────────────┐
+    │       ├──►│ capa_root_cause_analyses  │
+    │       │   └───┬───────────────────────┘
+    │       │       │   ┌───────────────────┐
+    │       │       ├──►│ capa_five_why_    │
+    │       │       │   │ entries           │
+    │       │       │   └───────────────────┘
+    │       │       │   ┌───────────────────┐
+    │       │       └──►│ capa_fishbone_    │
+    │       │           │ categories        │
+    │       │           └───────────────────┘
+    │       │   ┌───────────────────────────┐
+    │       ├──►│ capa_risk_assessments     │
+    │       │   └───────────────────────────┘
+    │       │   ┌───────────────────────────┐
+    │       ├──►│ capa_actions              │
+    │       │   └───────────────────────────┘
+    │       │   ┌───────────────────────────┐
+    │       └──►│ capa_effectiveness_checks │
+    │           └───────────────────────────┘
+    │
+    │   ┌────────────────┐
+    ├───► change_requests│
+    │   └───┬────────────┘
+    │       │   ┌───────────────────────────┐
+    │       ├──►│ change_impact_assessments │
+    │       │   └───────────────────────────┘
+    │       │   ┌───────────────────────────┐
+    │       ├──►│ change_regulatory_filings │
+    │       │   └───────────────────────────┘
+    │       │   ┌───────────────────────────┐
+    │       ├──►│ change_affected_documents │
+    │       │   └───────────────────────────┘
+    │       │   ┌───────────────────────────┐
+    │       ├──►│ change_affected_products  │
+    │       │   └───────────────────────────┘
+    │       │   ┌───────────────────────────────┐
+    │       ├──►│ change_implementation_tasks   │
+    │       │   └───────────────────────────────┘
+    │       │   ┌───────────────────────────────┐
+    │       ├──►│ change_training_requirements  │
+    │       │   └───────────────────────────────┘
+    │       │   ┌───────────────────────────┐
+    │       ├──►│ change_approvals          │
+    │       │   └───────────────────────────┘
+    │       │   ┌───────────────────────────────┐
+    │       └──►│ change_effectiveness_reviews  │
+    │           └───┬───────────────────────────┘
+    │               │   ┌───────────────────────────────┐
+    │               └──►│ change_effectiveness_criteria  │
+    │                   └───────────────────────────────┘
+    │
+    ═══════════════════════════════════════
+    ║         SHARED / CROSS-CUTTING     ║
+    ═══════════════════════════════════════
+    │
+    │   ┌──────────────────────┐
+    ├──►│ audit_trail          │  (polymorphic: record_type + record_id)
+    │   └──────────────────────┘
+    │   ┌──────────────────────┐
+    ├──►│ workflow_history     │  (polymorphic: record_type + record_id)
+    │   └──────────────────────┘
+    │   ┌──────────────────────┐
+    ├──►│ attachments          │  (polymorphic: record_type + record_id)
+    │   └──────────────────────┘
+    │   ┌──────────────────────┐
+    ├──►│ record_comments      │  (polymorphic: record_type + record_id)
+    │   └──────────────────────┘
+    │   ┌──────────────────────┐
+    ├──►│ electronic_signatures│  (polymorphic: record_type + record_id)
+    │   └──────────────────────┘
+    │   ┌──────────────────────┐
+    ├──►│ notifications        │
+    │   └──────────────────────┘
+    │   ┌──────────────────────┐
+    ├──►│ sequence_counters    │
+    │   └──────────────────────┘
+    │   ┌──────────────────────┐
+    ├──►│ system_configurations│
+    │   └──────────────────────┘
+    │   ┌──────────────────────┐
+    └──►│ lookup_values        │
+        └──────────────────────┘
+```
+
+---
+
+## Table Groups Summary
+
+| Group | Tables | Description |
+|-------|--------|-------------|
+| Organization & Sites | 3 | organizations, plant_sites, departments |
+| User Management | 7 | users, security_profiles, application_roles, permissions, role_permissions, user_roles, user_security_profiles |
+| Auth & Audit | 2 | user_login_audit, electronic_signatures |
+| Deviation | 6 | deviations, deviation_affected_batches, deviation_investigations, deviation_immediate_actions, deviation_impact_assessments, deviation_dispositions |
+| CAPA | 6 | capas, capa_root_cause_analyses, capa_five_why_entries, capa_fishbone_categories, capa_risk_assessments, capa_actions, capa_effectiveness_checks |
+| Change Control | 9 | change_requests, change_impact_assessments, change_regulatory_filings, change_affected_documents, change_affected_products, change_implementation_tasks, change_training_requirements, change_approvals, change_effectiveness_reviews, change_effectiveness_criteria |
+| Shared | 8 | audit_trail, workflow_history, attachments, record_comments, notifications, sequence_counters, system_configurations, lookup_values |
+| Reference | 2 | products, batches |
+
+---
+
+## Key Relationships
+
+1. **Deviation -> CAPA**: A deviation can initiate a CAPA (`deviations.capa_id -> capas.id`)
+2. **CAPA -> Deviation**: A CAPA can reference its source deviation (`capas.deviation_id -> deviations.id`)
+3. **Users -> All Records**: Users are referenced as initiators, owners, assignees, reviewers, approvers
+4. **Shared tables** use polymorphic associations (`record_type` + `record_id`) to link to any quality record
+5. **Departments** support hierarchy via self-referencing `parent_department_id`
+6. **Electronic signatures** link to all approval/rejection actions for 21 CFR Part 11 compliance
