@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, of, delay } from 'rxjs';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { Observable, map } from 'rxjs';
 import {
   Capa,
   CapaStatus,
@@ -11,7 +12,16 @@ import {
   CapaDashboardMetrics,
   CapaListFilter,
   RcaMethod,
+  RootCauseAnalysis,
 } from '../models/capa.model';
+
+const API_BASE_URL = 'http://localhost:8082/api/v1';
+
+type ApiPage<T> = {
+  content?: T[];
+};
+
+type ApiCapa = any;
 
 /** Helper: returns a Date offset from today by the given number of days */
 function daysAgo(days: number): Date {
@@ -32,156 +42,255 @@ function daysFromNow(days: number): Date {
   providedIn: 'root',
 })
 export class CapaService {
-  private capas: Capa[] = this.generateMockData();
-  private capasSubject = new BehaviorSubject<Capa[]>(this.capas);
+  private readonly apiUrl = `${API_BASE_URL}/capas`;
+
+  constructor(private http: HttpClient) {}
 
   getCapas(filter?: CapaListFilter): Observable<Capa[]> {
-    let filtered = [...this.capas];
+    let params = new HttpParams()
+      .set('page', '0')
+      .set('size', '100')
+      .set('sort', 'createdAt,desc');
 
-    if (filter) {
-      if (filter.status && filter.status.length > 0) {
-        filtered = filtered.filter((c) => filter.status!.includes(c.status));
-      }
-      if (filter.priority && filter.priority.length > 0) {
-        filtered = filtered.filter((c) => filter.priority!.includes(c.priority));
-      }
-      if (filter.search) {
-        const search = filter.search.toLowerCase();
-        filtered = filtered.filter(
-          (c) =>
-            c.title.toLowerCase().includes(search) ||
-            c.capaNumber.toLowerCase().includes(search) ||
-            c.description.toLowerCase().includes(search)
-        );
-      }
-      if (filter.department) {
-        filtered = filtered.filter((c) => c.department === filter.department);
-      }
-    }
+    filter?.status?.forEach((status) => (params = params.append('status', status)));
+    filter?.priority?.forEach((priority) => (params = params.append('priority', priority)));
+    if (filter?.type) params = params.set('type', filter.type);
+    if (filter?.search) params = params.set('search', filter.search);
 
-    return of(filtered).pipe(delay(300));
+    return this.http
+      .get<ApiPage<ApiCapa>>(this.apiUrl, { headers: this.authHeaders(), params })
+      .pipe(map((page) => (page.content || []).map((item) => this.toCapa(item))));
   }
 
   getCapaById(id: string): Observable<Capa | undefined> {
-    const capa = this.capas.find((c) => c.id === id);
-    return of(capa).pipe(delay(200));
+    return this.http
+      .get<ApiCapa>(`${this.apiUrl}/${id}`, { headers: this.authHeaders() })
+      .pipe(map((item) => this.toCapa(item)));
   }
 
   createCapa(capa: Partial<Capa>): Observable<Capa> {
-    const newCapa: Capa = {
-      ...capa,
-      id: this.generateId(),
-      capaNumber: this.generateCapaNumber(),
-      status: CapaStatus.INITIATED,
-      currentWorkflowStep: 'Initiation',
-      auditTrail: [
-        {
-          id: this.generateId(),
-          timestamp: new Date(),
-          userId: 'USR-001',
-          userName: 'Current User',
-          action: 'CAPA Initiated',
-          comments: 'New CAPA record created',
-        },
-      ],
-      workflowHistory: [
-        {
-          stepName: 'Initiation',
-          status: 'CURRENT',
-          assignedTo: capa.ownerName || 'Unassigned',
-          startedAt: new Date(),
-        },
-      ],
-      correctiveActions: [],
-      preventiveActions: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    } as Capa;
+    const payload = {
+      title: capa.title,
+      description: capa.description,
+      type: capa.type,
+      priority: capa.priority,
+      sourceType: capa.sourceType,
+      sourceReference: capa.sourceReference,
+      targetCompletionDate: this.toIso(capa.targetCompletionDate || capa.dueDate),
+      ownerId: this.resolveUserId((capa as any).ownerName),
+      departmentId: this.resolveDepartmentId((capa as any).department || capa.assignedDepartment),
+      plantSiteId: this.resolvePlantSiteId((capa as any).plantSite),
+      product: capa.product,
+      batchNumber: capa.batchNumber,
+    };
 
-    this.capas.unshift(newCapa);
-    this.capasSubject.next(this.capas);
-    return of(newCapa).pipe(delay(500));
+    return this.http
+      .post<ApiCapa>(this.apiUrl, payload, { headers: this.authHeaders() })
+      .pipe(map((item) => this.toCapa(item)));
   }
 
   updateCapaStatus(id: string, status: CapaStatus): Observable<Capa> {
-    const capa = this.capas.find((c) => c.id === id);
-    if (capa) {
-      capa.status = status;
-      capa.updatedAt = new Date();
-      capa.auditTrail.push({
-        id: this.generateId(),
-        timestamp: new Date(),
-        userId: 'USR-001',
-        userName: 'Current User',
-        action: 'Status Changed',
-        field: 'status',
-        oldValue: capa.status,
-        newValue: status,
-      });
-    }
-    return of(capa!).pipe(delay(300));
+    return this.http
+      .patch<ApiCapa>(
+        `${this.apiUrl}/${id}/status`,
+        { status, comments: `Status changed to ${status}` },
+        { headers: this.authHeaders() }
+      )
+      .pipe(map((item) => this.toCapa(item)));
   }
 
   getDashboardMetrics(): Observable<CapaDashboardMetrics> {
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    const openStatuses = [
-      CapaStatus.INITIATED, CapaStatus.UNDER_REVIEW, CapaStatus.INVESTIGATION,
-      CapaStatus.ROOT_CAUSE_IDENTIFIED, CapaStatus.ACTION_PLANNING,
-      CapaStatus.ACTION_IN_PROGRESS, CapaStatus.EFFECTIVENESS_CHECK, CapaStatus.PENDING_CLOSURE,
-    ];
-
-    const totalOpen = this.capas.filter((c) => openStatuses.includes(c.status)).length;
-    const totalOverdue = this.capas.filter(
-      (c) => openStatuses.includes(c.status) && new Date(c.dueDate) < now
-    ).length;
-    const totalClosedThisMonth = this.capas.filter(
-      (c) => c.status === CapaStatus.CLOSED && c.closedAt && new Date(c.closedAt) >= startOfMonth
-    ).length;
-    const totalInitiatedThisMonth = this.capas.filter(
-      (c) => new Date(c.initiatedDate) >= startOfMonth
-    ).length;
-
-    // Compute byStatus from actual data
-    const statusCounts = new Map<CapaStatus, number>();
-    this.capas.forEach((c) => statusCounts.set(c.status, (statusCounts.get(c.status) || 0) + 1));
-
-    const metrics: CapaDashboardMetrics = {
-      totalOpen,
-      totalOverdue,
-      totalClosedThisMonth,
-      totalInitiatedThisMonth,
-      avgClosureTimeDays: 32,
-      effectivenessRate: 87,
-      byStatus: Array.from(statusCounts.entries()).map(([status, count]) => ({ status, count })),
-      byPriority: [
-        { priority: CapaPriority.CRITICAL, count: this.capas.filter((c) => c.priority === CapaPriority.CRITICAL && openStatuses.includes(c.status)).length },
-        { priority: CapaPriority.HIGH, count: this.capas.filter((c) => c.priority === CapaPriority.HIGH && openStatuses.includes(c.status)).length },
-        { priority: CapaPriority.MEDIUM, count: this.capas.filter((c) => c.priority === CapaPriority.MEDIUM && openStatuses.includes(c.status)).length },
-        { priority: CapaPriority.LOW, count: this.capas.filter((c) => c.priority === CapaPriority.LOW && openStatuses.includes(c.status)).length },
-      ],
-      byDepartment: this.computeByDepartment(openStatuses),
-      trendData: [
-        { month: 'M-5', initiated: 4, closed: 6 },
-        { month: 'M-4', initiated: 5, closed: 4 },
-        { month: 'M-3', initiated: 3, closed: 5 },
-        { month: 'M-2', initiated: 6, closed: 7 },
-        { month: 'M-1', initiated: 4, closed: 8 },
-        { month: 'This Mo', initiated: totalInitiatedThisMonth, closed: totalClosedThisMonth },
-      ],
-    };
-    return of(metrics).pipe(delay(300));
+    return this.http
+      .get<Record<string, any>>(`${API_BASE_URL}/dashboard/capa-metrics`, { headers: this.authHeaders() })
+      .pipe(map((data) => this.toDashboardMetrics(data)));
   }
 
-  private computeByDepartment(openStatuses: CapaStatus[]): { department: string; count: number }[] {
-    const deptMap = new Map<string, number>();
-    this.capas
-      .filter((c) => openStatuses.includes(c.status))
-      .forEach((c) => deptMap.set(c.department, (deptMap.get(c.department) || 0) + 1));
-    return Array.from(deptMap.entries())
-      .map(([department, count]) => ({ department, count }))
-      .sort((a, b) => b.count - a.count);
+  submitRootCauseAnalysis(id: string, rca: RootCauseAnalysis): Observable<Capa> {
+    const payload = {
+      method: rca.method,
+      description: rca.description,
+      rootCauses: rca.rootCauses || [],
+      contributingFactors: rca.contributingFactors || [],
+      fiveWhyEntries: rca.fiveWhyAnalysis || [],
+      fishboneCategories: [],
+    };
+
+    return this.http
+      .post<ApiCapa>(`${this.apiUrl}/${id}/root-cause-analysis`, payload, { headers: this.authHeaders() })
+      .pipe(map((item) => this.toCapa(item)));
+  }
+
+  private authHeaders(): HttpHeaders {
+    const token = this.readAccessToken();
+    return token ? new HttpHeaders({ Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}` }) : new HttpHeaders();
+  }
+
+  private readAccessToken(): string | null {
+    const directKeys = ['accessToken', 'authToken', 'token', 'jwt', 'qmsAccessToken'];
+    for (const key of directKeys) {
+      const value = localStorage.getItem(key) || sessionStorage.getItem(key);
+      if (value) return value;
+    }
+
+    for (const key of ['auth', 'currentUser', 'user']) {
+      const raw = localStorage.getItem(key) || sessionStorage.getItem(key);
+      if (!raw) continue;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.accessToken) return parsed.accessToken;
+        if (parsed?.token) return parsed.token;
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }
+
+  private toCapa(item: ApiCapa): Capa {
+    const actions = item.actions || [];
+    return {
+      id: item.id,
+      capaNumber: item.capaNumber,
+      title: item.title,
+      description: item.description,
+      type: item.type as CapaType,
+      status: item.status as CapaStatus,
+      priority: item.priority as CapaPriority,
+      sourceType: item.sourceType as CapaSourceType,
+      sourceReference: item.sourceReference,
+      initiatedDate: this.toDate(item.initiatedDate),
+      targetCompletionDate: this.toDate(item.targetCompletionDate),
+      actualCompletionDate: item.actualCompletionDate ? this.toDate(item.actualCompletionDate) : undefined,
+      dueDate: this.toDate(item.dueDate || item.targetCompletionDate),
+      initiatorId: item.initiator?.id || '',
+      initiatorName: item.initiator?.displayName || '',
+      ownerId: item.owner?.id || '',
+      ownerName: item.owner?.displayName || '',
+      assignedDepartment: item.departmentName || '',
+      rootCauseAnalysis: item.rootCauseAnalysis ? {
+        method: item.rootCauseAnalysis.method as RcaMethod,
+        description: item.rootCauseAnalysis.description || '',
+        rootCauses: item.rootCauseAnalysis.rootCauses || [],
+        contributingFactors: item.rootCauseAnalysis.contributingFactors || [],
+        fiveWhyAnalysis: item.rootCauseAnalysis.fiveWhyEntries || [],
+        completedDate: item.rootCauseAnalysis.completedDate ? this.toDate(item.rootCauseAnalysis.completedDate) : undefined,
+        completedBy: item.rootCauseAnalysis.completedBy?.displayName,
+      } : undefined,
+      riskAssessment: item.riskAssessment ? {
+        severity: item.riskAssessment.severity || 0,
+        occurrence: item.riskAssessment.occurrence || 0,
+        detection: item.riskAssessment.detection || 0,
+        rpn: item.riskAssessment.rpn || 0,
+        riskLevel: item.riskAssessment.riskLevel,
+        justification: item.riskAssessment.justification || '',
+      } : undefined,
+      correctiveActions: actions.filter((action: any) => action.type === 'CORRECTIVE').map((action: any) => this.toAction(action)),
+      preventiveActions: actions.filter((action: any) => action.type === 'PREVENTIVE').map((action: any) => this.toAction(action)),
+      effectivenessCheck: item.effectivenessChecks?.[0] ? {
+        criteria: item.effectivenessChecks[0].criteria || '',
+        checkDate: this.toDate(item.effectivenessChecks[0].checkDate),
+        result: item.effectivenessChecks[0].result,
+        evidence: item.effectivenessChecks[0].evidence || '',
+        verifiedBy: item.effectivenessChecks[0].verifiedBy?.displayName || '',
+        comments: item.effectivenessChecks[0].comments || '',
+        requiresRecurrence: item.effectivenessChecks[0].requiresRecurrence ?? false,
+        recurrenceMonths: item.effectivenessChecks[0].recurrenceMonths,
+      } : undefined,
+      auditTrail: [],
+      currentWorkflowStep: item.currentWorkflowStep || '',
+      workflowHistory: [],
+      createdAt: this.toDate(item.createdAt),
+      updatedAt: this.toDate(item.updatedAt),
+      closedAt: item.actualCompletionDate ? this.toDate(item.actualCompletionDate) : undefined,
+      plantSite: item.plantSiteName || '',
+      department: item.departmentName || '',
+      product: item.product,
+      batchNumber: item.batchNumber,
+    };
+  }
+
+  private toAction(action: any): CapaAction {
+    return {
+      id: action.id,
+      actionNumber: action.actionNumber,
+      description: action.description,
+      type: action.type,
+      status: action.status as ActionStatus,
+      assignedTo: action.assignedTo?.id || '',
+      assignedToName: action.assignedTo?.displayName || '',
+      dueDate: this.toDate(action.dueDate),
+      completedDate: action.completedDate ? this.toDate(action.completedDate) : undefined,
+      evidence: action.evidence,
+      verifiedBy: action.verifiedBy?.displayName,
+      verifiedDate: action.verifiedDate ? this.toDate(action.verifiedDate) : undefined,
+    };
+  }
+
+  private toDashboardMetrics(data: any): CapaDashboardMetrics {
+    return {
+      totalOpen: data.openCapas ?? 0,
+      totalOverdue: data.overdueCapas ?? 0,
+      totalClosedThisMonth: data.closedCapas ?? 0,
+      totalInitiatedThisMonth: data.totalCapas ?? 0,
+      avgClosureTimeDays: 0,
+      effectivenessRate: 0,
+      byStatus: this.toCountArray<CapaStatus>(data.byStatus, 'status'),
+      byPriority: this.toCountArray<CapaPriority>(data.byPriority, 'priority'),
+      byDepartment: Object.entries(data.byDepartment || {}).map(([department, count]) => ({ department, count: Number(count) })),
+      trendData: [{ month: 'Current', initiated: data.totalCapas ?? 0, closed: data.closedCapas ?? 0 }],
+    };
+  }
+
+  private toCountArray<T extends string>(source: any, key: string): any[] {
+    return Object.entries(source || {}).map(([name, count]) => ({ [key]: name as T, count: Number(count) }));
+  }
+
+  private toDate(value: unknown): Date {
+    return value ? new Date(value as string) : new Date();
+  }
+
+  private toIso(value: unknown): string {
+    return this.toDate(value).toISOString();
+  }
+
+  private resolvePlantSiteId(name?: string): string {
+    const sites: Record<string, string> = {
+      'Hyderabad Unit-1': 'b0000000-0000-0000-0000-000000000001',
+      'Hyderabad Unit-2': 'b0000000-0000-0000-0000-000000000002',
+      'Vizag Unit-1': 'b0000000-0000-0000-0000-000000000003',
+      'Genome Valley Manufacturing Unit': 'b0000000-0000-0000-0000-000000000001',
+    };
+    return sites[name || ''] || sites['Hyderabad Unit-1'];
+  }
+
+  private resolveDepartmentId(name?: string): string {
+    const departments: Record<string, string> = {
+      Production: 'c0000000-0000-0000-0000-000000000001',
+      'Quality Assurance': 'c0000000-0000-0000-0000-000000000002',
+      'Quality Control': 'c0000000-0000-0000-0000-000000000003',
+      Engineering: 'c0000000-0000-0000-0000-000000000004',
+      'Engineering & Maintenance': 'c0000000-0000-0000-0000-000000000004',
+      Warehouse: 'c0000000-0000-0000-0000-000000000005',
+      'Warehouse & Stores': 'c0000000-0000-0000-0000-000000000005',
+      'Regulatory Affairs': 'c0000000-0000-0000-0000-000000000006',
+      'R&D': 'c0000000-0000-0000-0000-000000000007',
+      'Research & Development': 'c0000000-0000-0000-0000-000000000007',
+    };
+    return departments[name || ''] || departments['Quality Assurance'];
+  }
+
+  private resolveUserId(name?: string): string {
+    const users: Record<string, string> = {
+      'Rajesh Kumar': 'd0000000-0000-0000-0000-000000000001',
+      'Priya Sharma': 'd0000000-0000-0000-0000-000000000003',
+      'Suresh Reddy': 'd0000000-0000-0000-0000-000000000004',
+      'Anitha Rao': 'd0000000-0000-0000-0000-000000000005',
+      'Lakshmi Devi': 'd0000000-0000-0000-0000-000000000006',
+      'Venkat Rao': 'd0000000-0000-0000-0000-000000000007',
+      'Mohammad Ali': 'd0000000-0000-0000-0000-000000000008',
+      'Kavitha Reddy': 'd0000000-0000-0000-0000-000000000009',
+    };
+    return users[name || ''] || users['Anitha Rao'];
   }
 
   private generateMockData(): Capa[] {
@@ -507,7 +616,6 @@ export class CapaService {
   }
 
   private generateCapaNumber(): string {
-    const count = this.capas.length + 1;
-    return `CAPA-2025-${count.toString().padStart(3, '0')}`;
+    return `CAPA-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
   }
 }

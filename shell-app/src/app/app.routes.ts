@@ -1,6 +1,8 @@
 import { Routes } from '@angular/router';
 import { loadRemoteModule } from '@angular-architects/module-federation';
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
+import { LoginComponent } from './pages/login/login.component';
+import { authGuard } from './auth/auth.guard';
 
 export const routes: Routes = [
   {
@@ -9,11 +11,17 @@ export const routes: Routes = [
     pathMatch: 'full',
   },
   {
+    path: 'login',
+    component: LoginComponent,
+  },
+  {
     path: 'dashboard',
     component: DashboardComponent,
+    canActivate: [authGuard],
   },
   {
     path: 'capa',
+    canActivate: [authGuard],
     loadChildren: () =>
       loadRemoteModule({
         type: 'manifest',
@@ -23,6 +31,7 @@ export const routes: Routes = [
   },
   {
     path: 'deviations',
+    canActivate: [authGuard],
     loadChildren: () =>
       loadRemoteModule({
         type: 'manifest',
@@ -32,11 +41,16 @@ export const routes: Routes = [
   },
   {
     path: 'change-control',
+    canActivate: [authGuard],
     loadChildren: () =>
       loadRemoteModule({
         type: 'manifest',
         remoteName: 'changeControlMfe',
         exposedModule: './ChangeControlModule',
       }).then((m) => m.CHANGE_CONTROL_ROUTES),
+  },
+  {
+    path: '**',
+    redirectTo: 'dashboard',
   },
 ];

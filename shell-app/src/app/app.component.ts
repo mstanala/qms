@@ -9,6 +9,7 @@ import { MatBadgeModule } from '@angular/material/badge';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
 import { filter } from 'rxjs/operators';
+import { AuthService, AuthUser } from './auth/auth.service';
 
 @Component({
   selector: 'app-root',
@@ -25,12 +26,14 @@ import { filter } from 'rxjs/operators';
     MatDividerModule,
   ],
   template: `
-    <div class="vault-app">
+    <router-outlet *ngIf="isLoginRoute"></router-outlet>
+
+    <div class="vault-app" *ngIf="!isLoginRoute">
       <!-- ═══ TITLE BAR ═══ -->
       <div class="title-bar">
         <div class="title-bar-left">
           <mat-icon class="app-logo">verified</mat-icon>
-          <span class="app-name">Secure QMS</span>
+          <span class="app-name">MLabs QMS</span>
           <span class="app-divider">|</span>
           <span class="app-module">{{ activeModuleLabel }}</span>
         </div>
@@ -54,21 +57,21 @@ import { filter } from 'rxjs/operators';
             <mat-icon>help_outline</mat-icon>
           </button>
           <div class="user-pill" [matMenuTriggerFor]="userMenu">
-            <div class="user-avatar">QA</div>
-            <span class="user-name">QA Admin</span>
+            <div class="user-avatar">{{ userInitials }}</div>
+            <span class="user-name">{{ currentUser?.displayName || currentUser?.username || 'User' }}</span>
             <mat-icon class="user-caret">expand_more</mat-icon>
           </div>
           <mat-menu #userMenu="matMenu">
             <div class="user-menu-header">
-              <strong>QA Admin</strong>
-              <span>qa.admin&#64;pharma.com</span>
+              <strong>{{ currentUser?.displayName || currentUser?.username || 'User' }}</strong>
+              <span>{{ currentUser?.email || 'Signed in' }}</span>
             </div>
             <mat-divider></mat-divider>
             <button mat-menu-item><mat-icon>person</mat-icon><span>My Profile</span></button>
             <button mat-menu-item><mat-icon>settings</mat-icon><span>Preferences</span></button>
             <button mat-menu-item><mat-icon>history</mat-icon><span>Activity Log</span></button>
             <mat-divider></mat-divider>
-            <button mat-menu-item><mat-icon>exit_to_app</mat-icon><span>Sign Out</span></button>
+            <button mat-menu-item (click)="logout()"><mat-icon>exit_to_app</mat-icon><span>Sign Out</span></button>
           </mat-menu>
         </div>
       </div>
@@ -194,7 +197,7 @@ import { filter } from 'rxjs/operators';
           <span class="status-sep">|</span>
           <span class="status-item">System: Validated</span>
           <span class="status-sep">|</span>
-          <span class="status-item">Session: Active</span>
+          <span class="status-item">Session: {{ authService.isAuthenticated() ? 'Active' : 'Signed out' }}</span>
         </div>
         <div class="status-right">
           <span class="status-item">Vault Quality v1.0.0</span>
@@ -345,20 +348,49 @@ export class AppComponent {
   title = 'QMS Pharma';
   activeModuleLabel = 'Overview';
   currentTime = '';
+  currentUser: AuthUser | null = null;
+  isLoginRoute = false;
 
-  constructor(private router: Router) {
+  constructor(
+    private router: Router,
+    public authService: AuthService
+  ) {
     this.updateTime();
+    this.updateRouteState(this.router.url);
     setInterval(() => this.updateTime(), 60000);
 
     this.router.events
       .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
       .subscribe((event) => {
         const url = event.urlAfterRedirects || event.url;
-        if (url.startsWith('/capa')) this.activeModuleLabel = 'CAPA Management';
-        else if (url.startsWith('/deviations')) this.activeModuleLabel = 'Deviation Management';
-        else if (url.startsWith('/change-control')) this.activeModuleLabel = 'Change Control';
-        else this.activeModuleLabel = 'Overview';
+        this.updateRouteState(url);
       });
+  }
+
+  get userInitials(): string {
+    const name = this.currentUser?.displayName || this.currentUser?.username || 'User';
+    return name
+      .split(/[.\s]+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('') || 'U';
+  }
+
+  logout(): void {
+    this.authService.logout();
+    this.currentUser = null;
+    this.router.navigate(['/login']);
+  }
+
+  private updateRouteState(url: string): void {
+    this.isLoginRoute = url.startsWith('/login');
+    this.currentUser = this.authService.getUser();
+
+    if (url.startsWith('/capa')) this.activeModuleLabel = 'CAPA Management';
+    else if (url.startsWith('/deviations')) this.activeModuleLabel = 'Deviation Management';
+    else if (url.startsWith('/change-control')) this.activeModuleLabel = 'Change Control';
+    else this.activeModuleLabel = 'Overview';
   }
 
   private updateTime(): void {

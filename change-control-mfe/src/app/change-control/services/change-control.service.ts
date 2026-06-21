@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, of, delay } from 'rxjs';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { Observable, map } from 'rxjs';
 import {
   ChangeRequest,
   ChangeStatus,
@@ -12,6 +13,14 @@ import {
   ChangeControlDashboardMetrics,
   ChangeControlListFilter,
 } from '../models/change-control.model';
+
+const API_BASE_URL = 'http://localhost:8082/api/v1';
+
+type ApiPage<T> = {
+  content?: T[];
+};
+
+type ApiChangeRequest = any;
 
 /** Helper: returns a Date offset from today by the given number of days */
 function daysAgo(days: number): Date {
@@ -32,189 +41,307 @@ function daysFromNow(days: number): Date {
   providedIn: 'root',
 })
 export class ChangeControlService {
-  // TODO: Replace mock data with HttpClient calls to Spring Boot API
-  // API Base URL: environment.apiUrl + '/api/v1/change-controls'
-  private changeRequests: ChangeRequest[] = this.generateMockData();
-  private changeRequestsSubject = new BehaviorSubject<ChangeRequest[]>(this.changeRequests);
+  private readonly apiUrl = `${API_BASE_URL}/change-requests`;
 
-  // GET /api/v1/change-controls?status=&type=&search=
+  constructor(private http: HttpClient) {}
+
   getChangeRequests(filter?: ChangeControlListFilter): Observable<ChangeRequest[]> {
-    let filtered = [...this.changeRequests];
+    let params = new HttpParams()
+      .set('page', '0')
+      .set('size', '100')
+      .set('sort', 'createdAt,desc');
 
-    if (filter) {
-      if (filter.status && filter.status.length > 0) {
-        filtered = filtered.filter((cr) => filter.status!.includes(cr.status));
-      }
-      if (filter.classification && filter.classification.length > 0) {
-        filtered = filtered.filter((cr) => filter.classification!.includes(cr.classification));
-      }
-      if (filter.type && filter.type.length > 0) {
-        filtered = filtered.filter((cr) => filter.type!.includes(cr.type));
-      }
-      if (filter.priority && filter.priority.length > 0) {
-        filtered = filtered.filter((cr) => filter.priority!.includes(cr.priority));
-      }
-      if (filter.search) {
-        const search = filter.search.toLowerCase();
-        filtered = filtered.filter(
-          (cr) =>
-            cr.title.toLowerCase().includes(search) ||
-            cr.changeNumber.toLowerCase().includes(search) ||
-            cr.description.toLowerCase().includes(search)
-        );
-      }
-      if (filter.department) {
-        filtered = filtered.filter((cr) => cr.department === filter.department);
-      }
+    filter?.status?.forEach((status) => (params = params.append('status', status)));
+    filter?.classification?.forEach((classification) => (params = params.append('classification', classification)));
+    filter?.type?.forEach((type) => (params = params.append('type', type)));
+    filter?.priority?.forEach((priority) => (params = params.append('priority', priority)));
+    if (filter?.search) params = params.set('search', filter.search);
+
+    return this.http
+      .get<ApiPage<ApiChangeRequest>>(this.apiUrl, { headers: this.authHeaders(), params })
+      .pipe(map((page) => (page.content || []).map((item) => this.toChangeRequest(item))));
+  }
+
+  getChangeRequestById(id: string): Observable<ChangeRequest | undefined> {
+    return this.http
+      .get<ApiChangeRequest>(`${this.apiUrl}/${id}`, { headers: this.authHeaders() })
+      .pipe(map((item) => this.toChangeRequest(item)));
+  }
+
+  createChangeRequest(changeRequest: Partial<ChangeRequest>): Observable<ChangeRequest> {
+    const payload = {
+      title: changeRequest.title,
+      description: changeRequest.description,
+      justification: changeRequest.justification,
+      type: changeRequest.type,
+      category: changeRequest.category,
+      classification: changeRequest.classification,
+      priority: changeRequest.priority,
+      departmentId: this.resolveDepartmentId((changeRequest as any).department),
+      changeOwnerId: this.resolveUserId((changeRequest as any).changeOwnerName),
+      plantSiteId: this.resolvePlantSiteId((changeRequest as any).plantSite),
+      targetImplementationDate: this.toIso(changeRequest.targetImplementationDate),
+      affectedAreas: changeRequest.affectedAreas || [],
+      validationRequired: changeRequest.validationRequired ?? false,
+      trainingRequired: changeRequest.trainingRequired ?? false,
+      relatedDeviations: changeRequest.relatedDeviations || [],
+      relatedCapas: changeRequest.relatedCapas || [],
+    };
+
+    return this.http
+      .post<ApiChangeRequest>(this.apiUrl, payload, { headers: this.authHeaders() })
+      .pipe(map((item) => this.toChangeRequest(item)));
+  }
+
+  updateStatus(id: string, status: ChangeStatus): Observable<ChangeRequest> {
+    return this.http
+      .patch<ApiChangeRequest>(
+        `${this.apiUrl}/${id}/status`,
+        { status, comments: `Status changed to ${status}` },
+        { headers: this.authHeaders() }
+      )
+      .pipe(map((item) => this.toChangeRequest(item)));
+  }
+
+  getDashboardMetrics(): Observable<ChangeControlDashboardMetrics> {
+    return this.http
+      .get<Record<string, any>>(`${API_BASE_URL}/dashboard/change-control-metrics`, { headers: this.authHeaders() })
+      .pipe(map((data) => this.toDashboardMetrics(data)));
+  }
+
+  private authHeaders(): HttpHeaders {
+    const token = this.readAccessToken();
+    return token ? new HttpHeaders({ Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}` }) : new HttpHeaders();
+  }
+
+  private readAccessToken(): string | null {
+    const directKeys = ['accessToken', 'authToken', 'token', 'jwt', 'qmsAccessToken'];
+    for (const key of directKeys) {
+      const value = localStorage.getItem(key) || sessionStorage.getItem(key);
+      if (value) return value;
     }
 
-    return of(filtered).pipe(delay(300));
+    for (const key of ['auth', 'currentUser', 'user']) {
+      const raw = localStorage.getItem(key) || sessionStorage.getItem(key);
+      if (!raw) continue;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.accessToken) return parsed.accessToken;
+        if (parsed?.token) return parsed.token;
+      } catch {
+        continue;
+      }
+    }
+    return null;
   }
 
-  // GET /api/v1/change-controls/{id}
-  getChangeRequestById(id: string): Observable<ChangeRequest | undefined> {
-    const cr = this.changeRequests.find((c) => c.id === id);
-    return of(cr).pipe(delay(200));
-  }
-
-  // POST /api/v1/change-controls
-  createChangeRequest(changeRequest: Partial<ChangeRequest>): Observable<ChangeRequest> {
-    const newCR: ChangeRequest = {
-      ...changeRequest,
-      id: this.generateId(),
-      changeNumber: this.generateChangeNumber(),
-      status: ChangeStatus.DRAFT,
-      currentWorkflowStep: 'Initiation',
-      auditTrail: [
-        {
-          id: this.generateId(),
-          timestamp: new Date(),
-          userId: 'USR-001',
-          userName: 'Current User',
-          action: 'Change Request Created',
-          comments: 'New change request initiated',
-        },
-      ],
-      workflowHistory: [
-        { stepName: 'Initiation', status: 'CURRENT', assignedTo: changeRequest.requestedByName || 'Unassigned', startedAt: new Date() },
-        { stepName: 'Impact Assessment', status: 'PENDING' },
-        { stepName: 'QA Review', status: 'PENDING' },
-        { stepName: 'RA Review', status: 'PENDING' },
-        { stepName: 'Approval', status: 'PENDING' },
-        { stepName: 'Implementation', status: 'PENDING' },
-        { stepName: 'Verification', status: 'PENDING' },
-        { stepName: 'Effectiveness Check', status: 'PENDING' },
-        { stepName: 'Closure', status: 'PENDING' },
-      ],
-      approvals: [],
-      implementationPlan: [],
-      affectedDocuments: [],
-      affectedProducts: [],
+  private toChangeRequest(item: ApiChangeRequest): ChangeRequest {
+    return {
+      id: item.id,
+      changeNumber: item.changeNumber,
+      title: item.title,
+      description: item.description,
+      justification: item.justification,
+      type: item.type as ChangeType,
+      category: item.category as ChangeCategory,
+      classification: item.classification as ChangeClassification,
+      status: item.status as ChangeStatus,
+      priority: item.priority as ChangePriority,
+      requestedById: item.requestedBy?.id || '',
+      requestedByName: item.requestedBy?.displayName || '',
+      requestedDate: this.toDate(item.requestedDate),
+      department: item.departmentName || '',
+      changeOwnerId: item.changeOwner?.id || '',
+      changeOwnerName: item.changeOwner?.displayName || '',
+      qaReviewerId: item.qaReviewer?.id,
+      qaReviewerName: item.qaReviewer?.displayName,
+      raReviewerId: item.raReviewer?.id,
+      raReviewerName: item.raReviewer?.displayName,
+      plantSite: item.plantSiteName || '',
+      affectedAreas: item.affectedAreas || [],
+      targetImplementationDate: this.toDate(item.targetImplementationDate),
+      actualImplementationDate: item.actualImplementationDate ? this.toDate(item.actualImplementationDate) : undefined,
+      effectivenessCheckDate: item.effectivenessCheckDate ? this.toDate(item.effectivenessCheckDate) : undefined,
+      closedDate: item.closedDate ? this.toDate(item.closedDate) : undefined,
+      impactAssessment: item.impactAssessment ? {
+        productQuality: item.impactAssessment.productQuality,
+        patientSafety: item.impactAssessment.patientSafety,
+        regulatoryCompliance: item.impactAssessment.regulatoryCompliance,
+        validationStatus: item.impactAssessment.validationStatus,
+        documentation: item.impactAssessment.documentation,
+        training: item.impactAssessment.training,
+        supplierQualification: item.impactAssessment.supplierQualification,
+        stability: item.impactAssessment.stability,
+        overallRiskLevel: item.impactAssessment.overallRiskLevel,
+        assessmentSummary: item.impactAssessment.assessmentSummary || '',
+        assessedBy: item.impactAssessment.assessedBy?.displayName,
+        assessedDate: item.impactAssessment.assessedDate ? this.toDate(item.impactAssessment.assessedDate) : undefined,
+      } : this.emptyImpactAssessment(),
+      regulatoryFiling: item.regulatoryFiling ? {
+        filingRequired: item.regulatoryFilingRequired ?? false,
+        filingType: item.regulatoryFiling.filingType,
+        markets: item.regulatoryFiling.markets || [],
+        filingDetails: item.regulatoryFiling.filingDetails,
+        targetFilingDate: item.regulatoryFiling.targetFilingDate ? this.toDate(item.regulatoryFiling.targetFilingDate) : undefined,
+        filingStatus: item.regulatoryFiling.filingStatus,
+      } : { filingRequired: item.regulatoryFilingRequired ?? false },
+      validationRequired: item.validationRequired ?? false,
+      validationDetails: item.validationDetails,
+      affectedDocuments: (item.affectedDocuments || []).map((document: any) => ({
+        documentId: document.id || '',
+        documentNumber: document.documentNumber || '',
+        documentTitle: document.documentTitle || '',
+        documentType: document.documentType || '',
+        currentVersion: document.currentVersion || '',
+        action: document.action,
+        newVersion: document.newVersion,
+        status: document.status || 'PENDING',
+      })),
+      affectedProducts: item.affectedProducts || [],
       affectedEquipment: [],
       affectedProcesses: [],
-      relatedDeviations: [],
-      relatedCapas: [],
-      relatedChanges: [],
+      implementationPlan: (item.implementationTasks || []).map((task: any) => ({
+        id: task.id,
+        taskNumber: task.taskNumber,
+        title: task.title,
+        description: task.description || '',
+        assignedTo: task.assignedTo?.displayName || '',
+        department: task.departmentName || '',
+        dueDate: this.toDate(task.dueDate),
+        completedDate: task.completedDate ? this.toDate(task.completedDate) : undefined,
+        status: task.status || 'NOT_STARTED',
+        comments: task.comments,
+      })),
+      trainingRequired: item.trainingRequired ?? false,
+      trainingPlan: (item.trainingRequirements || []).map((training: any) => ({
+        id: training.id,
+        trainingTitle: training.trainingTitle || '',
+        targetAudience: training.targetAudience || '',
+        department: training.departmentName || '',
+        trainingType: training.trainingType,
+        dueDate: this.toDate(training.dueDate),
+        completionStatus: training.completionStatus || 'PENDING',
+        completionPercentage: training.completionPercentage || 0,
+      })),
+      approvals: (item.approvals || []).map((approval: any) => ({
+        id: approval.id,
+        approverName: approval.approver?.displayName || '',
+        approverId: approval.approver?.id || '',
+        role: approval.role || '',
+        department: approval.department || '',
+        decision: approval.decision || 'PENDING',
+        comments: approval.comments,
+        decisionDate: approval.decisionDate ? this.toDate(approval.decisionDate) : undefined,
+      })),
+      effectivenessReview: item.effectivenessReviews?.[0] ? {
+        reviewDate: this.toDate(item.effectivenessReviews[0].reviewDate),
+        reviewerId: item.effectivenessReviews[0].reviewer?.id || '',
+        reviewerName: item.effectivenessReviews[0].reviewer?.displayName || '',
+        criteria: item.effectivenessReviews[0].criteria || [],
+        overallEffective: item.effectivenessReviews[0].overallEffective ?? false,
+        summary: item.effectivenessReviews[0].summary || '',
+        followUpRequired: item.effectivenessReviews[0].followUpRequired ?? false,
+        followUpActions: item.effectivenessReviews[0].followUpActions,
+      } : undefined,
+      relatedDeviations: item.relatedDeviations || [],
+      relatedCapas: item.relatedCapas || [],
+      relatedChanges: item.relatedChanges || [],
+      auditTrail: [],
+      currentWorkflowStep: item.currentWorkflowStep || '',
+      workflowHistory: [],
       attachments: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    } as ChangeRequest;
-
-    this.changeRequests.unshift(newCR);
-    this.changeRequestsSubject.next(this.changeRequests);
-    return of(newCR).pipe(delay(500));
-  }
-
-  // PUT /api/v1/change-controls/{id}/status
-  updateStatus(id: string, status: ChangeStatus): Observable<ChangeRequest> {
-    const cr = this.changeRequests.find((c) => c.id === id);
-    if (cr) {
-      const oldStatus = cr.status;
-      cr.status = status;
-      cr.updatedAt = new Date();
-      cr.auditTrail.push({
-        id: this.generateId(),
-        timestamp: new Date(),
-        userId: 'USR-001',
-        userName: 'Current User',
-        action: 'Status Changed',
-        field: 'status',
-        oldValue: oldStatus,
-        newValue: status,
-      });
-    }
-    return of(cr!).pipe(delay(300));
-  }
-
-  // GET /api/v1/change-controls/dashboard/metrics
-  getDashboardMetrics(): Observable<ChangeControlDashboardMetrics> {
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    const openStatuses = [
-      ChangeStatus.DRAFT, ChangeStatus.SUBMITTED, ChangeStatus.IMPACT_ASSESSMENT,
-      ChangeStatus.QA_REVIEW, ChangeStatus.RA_REVIEW, ChangeStatus.PENDING_APPROVAL,
-      ChangeStatus.APPROVED, ChangeStatus.IMPLEMENTATION, ChangeStatus.VERIFICATION,
-      ChangeStatus.EFFECTIVENESS_CHECK,
-    ];
-
-    const totalOpen = this.changeRequests.filter((cr) => openStatuses.includes(cr.status)).length;
-    const totalPendingApproval = this.changeRequests.filter((cr) => cr.status === ChangeStatus.PENDING_APPROVAL).length;
-    const totalInImplementation = this.changeRequests.filter((cr) => cr.status === ChangeStatus.IMPLEMENTATION).length;
-    const totalOverdue = this.changeRequests.filter(
-      (cr) => openStatuses.includes(cr.status) && new Date(cr.targetImplementationDate) < now
-    ).length;
-    const totalClosedThisMonth = this.changeRequests.filter(
-      (cr) => cr.status === ChangeStatus.CLOSED && cr.closedDate && new Date(cr.closedDate) >= startOfMonth
-    ).length;
-    const totalSubmittedThisMonth = this.changeRequests.filter(
-      (cr) => new Date(cr.requestedDate) >= startOfMonth
-    ).length;
-
-    // Compute byStatus from actual data
-    const statusCounts = new Map<ChangeStatus, number>();
-    this.changeRequests.forEach((cr) => statusCounts.set(cr.status, (statusCounts.get(cr.status) || 0) + 1));
-
-    // Compute byType from actual data
-    const typeCounts = new Map<ChangeType, number>();
-    this.changeRequests.forEach((cr) => typeCounts.set(cr.type, (typeCounts.get(cr.type) || 0) + 1));
-
-    // Compute byClassification from actual data
-    const classCounts = new Map<ChangeClassification, number>();
-    this.changeRequests.forEach((cr) => classCounts.set(cr.classification, (classCounts.get(cr.classification) || 0) + 1));
-
-    // Compute byPriority from actual data
-    const priCounts = new Map<ChangePriority, number>();
-    this.changeRequests.forEach((cr) => priCounts.set(cr.priority, (priCounts.get(cr.priority) || 0) + 1));
-
-    // Compute byDepartment from actual data
-    const deptCounts = new Map<string, number>();
-    this.changeRequests.forEach((cr) => deptCounts.set(cr.department, (deptCounts.get(cr.department) || 0) + 1));
-
-    const metrics: ChangeControlDashboardMetrics = {
-      totalOpen,
-      totalPendingApproval,
-      totalInImplementation,
-      totalOverdue,
-      totalClosedThisMonth,
-      totalSubmittedThisMonth,
-      avgCycleTimeDays: 35,
-      approvalRate: 87,
-      byStatus: Array.from(statusCounts.entries()).map(([status, count]) => ({ status, count })),
-      byType: Array.from(typeCounts.entries()).map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count),
-      byClassification: Array.from(classCounts.entries()).map(([classification, count]) => ({ classification, count })),
-      byPriority: Array.from(priCounts.entries()).map(([priority, count]) => ({ priority, count })),
-      byDepartment: Array.from(deptCounts.entries()).map(([department, count]) => ({ department, count })).sort((a, b) => b.count - a.count),
-      trendData: [
-        { month: 'M-5', submitted: 6, closed: 5, rejected: 1 },
-        { month: 'M-4', submitted: 8, closed: 6, rejected: 0 },
-        { month: 'M-3', submitted: 5, closed: 7, rejected: 1 },
-        { month: 'M-2', submitted: 7, closed: 4, rejected: 2 },
-        { month: 'M-1', submitted: 9, closed: 8, rejected: 0 },
-        { month: 'This Mo', submitted: totalSubmittedThisMonth, closed: totalClosedThisMonth, rejected: 0 },
-      ],
+      createdAt: this.toDate(item.createdAt),
+      updatedAt: this.toDate(item.updatedAt),
     };
-    return of(metrics).pipe(delay(300));
+  }
+
+  private emptyImpactAssessment() {
+    return {
+      productQuality: ImpactRating.NO_IMPACT,
+      patientSafety: ImpactRating.NO_IMPACT,
+      regulatoryCompliance: ImpactRating.NO_IMPACT,
+      validationStatus: ImpactRating.NO_IMPACT,
+      documentation: ImpactRating.NO_IMPACT,
+      training: ImpactRating.NO_IMPACT,
+      supplierQualification: ImpactRating.NO_IMPACT,
+      stability: ImpactRating.NO_IMPACT,
+      overallRiskLevel: 'LOW' as const,
+      assessmentSummary: '',
+    };
+  }
+
+  private toDashboardMetrics(data: any): ChangeControlDashboardMetrics {
+    return {
+      totalOpen: data.openChangeRequests ?? 0,
+      totalPendingApproval: data.byStatus?.PENDING_APPROVAL ?? 0,
+      totalInImplementation: data.byStatus?.IMPLEMENTATION ?? 0,
+      totalOverdue: data.overdueChangeRequests ?? 0,
+      totalClosedThisMonth: data.closedChangeRequests ?? 0,
+      totalSubmittedThisMonth: data.totalChangeRequests ?? 0,
+      avgCycleTimeDays: 0,
+      approvalRate: 0,
+      byStatus: this.toCountArray<ChangeStatus>(data.byStatus, 'status'),
+      byType: this.toCountArray<ChangeType>(data.byType, 'type'),
+      byClassification: this.toCountArray<ChangeClassification>(data.byClassification, 'classification'),
+      byPriority: [],
+      byDepartment: Object.entries(data.byDepartment || {}).map(([department, count]) => ({ department, count: Number(count) })),
+      trendData: [{ month: 'Current', submitted: data.totalChangeRequests ?? 0, closed: data.closedChangeRequests ?? 0, rejected: data.byStatus?.REJECTED ?? 0 }],
+    };
+  }
+
+  private toCountArray<T extends string>(source: any, key: string): any[] {
+    return Object.entries(source || {}).map(([name, count]) => ({ [key]: name as T, count: Number(count) }));
+  }
+
+  private toDate(value: unknown): Date {
+    return value ? new Date(value as string) : new Date();
+  }
+
+  private toIso(value: unknown): string {
+    return this.toDate(value).toISOString();
+  }
+
+  private resolvePlantSiteId(name?: string): string {
+    const sites: Record<string, string> = {
+      'Hyderabad Unit-1': 'b0000000-0000-0000-0000-000000000001',
+      'Hyderabad Unit-2': 'b0000000-0000-0000-0000-000000000002',
+      'Vizag Unit-1': 'b0000000-0000-0000-0000-000000000003',
+      'Genome Valley Manufacturing Unit': 'b0000000-0000-0000-0000-000000000001',
+    };
+    return sites[name || ''] || sites['Hyderabad Unit-1'];
+  }
+
+  private resolveDepartmentId(name?: string): string {
+    const departments: Record<string, string> = {
+      Production: 'c0000000-0000-0000-0000-000000000001',
+      'Quality Assurance': 'c0000000-0000-0000-0000-000000000002',
+      'Quality Control': 'c0000000-0000-0000-0000-000000000003',
+      Engineering: 'c0000000-0000-0000-0000-000000000004',
+      'Engineering & Maintenance': 'c0000000-0000-0000-0000-000000000004',
+      Warehouse: 'c0000000-0000-0000-0000-000000000005',
+      'Warehouse & Stores': 'c0000000-0000-0000-0000-000000000005',
+      'Regulatory Affairs': 'c0000000-0000-0000-0000-000000000006',
+      'Supply Chain': 'c0000000-0000-0000-0000-000000000005',
+      'R&D': 'c0000000-0000-0000-0000-000000000007',
+      'Research & Development': 'c0000000-0000-0000-0000-000000000007',
+    };
+    return departments[name || ''] || departments['Quality Assurance'];
+  }
+
+  private resolveUserId(name?: string): string {
+    const users: Record<string, string> = {
+      'Rajesh Kumar': 'd0000000-0000-0000-0000-000000000001',
+      'Srinivas Rao': 'd0000000-0000-0000-0000-000000000002',
+      'Priya Sharma': 'd0000000-0000-0000-0000-000000000003',
+      'Suresh Reddy': 'd0000000-0000-0000-0000-000000000004',
+      'Anitha Rao': 'd0000000-0000-0000-0000-000000000005',
+      'Lakshmi Devi': 'd0000000-0000-0000-0000-000000000006',
+      'Venkat Rao': 'd0000000-0000-0000-0000-000000000007',
+      'Mohammad Ali': 'd0000000-0000-0000-0000-000000000008',
+      'Kavitha Reddy': 'd0000000-0000-0000-0000-000000000009',
+      'Suresh Menon': 'd0000000-0000-0000-0000-000000000002',
+    };
+    return users[name || ''] || users['Priya Sharma'];
   }
 
   private generateMockData(): ChangeRequest[] {
@@ -704,7 +831,6 @@ export class ChangeControlService {
   }
 
   private generateChangeNumber(): string {
-    const count = this.changeRequests.length + 1;
-    return `CC-2025-${(count + 20).toString().padStart(3, '0')}`;
+    return `CC-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
   }
 }
