@@ -3,6 +3,7 @@ package com.qmspharma.controller;
 import com.qmspharma.model.dto.response.AuditTrailResponse;
 import com.qmspharma.service.AuditTrailService;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +22,7 @@ public class AuditTrailController {
     @GetMapping
     public ResponseEntity<Page<AuditTrailResponse>> search(@RequestParam String recordType,
                                                             @RequestParam UUID recordId,
-                                                            Pageable pageable) {
+                                                            @ParameterObject Pageable pageable) {
         return ResponseEntity.ok(auditTrailService.search(recordType, recordId, pageable));
     }
 

@@ -5,6 +5,7 @@ import com.qmspharma.model.dto.response.*;
 import com.qmspharma.service.ChangeRequestService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -30,7 +31,7 @@ public class ChangeRequestController {
             @RequestParam(required = false) UUID departmentId,
             @RequestParam(required = false) UUID plantSiteId,
             @RequestParam(required = false) String search,
-            Pageable pageable) {
+            @ParameterObject Pageable pageable) {
         return ResponseEntity.ok(changeRequestService.list(status, classification, type, priority, departmentId, plantSiteId, search, pageable));
     }
 

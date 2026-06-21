@@ -10,6 +10,7 @@ import com.qmspharma.security.CurrentUserProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,7 +37,23 @@ public class UserService {
     @Transactional(readOnly = true)
     public Page<UserResponse> listUsers(String search, UUID departmentId, String userType, Pageable pageable) {
         UserType type = userType != null ? UserType.valueOf(userType) : null;
-        return userRepository.findUsersFiltered(search, departmentId, type, pageable).map(this::toResponse);
+        Specification<User> spec = (root, query, cb) -> cb.isTrue(root.get("isActive"));
+
+        if (search != null && !search.isBlank()) {
+            String pattern = "%" + search.toLowerCase() + "%";
+            spec = spec.and((root, query, cb) -> cb.or(
+                    cb.like(cb.lower(root.get("displayName")), pattern),
+                    cb.like(cb.lower(root.get("email")), pattern)
+            ));
+        }
+        if (departmentId != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("department").get("id"), departmentId));
+        }
+        if (type != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("userType"), type));
+        }
+
+        return userRepository.findAll(spec, pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)

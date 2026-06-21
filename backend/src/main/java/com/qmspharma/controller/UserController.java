@@ -5,6 +5,7 @@ import com.qmspharma.model.dto.response.UserResponse;
 import com.qmspharma.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -24,7 +25,7 @@ public class UserController {
     public ResponseEntity<Page<UserResponse>> list(@RequestParam(required = false) String search,
                                                     @RequestParam(required = false) UUID departmentId,
                                                     @RequestParam(required = false) String userType,
-                                                    Pageable pageable) {
+                                                    @ParameterObject Pageable pageable) {
         return ResponseEntity.ok(userService.listUsers(search, departmentId, userType, pageable));
     }
 

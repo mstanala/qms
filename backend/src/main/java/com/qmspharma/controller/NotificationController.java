@@ -4,6 +4,7 @@ import com.qmspharma.model.dto.response.NotificationResponse;
 import com.qmspharma.security.CurrentUserProvider;
 import com.qmspharma.service.NotificationService;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +22,8 @@ public class NotificationController {
     private final CurrentUserProvider currentUserProvider;
 
     @GetMapping
-    public ResponseEntity<Page<NotificationResponse>> list(@RequestParam(required = false) Boolean isRead, Pageable pageable) {
+    public ResponseEntity<Page<NotificationResponse>> list(@RequestParam(required = false) Boolean isRead,
+                                                           @ParameterObject Pageable pageable) {
         return ResponseEntity.ok(notificationService.getNotifications(currentUserProvider.getCurrentUserId(), isRead, pageable));
     }
 

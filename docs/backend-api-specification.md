@@ -1,208 +1,391 @@
-# QMS-Pharma Backend API Specification
+# QMS-Pharma Backend API Documentation
 
-**Tech Stack:** Java Spring Boot 3.5, PostgreSQL 17, Flowable, OpenSearch, Google Cloud Storage
-**Base URL:** `/api/v1`
-**Authentication:** OAuth 2.0 / SAML (JWT Bearer tokens)
+Generated from the current Spring controllers in `backend/src/main/java/com/qmspharma/controller`.
 
----
+Base URL: `/api/v1`
 
-## API Summary
+Authentication: protected endpoints expect `Authorization: Bearer <accessToken>` unless explicitly exposed by security configuration.
 
-| #  | Module            | API Group                    | Endpoints | Methods |
-|----|-------------------|------------------------------|-----------|---------|
-| 1  | Auth              | Authentication & Session     | 6         | POST/GET/DELETE |
-| 2  | Users             | User Management              | 8         | CRUD |
-| 3  | Roles             | Roles & Permissions          | 7         | CRUD |
-| 4  | Deviations        | Deviation Management         | 14        | CRUD + Workflow |
-| 5  | CAPA              | CAPA Management              | 18        | CRUD + Workflow |
-| 6  | Change Control    | Change Control Management    | 16        | CRUD + Workflow |
-| 7  | Attachments       | File Management              | 4         | CRUD |
-| 8  | Audit Trail       | Audit & Compliance           | 3         | GET |
-| 9  | Notifications     | Notification Management      | 4         | GET/PATCH |
-| 10 | Dashboard         | Metrics & Analytics          | 4         | GET |
-| 11 | Admin             | System Configuration         | 6         | CRUD |
-| 12 | Lookup            | Reference Data               | 3         | GET |
-| 13 | Search            | OpenSearch Integration       | 2         | GET/POST |
-|    | **Total**         |                              | **~95**   |         |
+Common pagination query params for Spring `Pageable` endpoints:
 
----
-
-## 1. Authentication & Session Management
-
-### `POST /api/v1/auth/login`
-Login with username/password. Returns JWT access + refresh tokens.
-
-**Request:**
-```json
-{
-  "username": "string",
-  "password": "string"
-}
+```text
+page=0&size=20&sort=createdAt,desc
 ```
-**Response:** `200 OK`
+
+Common paginated response shape:
+
 ```json
 {
-  "accessToken": "string",
-  "refreshToken": "string",
-  "expiresIn": 3600,
-  "user": { "id": "uuid", "displayName": "string", "roles": ["string"] }
+  "content": [],
+  "pageable": {},
+  "totalElements": 0,
+  "totalPages": 0,
+  "last": true,
+  "size": 20,
+  "number": 0,
+  "sort": {},
+  "first": true,
+  "numberOfElements": 0,
+  "empty": true
 }
 ```
 
-### `POST /api/v1/auth/refresh`
-Refresh access token using refresh token.
+Common error response:
 
-### `POST /api/v1/auth/logout`
-Invalidate current session.
-
-### `POST /api/v1/auth/oauth2/callback`
-OAuth 2.0 callback handler.
-
-### `POST /api/v1/auth/saml/callback`
-SAML SSO callback handler.
-
-### `GET /api/v1/auth/me`
-Get current authenticated user profile with permissions.
-
----
-
-## 2. User Management
-
-### `GET /api/v1/users`
-List users with filters (pagination, search, department, role, status).
-
-**Query params:** `page`, `size`, `sort`, `search`, `departmentId`, `roleId`, `userType`, `isActive`
-
-### `GET /api/v1/users/{id}`
-Get user details with roles and security profiles.
-
-### `POST /api/v1/users`
-Create new user. (VAULT_ADMIN only)
-
-**Request:**
 ```json
 {
-  "employeeId": "string",
-  "username": "string",
-  "email": "string",
-  "firstName": "string",
-  "lastName": "string",
-  "userType": "OPERATOR|QA_SPECIALIST|QUALITY_MANAGER|...",
-  "organizationId": "uuid",
+  "timestamp": "2026-06-21T12:00:00Z",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "Validation failed",
+  "path": "/api/v1/example",
+  "ruleCode": "OPTIONAL_RULE_CODE",
+  "details": [
+    {
+      "field": "title",
+      "message": "must not be blank"
+    }
+  ]
+}
+```
+
+## Auth
+
+| Method | URL | URL params | Query params | Request JSON | Response JSON |
+|---|---|---|---|---|---|
+| POST | `/api/v1/auth/login` | None | None | `LoginRequest` | `200 AuthResponse` |
+| POST | `/api/v1/auth/refresh` | None | None | `RefreshTokenRequest` | `200 AuthResponse` |
+| POST | `/api/v1/auth/logout` | None | None | None | `200 No content` |
+| GET | `/api/v1/auth/me` | None | None | None | `200 UserResponse` |
+
+## Users
+
+| Method | URL | URL params | Query params | Request JSON | Response JSON |
+|---|---|---|---|---|---|
+| GET | `/api/v1/users` | None | `search`, `departmentId`, `userType`, `page`, `size`, `sort` | None | `200 Page<UserResponse>` |
+| GET | `/api/v1/users/{id}` | `id: UUID` | None | None | `200 UserResponse` |
+| POST | `/api/v1/users` | None | None | `CreateUserRequest` | `201 UserResponse` |
+| PUT | `/api/v1/users/{id}` | `id: UUID` | None | `UpdateUserRequest` | `200 UserResponse` |
+| PATCH | `/api/v1/users/{id}/status` | `id: UUID` | None | `UserStatusRequest` | `200 No content` |
+| POST | `/api/v1/users/{id}/roles` | `id: UUID` | None | `AssignRolesRequest` | `200 No content` |
+| DELETE | `/api/v1/users/{id}/roles/{roleId}` | `id: UUID`, `roleId: UUID` | None | None | `204 No content` |
+| PUT | `/api/v1/users/{id}/password` | `id: UUID` | None | `ChangePasswordRequest` | `200 No content` |
+
+## Roles, Permissions, Security Profiles
+
+| Method | URL | URL params | Query params | Request JSON | Response JSON |
+|---|---|---|---|---|---|
+| GET | `/api/v1/roles` | None | None | None | `200 List<RoleResponse>` |
+| GET | `/api/v1/roles/{id}` | `id: UUID` | None | None | `200 RoleResponse` |
+| POST | `/api/v1/roles` | None | None | `CreateRoleRequest` | `201 RoleResponse` |
+| PUT | `/api/v1/roles/{id}` | `id: UUID` | None | `CreateRoleRequest` | `200 RoleResponse` |
+| GET | `/api/v1/permissions` | None | `module` | None | `200 List<PermissionResponse>` |
+| GET | `/api/v1/security-profiles` | None | None | None | `200 List<SecurityProfileResponse>` |
+| POST | `/api/v1/security-profiles` | None | None | `CreateSecurityProfileRequest` | `201 SecurityProfileResponse` |
+
+## Deviations
+
+| Method | URL | URL params | Query params | Request JSON | Response JSON |
+|---|---|---|---|---|---|
+| GET | `/api/v1/deviations` | None | `status`, `classification`, `category`, `type`, `departmentId`, `plantSiteId`, `search`, `page`, `size`, `sort` | None | `200 Page<DeviationResponse>` |
+| GET | `/api/v1/deviations/{id}` | `id: UUID` | None | None | `200 DeviationResponse` |
+| POST | `/api/v1/deviations` | None | None | `CreateDeviationRequest` | `201 DeviationResponse` |
+| PUT | `/api/v1/deviations/{id}` | `id: UUID` | None | `UpdateDeviationRequest` | `200 DeviationResponse` |
+| PATCH | `/api/v1/deviations/{id}/classify` | `id: UUID` | None | `ClassifyDeviationRequest` | `200 DeviationResponse` |
+| PATCH | `/api/v1/deviations/{id}/assign` | `id: UUID` | None | `AssignInvestigatorRequest` | `200 DeviationResponse` |
+| POST | `/api/v1/deviations/{id}/investigation` | `id: UUID` | None | `SubmitInvestigationRequest` | `200 DeviationResponse` |
+| PUT | `/api/v1/deviations/{id}/investigation` | `id: UUID` | None | `SubmitInvestigationRequest` | `200 DeviationResponse` |
+| POST | `/api/v1/deviations/{id}/impact-assessment` | `id: UUID` | None | `SubmitImpactAssessmentRequest` | `200 DeviationResponse` |
+| POST | `/api/v1/deviations/{id}/disposition` | `id: UUID` | None | `SubmitDispositionRequest` | `200 DeviationResponse` |
+| PATCH | `/api/v1/deviations/{id}/status` | `id: UUID` | None | `StatusTransitionRequest` | `200 DeviationResponse` |
+| GET | `/api/v1/deviations/{id}/audit-trail` | `id: UUID` | None | None | `200 List<AuditTrailResponse>` |
+| GET | `/api/v1/deviations/{id}/workflow-history` | `id: UUID` | None | None | `200 List<WorkflowHistoryResponse>` |
+
+## CAPA
+
+| Method | URL | URL params | Query params | Request JSON | Response JSON |
+|---|---|---|---|---|---|
+| GET | `/api/v1/capas` | None | `status`, `priority`, `type`, `sourceType`, `departmentId`, `plantSiteId`, `search`, `page`, `size`, `sort` | None | `200 Page<CapaResponse>` |
+| GET | `/api/v1/capas/{id}` | `id: UUID` | None | None | `200 CapaResponse` |
+| POST | `/api/v1/capas` | None | None | `CreateCapaRequest` | `201 CapaResponse` |
+| PUT | `/api/v1/capas/{id}` | `id: UUID` | None | `UpdateCapaRequest` | `200 CapaResponse` |
+| PATCH | `/api/v1/capas/{id}/status` | `id: UUID` | None | `StatusTransitionRequest` | `200 CapaResponse` |
+| POST | `/api/v1/capas/{id}/root-cause-analysis` | `id: UUID` | None | `SubmitRcaRequest` | `200 CapaResponse` |
+| PUT | `/api/v1/capas/{id}/root-cause-analysis` | `id: UUID` | None | `SubmitRcaRequest` | `200 CapaResponse` |
+| POST | `/api/v1/capas/{id}/risk-assessment` | `id: UUID` | None | `SubmitRiskAssessmentRequest` | `200 CapaResponse` |
+| POST | `/api/v1/capas/{id}/actions` | `id: UUID` | None | `CreateCapaActionRequest` | `201 CapaActionResponse` |
+| PUT | `/api/v1/capas/{id}/actions/{actionId}` | `id: UUID`, `actionId: UUID` | None | `UpdateCapaActionRequest` | `200 CapaActionResponse` |
+| PATCH | `/api/v1/capas/{id}/actions/{actionId}/complete` | `id: UUID`, `actionId: UUID` | None | `CompleteActionRequest` | `200 CapaActionResponse` |
+| PATCH | `/api/v1/capas/{id}/actions/{actionId}/verify` | `id: UUID`, `actionId: UUID` | None | `VerifyActionRequest` | `200 CapaActionResponse` |
+| POST | `/api/v1/capas/{id}/effectiveness-check` | `id: UUID` | None | `SubmitEffectivenessCheckRequest` | `200 CapaResponse` |
+| POST | `/api/v1/capas/{id}/approve` | `id: UUID` | None | `ApproveRejectRequest` | `200 CapaResponse` |
+| POST | `/api/v1/capas/{id}/reject` | `id: UUID` | None | `ApproveRejectRequest` | `200 CapaResponse` |
+| GET | `/api/v1/capas/{id}/audit-trail` | `id: UUID` | None | None | `200 List<AuditTrailResponse>` |
+
+## Change Requests
+
+| Method | URL | URL params | Query params | Request JSON | Response JSON |
+|---|---|---|---|---|---|
+| GET | `/api/v1/change-requests` | None | `status`, `classification`, `type`, `priority`, `departmentId`, `plantSiteId`, `search`, `page`, `size`, `sort` | None | `200 Page<ChangeRequestResponse>` |
+| GET | `/api/v1/change-requests/{id}` | `id: UUID` | None | None | `200 ChangeRequestResponse` |
+| POST | `/api/v1/change-requests` | None | None | `CreateChangeRequestRequest` | `201 ChangeRequestResponse` |
+| PUT | `/api/v1/change-requests/{id}` | `id: UUID` | None | `UpdateChangeRequestRequest` | `200 ChangeRequestResponse` |
+| PATCH | `/api/v1/change-requests/{id}/status` | `id: UUID` | None | `StatusTransitionRequest` | `200 ChangeRequestResponse` |
+| POST | `/api/v1/change-requests/{id}/impact-assessment` | `id: UUID` | None | `SubmitChangeImpactRequest` | `200 No content` |
+| PUT | `/api/v1/change-requests/{id}/impact-assessment` | `id: UUID` | None | `SubmitChangeImpactRequest` | `200 No content` |
+| POST | `/api/v1/change-requests/{id}/affected-documents` | `id: UUID` | None | `AddAffectedDocumentRequest` | `201 No content` |
+| POST | `/api/v1/change-requests/{id}/affected-products` | `id: UUID` | None | `AddAffectedProductRequest` | `201 No content` |
+| POST | `/api/v1/change-requests/{id}/implementation-tasks` | `id: UUID` | None | `AddImplementationTaskRequest` | `201 No content` |
+| PUT | `/api/v1/change-requests/{id}/implementation-tasks/{taskId}` | `id: UUID`, `taskId: UUID` | None | `UpdateImplementationTaskRequest` | `200 No content` |
+| POST | `/api/v1/change-requests/{id}/training-requirements` | `id: UUID` | None | `AddTrainingRequirementRequest` | `201 No content` |
+| POST | `/api/v1/change-requests/{id}/approvals` | `id: UUID` | None | `AddApproverRequest` | `201 No content` |
+| PATCH | `/api/v1/change-requests/{id}/approvals/{approvalId}` | `id: UUID`, `approvalId: UUID` | None | `SubmitApprovalDecisionRequest` | `200 No content` |
+| POST | `/api/v1/change-requests/{id}/effectiveness-review` | `id: UUID` | None | `SubmitEffectivenessReviewRequest` | `200 No content` |
+| GET | `/api/v1/change-requests/{id}/audit-trail` | `id: UUID` | None | None | `200 List<AuditTrailResponse>` |
+
+## Attachments
+
+| Method | URL | URL params | Query params | Request content | Response JSON |
+|---|---|---|---|---|---|
+| POST | `/api/v1/attachments` | None | multipart fields: `file`, `recordType`, `recordId`, optional `category`, optional `description` | `multipart/form-data` | `201 AttachmentResponse` |
+| GET | `/api/v1/attachments` | None | `recordType`, `recordId` | None | `200 List<AttachmentResponse>` |
+| GET | `/api/v1/attachments/{id}/download` | `id: UUID` | None | None | `200 {"url":"string"}` |
+| DELETE | `/api/v1/attachments/{id}` | `id: UUID` | None | None | `204 No content` |
+
+Multipart upload example:
+
+```text
+file=<binary>
+recordType=DEVIATION
+recordId=00000000-0000-0000-0000-000000000001
+category=INVESTIGATION
+description=Investigation evidence
+```
+
+## Audit Trail
+
+| Method | URL | URL params | Query params | Request JSON | Response JSON |
+|---|---|---|---|---|---|
+| GET | `/api/v1/audit-trail` | None | required `recordType`, required `recordId`, `page`, `size`, `sort` | None | `200 Page<AuditTrailResponse>` |
+| GET | `/api/v1/audit-trail/record/{recordType}/{recordId}` | `recordType: String`, `recordId: UUID` | None | None | `200 List<AuditTrailResponse>` |
+
+## Notifications
+
+| Method | URL | URL params | Query params | Request JSON | Response JSON |
+|---|---|---|---|---|---|
+| GET | `/api/v1/notifications` | None | `isRead`, `page`, `size`, `sort` | None | `200 Page<NotificationResponse>` |
+| GET | `/api/v1/notifications/unread-count` | None | None | None | `200 {"count":0}` |
+| PATCH | `/api/v1/notifications/{id}/read` | `id: UUID` | None | None | `200 No content` |
+| PATCH | `/api/v1/notifications/read-all` | None | None | None | `200 No content` |
+
+## Dashboard
+
+| Method | URL | URL params | Query params | Request JSON | Response JSON |
+|---|---|---|---|---|---|
+| GET | `/api/v1/dashboard/overview` | None | None | None | `200 DashboardResponse` |
+| GET | `/api/v1/dashboard/capa-metrics` | None | None | None | `200 CapaMetricsResponse` |
+| GET | `/api/v1/dashboard/deviation-metrics` | None | None | None | `200 DeviationMetricsResponse` |
+| GET | `/api/v1/dashboard/change-control-metrics` | None | None | None | `200 ChangeControlMetricsResponse` |
+
+## Administration and Lookups
+
+| Method | URL | URL params | Query params | Request JSON | Response JSON |
+|---|---|---|---|---|---|
+| GET | `/api/v1/admin/configurations` | None | None | None | `200 List<SystemConfiguration>` |
+| PUT | `/api/v1/admin/configurations/{key}` | `key: String` | None | `UpdateConfigRequest` | `200 SystemConfiguration` |
+| GET | `/api/v1/admin/organizations` | None | None | None | `200 List<Organization>` |
+| GET | `/api/v1/admin/plant-sites` | None | `organizationId` | None | `200 List<PlantSite>` |
+| GET | `/api/v1/admin/departments` | None | `plantSiteId` | None | `200 List<Department>` |
+| POST | `/api/v1/admin/departments` | None | None | `CreateDepartmentRequest` | `201 Department` |
+| GET | `/api/v1/lookups` | None | required `category` | None | `200 List<LookupValueResponse>` |
+| GET | `/api/v1/products` | None | None | None | `200 List<Product>` |
+| GET | `/api/v1/batches` | None | required `productId` | None | `200 List<Batch>` |
+
+## Search and Electronic Signature
+
+| Method | URL | URL params | Query params | Request JSON | Response JSON |
+|---|---|---|---|---|---|
+| GET | `/api/v1/search` | None | required `q`, optional `type` | None | `200 {"results":[],"total":0}` |
+| POST | `/api/v1/search/advanced` | None | None | `AdvancedSearchRequest` | `200 {"results":[],"total":0}` |
+| POST | `/api/v1/esignature/verify` | None | None | `VerifyESignatureRequest` | `200 ElectronicSignature` |
+
+## Request JSON Schemas
+
+Fields marked with `(required)` have validation annotations in the DTO.
+
+### LoginRequest
+
+```json
+{
+  "username": "string (required)",
+  "password": "string (required)"
+}
+```
+
+### RefreshTokenRequest
+
+```json
+{
+  "refreshToken": "string (required)"
+}
+```
+
+### CreateUserRequest
+
+```json
+{
+  "employeeId": "string (required)",
+  "username": "string (required)",
+  "email": "user@example.com (required)",
+  "firstName": "string (required)",
+  "lastName": "string (required)",
+  "userType": "string (required)",
+  "organizationId": "uuid (required)",
   "plantSiteId": "uuid",
   "departmentId": "uuid",
   "managerId": "uuid",
+  "phone": "string",
+  "jobTitle": "string",
   "roleIds": ["uuid"],
   "securityProfileIds": ["uuid"]
 }
 ```
 
-### `PUT /api/v1/users/{id}`
-Update user details.
+### UpdateUserRequest
 
-### `PATCH /api/v1/users/{id}/status`
-Activate/deactivate/lock user.
-
-### `POST /api/v1/users/{id}/roles`
-Assign roles to user.
-
-### `DELETE /api/v1/users/{id}/roles/{roleId}`
-Remove role from user.
-
-### `PUT /api/v1/users/{id}/password`
-Change user password (requires current password for self, admin can reset).
-
----
-
-## 3. Roles & Permissions
-
-### `GET /api/v1/roles`
-List all application roles.
-
-### `GET /api/v1/roles/{id}`
-Get role details with permissions.
-
-### `POST /api/v1/roles`
-Create custom role.
-
-### `PUT /api/v1/roles/{id}`
-Update role.
-
-### `GET /api/v1/permissions`
-List all available permissions (filterable by module).
-
-### `GET /api/v1/security-profiles`
-List security profiles.
-
-### `POST /api/v1/security-profiles`
-Create security profile with permissions.
-
----
-
-## 4. Deviation Management
-
-### `GET /api/v1/deviations`
-List deviations with filters and pagination.
-
-**Query params:** `page`, `size`, `sort`, `status[]`, `classification[]`, `category[]`, `type`, `departmentId`, `plantSiteId`, `dateFrom`, `dateTo`, `search`, `reportedById`, `assignedToId`
-
-**Response:** `200 OK` - Paginated list with summary data.
-
-### `GET /api/v1/deviations/{id}`
-Get full deviation details including investigation, impact assessment, disposition, workflow history, and audit trail.
-
-### `POST /api/v1/deviations`
-Create new deviation. Starts Flowable workflow.
-
-**Request:**
 ```json
 {
-  "title": "string",
-  "description": "string",
-  "type": "PLANNED|UNPLANNED",
-  "category": "PROCESS|EQUIPMENT|...",
-  "occurredDate": "datetime",
-  "detectedDate": "datetime",
-  "targetClosureDate": "datetime",
-  "plantSiteId": "uuid",
+  "email": "user@example.com",
+  "firstName": "string",
+  "lastName": "string",
+  "userType": "string",
   "departmentId": "uuid",
+  "plantSiteId": "uuid",
+  "managerId": "uuid",
+  "phone": "string",
+  "jobTitle": "string"
+}
+```
+
+### UserStatusRequest
+
+```json
+{
+  "isActive": true,
+  "isLocked": false,
+  "reason": "string"
+}
+```
+
+### AssignRolesRequest
+
+```json
+{
+  "roleIds": ["uuid (required)"],
+  "plantSiteId": "uuid"
+}
+```
+
+### ChangePasswordRequest
+
+```json
+{
+  "currentPassword": "string",
+  "newPassword": "string (required)"
+}
+```
+
+### CreateRoleRequest
+
+```json
+{
+  "name": "string (required)",
+  "code": "string (required)",
+  "description": "string",
+  "roleLevel": "string (required)",
+  "permissionIds": ["uuid"]
+}
+```
+
+### CreateSecurityProfileRequest
+
+```json
+{
+  "name": "string (required)",
+  "description": "string",
+  "permissionIds": ["uuid"]
+}
+```
+
+### CreateDeviationRequest
+
+```json
+{
+  "title": "string (required)",
+  "description": "string (required)",
+  "type": "string (required)",
+  "category": "string (required)",
+  "occurredDate": "2026-06-21T12:00:00Z (required)",
+  "detectedDate": "2026-06-21T12:00:00Z (required)",
+  "targetClosureDate": "2026-06-21T12:00:00Z (required)",
+  "plantSiteId": "uuid (required)",
+  "departmentId": "uuid (required)",
   "area": "string",
   "equipment": "string",
   "product": "string",
   "batchNumber": "string",
   "batchSize": "string",
   "affectedBatches": ["string"],
-  "gmpImpact": false,
+  "gmpImpact": true,
   "patientSafetyImpact": false,
   "regulatoryImpact": false,
   "sourceArea": "string"
 }
 ```
 
-### `PUT /api/v1/deviations/{id}`
-Update deviation fields (respects workflow state restrictions).
+### UpdateDeviationRequest
 
-### `PATCH /api/v1/deviations/{id}/classify`
-Classify deviation (set classification: CRITICAL/MAJOR/MINOR). QA Specialist action.
-
-**Request:**
 ```json
 {
-  "classification": "CRITICAL|MAJOR|MINOR",
+  "title": "string",
+  "description": "string",
+  "type": "string",
+  "category": "string",
+  "targetClosureDate": "2026-06-21T12:00:00Z",
+  "assignedToId": "uuid",
+  "area": "string",
+  "equipment": "string",
+  "product": "string",
+  "batchNumber": "string",
+  "gmpImpact": true,
+  "patientSafetyImpact": false,
+  "regulatoryImpact": false
+}
+```
+
+### ClassifyDeviationRequest
+
+```json
+{
+  "classification": "string (required)",
   "comments": "string"
 }
 ```
 
-### `PATCH /api/v1/deviations/{id}/assign`
-Assign investigator to deviation.
+### AssignInvestigatorRequest
 
-### `POST /api/v1/deviations/{id}/investigation`
-Submit investigation findings.
-
-**Request:**
 ```json
 {
-  "investigatorId": "uuid",
+  "assignedToId": "uuid (required)",
+  "comments": "string"
+}
+```
+
+### SubmitInvestigationRequest
+
+```json
+{
+  "investigatorId": "uuid (required)",
   "probableCause": "string",
   "rootCause": "string",
   "immediateActions": ["string"],
@@ -212,228 +395,209 @@ Submit investigation findings.
 }
 ```
 
-### `PUT /api/v1/deviations/{id}/investigation`
-Update investigation.
+### SubmitImpactAssessmentRequest
 
-### `POST /api/v1/deviations/{id}/impact-assessment`
-Submit impact assessment.
-
-### `POST /api/v1/deviations/{id}/disposition`
-Submit disposition decision. Requires e-signature.
-
-**Request:**
 ```json
 {
-  "decision": "RELEASE|RELEASE_WITH_CONDITIONS|REPROCESS|REWORK|REJECT|QUARANTINE|USE_AS_IS",
-  "justification": "string",
+  "productQualityImpact": "string (required)",
+  "patientSafetyImpact": "string (required)",
+  "regulatoryImpact": "string (required)",
+  "businessImpact": "string (required)",
+  "overallRiskLevel": "string (required)",
+  "affectedProducts": ["string"],
+  "affectedBatches": ["string"],
+  "batchDisposition": "string",
+  "justification": "string (required)"
+}
+```
+
+### SubmitDispositionRequest
+
+```json
+{
+  "decision": "string (required)",
+  "justification": "string (required)",
   "conditions": "string",
   "qaReviewComments": "string",
-  "electronicSignature": { "password": "string", "meaning": "string" }
+  "electronicSignature": {
+    "password": "string (required)",
+    "meaning": "string (required)"
+  }
 }
 ```
 
-### `PATCH /api/v1/deviations/{id}/status`
-Transition deviation status (workflow action). Validates business rules.
+### StatusTransitionRequest
 
-**Request:**
 ```json
 {
-  "status": "UNDER_REVIEW|CLASSIFIED|...",
+  "status": "string (required)",
   "comments": "string",
-  "electronicSignature": { "password": "string", "meaning": "string" }
+  "electronicSignature": {
+    "password": "string (required)",
+    "meaning": "string (required)"
+  }
 }
 ```
 
-### `POST /api/v1/deviations/{id}/initiate-capa`
-Create CAPA from deviation. Links deviation to new CAPA.
+### CreateCapaRequest
 
-### `GET /api/v1/deviations/{id}/audit-trail`
-Get complete audit trail for deviation.
-
-### `GET /api/v1/deviations/{id}/workflow-history`
-Get workflow step history.
-
----
-
-## 5. CAPA Management
-
-### `GET /api/v1/capas`
-List CAPAs with filters and pagination.
-
-**Query params:** `page`, `size`, `sort`, `status[]`, `priority[]`, `type`, `sourceType`, `departmentId`, `plantSiteId`, `dateFrom`, `dateTo`, `search`, `ownerId`, `initiatorId`
-
-### `GET /api/v1/capas/{id}`
-Get full CAPA details including RCA, risk assessment, actions, effectiveness checks, workflow history.
-
-### `POST /api/v1/capas`
-Create new CAPA. Starts Flowable workflow.
-
-**Request:**
 ```json
 {
-  "title": "string",
-  "description": "string",
-  "type": "CORRECTIVE|PREVENTIVE|CORRECTIVE_AND_PREVENTIVE",
-  "priority": "CRITICAL|HIGH|MEDIUM|LOW",
-  "sourceType": "DEVIATION|AUDIT_FINDING|...",
+  "title": "string (required)",
+  "description": "string (required)",
+  "type": "string (required)",
+  "priority": "string (required)",
+  "sourceType": "string (required)",
   "sourceReference": "string",
-  "targetCompletionDate": "datetime",
-  "ownerId": "uuid",
-  "departmentId": "uuid",
-  "plantSiteId": "uuid",
+  "targetCompletionDate": "2026-06-21T12:00:00Z (required)",
+  "ownerId": "uuid (required)",
+  "departmentId": "uuid (required)",
+  "plantSiteId": "uuid (required)",
   "product": "string",
   "batchNumber": "string",
   "deviationId": "uuid"
 }
 ```
 
-### `PUT /api/v1/capas/{id}`
-Update CAPA fields.
+### UpdateCapaRequest
 
-### `PATCH /api/v1/capas/{id}/status`
-Transition CAPA status. Validates business rules (e.g., cannot close if actions incomplete).
-
-### `PATCH /api/v1/capas/{id}/assign`
-Assign CAPA owner or reassign.
-
-### `POST /api/v1/capas/{id}/root-cause-analysis`
-Submit root cause analysis.
-
-**Request:**
 ```json
 {
-  "method": "FIVE_WHY|FISHBONE|FAULT_TREE|PARETO|FAILURE_MODE",
+  "title": "string",
   "description": "string",
+  "type": "string",
+  "priority": "string",
+  "targetCompletionDate": "2026-06-21T12:00:00Z",
+  "ownerId": "uuid",
+  "product": "string",
+  "batchNumber": "string"
+}
+```
+
+### SubmitRcaRequest
+
+```json
+{
+  "method": "string (required)",
+  "description": "string (required)",
   "rootCauses": ["string"],
   "contributingFactors": ["string"],
   "fiveWhyEntries": [
-    { "level": 1, "question": "string", "answer": "string" }
+    {
+      "level": 1,
+      "question": "string",
+      "answer": "string"
+    }
   ],
   "fishboneCategories": [
-    { "categoryName": "Man (People)", "causes": ["string"] }
-  ]
-}
-```
-
-### `PUT /api/v1/capas/{id}/root-cause-analysis`
-Update root cause analysis.
-
-### `POST /api/v1/capas/{id}/risk-assessment`
-Submit risk assessment (severity, occurrence, detection -> RPN).
-
-**Request:**
-```json
-{
-  "severity": 4,
-  "occurrence": 3,
-  "detection": 2,
-  "riskLevel": "HIGH",
-  "justification": "string"
-}
-```
-
-### `POST /api/v1/capas/{id}/actions`
-Add corrective or preventive action.
-
-**Request:**
-```json
-{
-  "description": "string",
-  "type": "CORRECTIVE|PREVENTIVE",
-  "assignedToId": "uuid",
-  "dueDate": "datetime"
-}
-```
-
-### `PUT /api/v1/capas/{id}/actions/{actionId}`
-Update action details/status.
-
-### `PATCH /api/v1/capas/{id}/actions/{actionId}/complete`
-Mark action as completed with evidence.
-
-**Request:**
-```json
-{
-  "evidence": "string",
-  "completedDate": "datetime"
-}
-```
-
-### `PATCH /api/v1/capas/{id}/actions/{actionId}/verify`
-Verify completed action. Requires e-signature.
-
-### `POST /api/v1/capas/{id}/effectiveness-check`
-Submit effectiveness check.
-
-**Request:**
-```json
-{
-  "criteria": "string",
-  "checkDate": "datetime",
-  "result": "EFFECTIVE|NOT_EFFECTIVE|PARTIALLY_EFFECTIVE",
-  "evidence": "string",
-  "comments": "string",
-  "requiresRecurrence": false,
-  "recurrenceMonths": 3,
-  "electronicSignature": { "password": "string", "meaning": "string" }
-}
-```
-
-### `POST /api/v1/capas/{id}/approve`
-Approve CAPA at current workflow stage. Requires e-signature.
-
-### `POST /api/v1/capas/{id}/reject`
-Reject CAPA with reason.
-
-### `GET /api/v1/capas/{id}/audit-trail`
-Get complete audit trail for CAPA.
-
-### `GET /api/v1/capas/{id}/ai-suggestions`
-Get AI-assisted root cause suggestions based on historical data.
-
-**Response:**
-```json
-{
-  "suggestions": [
     {
-      "text": "string",
-      "reference": "string",
-      "source": "HISTORICAL|INDUSTRY|GUIDELINE",
-      "confidence": 0.85
+      "categoryName": "string",
+      "causes": ["string"]
     }
   ]
 }
 ```
 
----
+### SubmitRiskAssessmentRequest
 
-## 6. Change Control Management
-
-### `GET /api/v1/change-requests`
-List change requests with filters and pagination.
-
-**Query params:** `page`, `size`, `sort`, `status[]`, `classification[]`, `type[]`, `priority[]`, `departmentId`, `plantSiteId`, `dateFrom`, `dateTo`, `search`, `changeOwnerId`
-
-### `GET /api/v1/change-requests/{id}`
-Get full change request details.
-
-### `POST /api/v1/change-requests`
-Create new change request. Starts Flowable workflow.
-
-**Request:**
 ```json
 {
-  "title": "string",
+  "severity": "integer 1-5 (required)",
+  "occurrence": "integer 1-5 (required)",
+  "detection": "integer 1-5 (required)",
+  "riskLevel": "string (required)",
+  "justification": "string (required)"
+}
+```
+
+### CreateCapaActionRequest
+
+```json
+{
+  "description": "string (required)",
+  "type": "string (required)",
+  "assignedToId": "uuid (required)",
+  "dueDate": "2026-06-21T12:00:00Z (required)"
+}
+```
+
+### UpdateCapaActionRequest
+
+```json
+{
   "description": "string",
-  "justification": "string",
-  "type": "PROCESS|EQUIPMENT|FACILITY|...",
-  "category": "PRODUCT|NON_PRODUCT|...",
-  "classification": "MINOR|MAJOR|CRITICAL",
-  "priority": "URGENT|HIGH|MEDIUM|LOW",
-  "departmentId": "uuid",
-  "changeOwnerId": "uuid",
-  "plantSiteId": "uuid",
-  "targetImplementationDate": "datetime",
+  "status": "string",
+  "assignedToId": "uuid",
+  "dueDate": "2026-06-21T12:00:00Z"
+}
+```
+
+### CompleteActionRequest
+
+```json
+{
+  "evidence": "string (required)",
+  "completedDate": "2026-06-21T12:00:00Z"
+}
+```
+
+### VerifyActionRequest
+
+```json
+{
+  "verificationComments": "string",
+  "electronicSignature": {
+    "password": "string (required)",
+    "meaning": "string (required)"
+  }
+}
+```
+
+### SubmitEffectivenessCheckRequest
+
+```json
+{
+  "criteria": "string (required)",
+  "checkDate": "2026-06-21T12:00:00Z (required)",
+  "result": "string (required)",
+  "evidence": "string (required)",
+  "comments": "string",
+  "requiresRecurrence": false,
+  "recurrenceMonths": 3,
+  "electronicSignature": {
+    "password": "string (required)",
+    "meaning": "string (required)"
+  }
+}
+```
+
+### ApproveRejectRequest
+
+```json
+{
+  "comments": "string",
+  "electronicSignature": {
+    "password": "string (required)",
+    "meaning": "string (required)"
+  }
+}
+```
+
+### CreateChangeRequestRequest
+
+```json
+{
+  "title": "string (required)",
+  "description": "string (required)",
+  "justification": "string (required)",
+  "type": "string (required)",
+  "category": "string (required)",
+  "classification": "string (required)",
+  "priority": "string (required)",
+  "departmentId": "uuid (required)",
+  "changeOwnerId": "uuid (required)",
+  "plantSiteId": "uuid (required)",
+  "targetImplementationDate": "2026-06-21T12:00:00Z (required)",
   "affectedAreas": ["string"],
   "validationRequired": false,
   "trainingRequired": false,
@@ -442,387 +606,847 @@ Create new change request. Starts Flowable workflow.
 }
 ```
 
-### `PUT /api/v1/change-requests/{id}`
-Update change request.
+### UpdateChangeRequestRequest
 
-### `PATCH /api/v1/change-requests/{id}/status`
-Transition change request status.
-
-### `POST /api/v1/change-requests/{id}/impact-assessment`
-Submit impact assessment (8 impact dimensions).
-
-### `PUT /api/v1/change-requests/{id}/impact-assessment`
-Update impact assessment.
-
-### `POST /api/v1/change-requests/{id}/regulatory-filing`
-Submit regulatory filing requirement.
-
-### `POST /api/v1/change-requests/{id}/affected-documents`
-Add affected documents.
-
-### `POST /api/v1/change-requests/{id}/affected-products`
-Add affected products.
-
-### `POST /api/v1/change-requests/{id}/implementation-tasks`
-Add implementation task.
-
-### `PUT /api/v1/change-requests/{id}/implementation-tasks/{taskId}`
-Update implementation task status.
-
-### `POST /api/v1/change-requests/{id}/training-requirements`
-Add training requirement.
-
-### `POST /api/v1/change-requests/{id}/approvals`
-Configure approval chain (add approvers).
-
-### `PATCH /api/v1/change-requests/{id}/approvals/{approvalId}`
-Submit approval decision. Requires e-signature.
-
-**Request:**
 ```json
 {
-  "decision": "APPROVED|REJECTED|APPROVED_WITH_COMMENTS",
-  "comments": "string",
-  "electronicSignature": { "password": "string", "meaning": "string" }
+  "title": "string",
+  "description": "string",
+  "justification": "string",
+  "type": "string",
+  "category": "string",
+  "classification": "string",
+  "priority": "string",
+  "changeOwnerId": "uuid",
+  "targetImplementationDate": "2026-06-21T12:00:00Z",
+  "affectedAreas": ["string"],
+  "validationRequired": false,
+  "trainingRequired": false
 }
 ```
 
-### `POST /api/v1/change-requests/{id}/effectiveness-review`
-Submit effectiveness review with criteria evaluation.
+### SubmitChangeImpactRequest
 
-### `GET /api/v1/change-requests/{id}/audit-trail`
-Get complete audit trail.
+```json
+{
+  "productQuality": "string (required)",
+  "patientSafety": "string (required)",
+  "regulatoryCompliance": "string (required)",
+  "validationStatus": "string (required)",
+  "documentation": "string (required)",
+  "training": "string (required)",
+  "supplierQualification": "string (required)",
+  "stability": "string (required)",
+  "overallRiskLevel": "string (required)",
+  "assessmentSummary": "string (required)"
+}
+```
 
----
+### AddAffectedDocumentRequest
 
-## 7. Attachments / File Management
+```json
+{
+  "documentNumber": "string (required)",
+  "documentTitle": "string (required)",
+  "documentType": "string",
+  "currentVersion": "string",
+  "action": "string (required)",
+  "newVersion": "string"
+}
+```
 
-### `POST /api/v1/attachments`
-Upload file to Google Cloud Storage and create metadata record.
+### AddAffectedProductRequest
 
-**Request:** `multipart/form-data`
-- `file`: binary
-- `recordType`: CAPA|DEVIATION|CHANGE_CONTROL
-- `recordId`: uuid
-- `category`: SUPPORTING_DATA|RISK_ASSESSMENT|VALIDATION|REGULATORY|TRAINING|EVIDENCE|INVESTIGATION|OTHER
-- `description`: string
+```json
+{
+  "productName": "string (required)",
+  "productCode": "string (required)",
+  "dosageForm": "string",
+  "markets": ["string"],
+  "impactDescription": "string"
+}
+```
 
-### `GET /api/v1/attachments?recordType={type}&recordId={id}`
-List attachments for a record.
+### AddImplementationTaskRequest
 
-### `GET /api/v1/attachments/{id}/download`
-Download attachment (generates signed GCS URL).
+```json
+{
+  "title": "string (required)",
+  "description": "string",
+  "assignedToId": "uuid (required)",
+  "departmentId": "uuid",
+  "dueDate": "2026-06-21T12:00:00Z (required)"
+}
+```
 
-### `DELETE /api/v1/attachments/{id}`
-Soft-delete attachment (marks as deleted, retains for audit).
+### UpdateImplementationTaskRequest
 
----
+```json
+{
+  "status": "string",
+  "comments": "string",
+  "completedDate": "2026-06-21T12:00:00Z"
+}
+```
 
-## 8. Audit Trail
+### AddTrainingRequirementRequest
 
-### `GET /api/v1/audit-trail`
-Query audit trail entries with filters.
+```json
+{
+  "trainingTitle": "string (required)",
+  "targetAudience": "string",
+  "departmentId": "uuid",
+  "trainingType": "string (required)",
+  "dueDate": "2026-06-21T12:00:00Z (required)"
+}
+```
 
-**Query params:** `recordType`, `recordId`, `userId`, `action`, `dateFrom`, `dateTo`, `page`, `size`
+### AddApproverRequest
 
-### `GET /api/v1/audit-trail/record/{recordType}/{recordId}`
-Get all audit entries for a specific record.
+```json
+{
+  "approverId": "uuid (required)",
+  "role": "string",
+  "department": "string",
+  "approvalOrder": 1
+}
+```
 
-### `GET /api/v1/audit-trail/export`
-Export audit trail as PDF/CSV for regulatory submission.
+### SubmitApprovalDecisionRequest
 
-**Query params:** `recordType`, `recordId`, `dateFrom`, `dateTo`, `format=PDF|CSV`
+```json
+{
+  "decision": "string (required)",
+  "comments": "string",
+  "electronicSignature": {
+    "password": "string (required)",
+    "meaning": "string (required)"
+  }
+}
+```
 
----
+### SubmitEffectivenessReviewRequest
 
-## 9. Notifications
+```json
+{
+  "reviewDate": "2026-06-21T12:00:00Z (required)",
+  "overallEffective": true,
+  "summary": "string (required)",
+  "followUpRequired": false,
+  "followUpActions": "string",
+  "criteria": [
+    {
+      "criterion": "string",
+      "met": true,
+      "evidence": "string"
+    }
+  ]
+}
+```
 
-### `GET /api/v1/notifications`
-Get current user's notifications (paginated, filterable by read/unread).
+### UpdateConfigRequest
 
-### `GET /api/v1/notifications/unread-count`
-Get unread notification count.
+```json
+{
+  "configValue": "string (required)",
+  "configType": "string",
+  "description": "string"
+}
+```
 
-### `PATCH /api/v1/notifications/{id}/read`
-Mark notification as read.
+### CreateDepartmentRequest
 
-### `PATCH /api/v1/notifications/read-all`
-Mark all notifications as read.
+```json
+{
+  "plantSiteId": "uuid (required)",
+  "name": "string (required)",
+  "code": "string (required)",
+  "description": "string",
+  "parentDepartmentId": "uuid"
+}
+```
 
----
+### AdvancedSearchRequest
 
-## 10. Dashboard & Metrics
-
-### `GET /api/v1/dashboard/overview`
-Get overview dashboard KPIs (open CAPAs, deviations, changes, overdue, pending reviews).
-
-### `GET /api/v1/dashboard/capa-metrics`
-Get CAPA-specific metrics (by status, priority, department, trend).
-
-**Response matches `CapaDashboardMetrics` interface from frontend.**
-
-### `GET /api/v1/dashboard/deviation-metrics`
-Get deviation-specific metrics (by status, classification, category, department, trend).
-
-**Response matches `DeviationDashboardMetrics` interface from frontend.**
-
-### `GET /api/v1/dashboard/change-control-metrics`
-Get change control metrics (by status, type, classification, priority, department, trend).
-
-**Response matches `ChangeControlDashboardMetrics` interface from frontend.**
-
----
-
-## 11. System Administration
-
-### `GET /api/v1/admin/configurations`
-List system configurations.
-
-### `PUT /api/v1/admin/configurations/{key}`
-Update system configuration. Audited.
-
-### `GET /api/v1/admin/organizations`
-List organizations.
-
-### `GET /api/v1/admin/plant-sites`
-List plant sites (filterable by organization).
-
-### `GET /api/v1/admin/departments`
-List departments (filterable by plant site).
-
-### `POST /api/v1/admin/departments`
-Create department.
-
----
-
-## 12. Lookup / Reference Data
-
-### `GET /api/v1/lookups?category={category}`
-Get lookup values by category. Used for dropdowns.
-
-### `GET /api/v1/products`
-List products (for product selection in forms).
-
-### `GET /api/v1/batches?productId={id}`
-List batches for a product.
-
----
-
-## 13. Search (OpenSearch)
-
-### `GET /api/v1/search?q={query}&type={recordType}`
-Global search across all record types.
-
-### `POST /api/v1/search/advanced`
-Advanced search with field-level filters.
-
-**Request:**
 ```json
 {
   "query": "string",
-  "recordTypes": ["CAPA", "DEVIATION", "CHANGE_CONTROL"],
+  "recordTypes": ["string"],
   "filters": {
-    "status": ["OPEN"],
-    "priority": ["HIGH", "CRITICAL"],
-    "dateRange": { "from": "date", "to": "date" }
+    "status": ["string"]
   },
+  "dateFrom": "2026-06-21T00:00:00Z",
+  "dateTo": "2026-06-21T23:59:59Z",
   "page": 0,
   "size": 20
 }
 ```
 
----
+### VerifyESignatureRequest
 
-## 14. Electronic Signature
-
-### `POST /api/v1/esignature/verify`
-Verify e-signature (validates password, creates signature record).
-
-**Request:**
 ```json
 {
-  "password": "string",
-  "meaning": "Approved|Rejected|Reviewed|Verified",
-  "recordType": "string",
-  "recordId": "uuid",
-  "action": "string"
+  "password": "string (required)",
+  "meaning": "string (required)",
+  "recordType": "string (required)",
+  "recordId": "uuid (required)",
+  "action": "string (required)"
 }
 ```
 
----
+## Response JSON Schemas
 
-## Common Patterns
+### AuthResponse
 
-### Pagination Response
 ```json
 {
-  "content": [...],
-  "page": 0,
-  "size": 20,
-  "totalElements": 150,
-  "totalPages": 8
+  "accessToken": "string",
+  "refreshToken": "string",
+  "expiresIn": 3600,
+  "user": {
+    "id": "uuid",
+    "displayName": "string",
+    "roles": ["string"]
+  }
 }
 ```
 
-### Error Response
+### UserResponse
+
 ```json
 {
-  "timestamp": "datetime",
-  "status": 400,
-  "error": "Bad Request",
-  "message": "Validation failed",
-  "path": "/api/v1/capas",
-  "details": [
-    { "field": "title", "message": "Title is required" }
-  ]
+  "id": "uuid",
+  "employeeId": "string",
+  "username": "string",
+  "email": "user@example.com",
+  "firstName": "string",
+  "lastName": "string",
+  "displayName": "string",
+  "phone": "string",
+  "jobTitle": "string",
+  "userType": "string",
+  "organizationId": "uuid",
+  "organizationName": "string",
+  "plantSiteId": "uuid",
+  "plantSiteName": "string",
+  "departmentId": "uuid",
+  "departmentName": "string",
+  "managerId": "uuid",
+  "managerName": "string",
+  "isActive": true,
+  "isLocked": false,
+  "lastLoginAt": "2026-06-21T12:00:00Z",
+  "roles": ["RoleResponse"],
+  "securityProfiles": ["SecurityProfileResponse"],
+  "createdAt": "2026-06-21T12:00:00Z",
+  "updatedAt": "2026-06-21T12:00:00Z"
 }
 ```
 
-### Business Rule Validation Errors (422)
+### RoleResponse, PermissionResponse, SecurityProfileResponse
+
 ```json
 {
-  "status": 422,
-  "error": "Business Rule Violation",
-  "message": "CAPA cannot be closed: 2 actions are still pending",
-  "ruleCode": "CAPA_CLOSE_ACTIONS_INCOMPLETE"
+  "role": {
+    "id": "uuid",
+    "name": "string",
+    "code": "string",
+    "description": "string",
+    "roleLevel": "string",
+    "isSystem": false,
+    "isActive": true,
+    "permissions": ["PermissionResponse"]
+  },
+  "permission": {
+    "id": "uuid",
+    "module": "string",
+    "action": "string",
+    "resource": "string",
+    "description": "string"
+  },
+  "securityProfile": {
+    "id": "uuid",
+    "name": "string",
+    "description": "string",
+    "isSystem": false
+  }
 }
 ```
 
----
+### DeviationResponse
 
-## Spring Boot Project Structure
-
-```
-qms-pharma-api/
-├── src/main/java/com/qmspharma/
-│   ├── QmsPharmaApplication.java
-│   ├── config/
-│   │   ├── SecurityConfig.java          # OAuth2/SAML + JWT
-│   │   ├── FlowableConfig.java          # Workflow engine
-│   │   ├── OpenSearchConfig.java        # Search integration
-│   │   ├── GcsStorageConfig.java        # Google Cloud Storage
-│   │   ├── AuditConfig.java             # Audit trail interceptor
-│   │   └── CorsConfig.java
-│   ├── controller/
-│   │   ├── AuthController.java
-│   │   ├── UserController.java
-│   │   ├── RoleController.java
-│   │   ├── DeviationController.java
-│   │   ├── CapaController.java
-│   │   ├── ChangeRequestController.java
-│   │   ├── AttachmentController.java
-│   │   ├── AuditTrailController.java
-│   │   ├── NotificationController.java
-│   │   ├── DashboardController.java
-│   │   ├── AdminController.java
-│   │   ├── LookupController.java
-│   │   └── SearchController.java
-│   ├── service/
-│   │   ├── AuthService.java
-│   │   ├── UserService.java
-│   │   ├── RoleService.java
-│   │   ├── DeviationService.java
-│   │   ├── CapaService.java
-│   │   ├── ChangeRequestService.java
-│   │   ├── AttachmentService.java
-│   │   ├── AuditTrailService.java
-│   │   ├── NotificationService.java
-│   │   ├── DashboardService.java
-│   │   ├── ESignatureService.java
-│   │   ├── SequenceGeneratorService.java
-│   │   ├── WorkflowService.java         # Flowable integration
-│   │   ├── SearchService.java           # OpenSearch integration
-│   │   └── StorageService.java          # GCS integration
-│   ├── model/entity/
-│   │   ├── Organization.java
-│   │   ├── PlantSite.java
-│   │   ├── Department.java
-│   │   ├── User.java
-│   │   ├── ApplicationRole.java
-│   │   ├── Permission.java
-│   │   ├── SecurityProfile.java
-│   │   ├── Deviation.java
-│   │   ├── DeviationInvestigation.java
-│   │   ├── DeviationImpactAssessment.java
-│   │   ├── DeviationDisposition.java
-│   │   ├── Capa.java
-│   │   ├── CapaRootCauseAnalysis.java
-│   │   ├── CapaFiveWhyEntry.java
-│   │   ├── CapaRiskAssessment.java
-│   │   ├── CapaAction.java
-│   │   ├── CapaEffectivenessCheck.java
-│   │   ├── ChangeRequest.java
-│   │   ├── ChangeImpactAssessment.java
-│   │   ├── ChangeApproval.java
-│   │   ├── ChangeImplementationTask.java
-│   │   ├── Attachment.java
-│   │   ├── AuditTrail.java
-│   │   ├── WorkflowHistory.java
-│   │   ├── ElectronicSignature.java
-│   │   └── Notification.java
-│   ├── model/dto/
-│   │   ├── request/                     # Request DTOs
-│   │   └── response/                    # Response DTOs
-│   ├── model/enums/
-│   │   ├── CapaStatus.java
-│   │   ├── CapaPriority.java
-│   │   ├── DeviationStatus.java
-│   │   ├── ChangeStatus.java
-│   │   └── ... (all enums)
-│   ├── repository/
-│   │   ├── DeviationRepository.java
-│   │   ├── CapaRepository.java
-│   │   ├── ChangeRequestRepository.java
-│   │   └── ... (all repositories)
-│   ├── workflow/                        # Flowable BPMN
-│   │   ├── DeviationWorkflow.bpmn20.xml
-│   │   ├── CapaWorkflow.bpmn20.xml
-│   │   ├── ChangeControlWorkflow.bpmn20.xml
-│   │   └── listeners/
-│   │       ├── DeviationTaskListener.java
-│   │       ├── CapaTaskListener.java
-│   │       └── ChangeControlTaskListener.java
-│   ├── security/
-│   │   ├── JwtTokenProvider.java
-│   │   ├── JwtAuthenticationFilter.java
-│   │   ├── PermissionEvaluator.java
-│   │   └── AuditInterceptor.java
-│   └── exception/
-│       ├── BusinessRuleException.java
-│       ├── ResourceNotFoundException.java
-│       └── GlobalExceptionHandler.java
-├── src/main/resources/
-│   ├── application.yml
-│   ├── application-dev.yml
-│   ├── application-prod.yml
-│   └── processes/
-│       ├── deviation-workflow.bpmn20.xml
-│       ├── capa-workflow.bpmn20.xml
-│       └── change-control-workflow.bpmn20.xml
-└── pom.xml
+```json
+{
+  "id": "uuid",
+  "deviationNumber": "string",
+  "title": "string",
+  "description": "string",
+  "type": "string",
+  "category": "string",
+  "classification": "string",
+  "status": "string",
+  "sourceArea": "string",
+  "occurredDate": "2026-06-21T12:00:00Z",
+  "reportedDate": "2026-06-21T12:00:00Z",
+  "detectedDate": "2026-06-21T12:00:00Z",
+  "targetClosureDate": "2026-06-21T12:00:00Z",
+  "actualClosureDate": "2026-06-21T12:00:00Z",
+  "reportedBy": "UserRef",
+  "assignedTo": "UserRef",
+  "reviewer": "UserRef",
+  "approvedBy": "UserRef",
+  "plantSiteId": "uuid",
+  "plantSiteName": "string",
+  "departmentId": "uuid",
+  "departmentName": "string",
+  "area": "string",
+  "equipment": "string",
+  "product": "string",
+  "batchNumber": "string",
+  "batchSize": "string",
+  "gmpImpact": true,
+  "patientSafetyImpact": false,
+  "regulatoryImpact": false,
+  "capaRequired": false,
+  "capaId": "uuid",
+  "capaNumber": "string",
+  "currentWorkflowStep": "string",
+  "affectedBatches": ["AffectedBatchResponse"],
+  "investigation": "InvestigationResponse",
+  "impactAssessment": "ImpactAssessmentResponse",
+  "disposition": "DispositionResponse",
+  "createdAt": "2026-06-21T12:00:00Z",
+  "updatedAt": "2026-06-21T12:00:00Z",
+  "version": 1
+}
 ```
 
----
+### CapaResponse
 
-## Business Rules Summary
+```json
+{
+  "id": "uuid",
+  "capaNumber": "string",
+  "title": "string",
+  "description": "string",
+  "type": "string",
+  "status": "string",
+  "priority": "string",
+  "sourceType": "string",
+  "sourceReference": "string",
+  "initiatedDate": "2026-06-21T12:00:00Z",
+  "targetCompletionDate": "2026-06-21T12:00:00Z",
+  "actualCompletionDate": "2026-06-21T12:00:00Z",
+  "dueDate": "2026-06-21T12:00:00Z",
+  "initiator": "UserRef",
+  "owner": "UserRef",
+  "departmentId": "uuid",
+  "departmentName": "string",
+  "plantSiteId": "uuid",
+  "plantSiteName": "string",
+  "product": "string",
+  "batchNumber": "string",
+  "deviationId": "uuid",
+  "deviationNumber": "string",
+  "currentWorkflowStep": "string",
+  "rootCauseAnalysis": "RcaResponse",
+  "riskAssessment": "RiskAssessmentResponse",
+  "actions": ["CapaActionResponse"],
+  "effectivenessChecks": ["EffectivenessCheckResponse"],
+  "createdAt": "2026-06-21T12:00:00Z",
+  "updatedAt": "2026-06-21T12:00:00Z",
+  "version": 1
+}
+```
 
-### CAPA Closure Rules
-- All corrective actions must be VERIFIED
-- All preventive actions must be VERIFIED
-- At least one effectiveness check must be EFFECTIVE
-- Required approvals must be obtained (e-signature)
-- Audit trail must be complete
+### ChangeRequestResponse
 
-### Deviation Closure Rules
-- Investigation must be completed
-- Impact assessment must be submitted
-- Disposition decision must be recorded with e-signature
-- If capaRequired=true, linked CAPA must exist
-- Site Quality Head approval required for CRITICAL deviations
+```json
+{
+  "id": "uuid",
+  "changeNumber": "string",
+  "title": "string",
+  "description": "string",
+  "justification": "string",
+  "type": "string",
+  "category": "string",
+  "classification": "string",
+  "status": "string",
+  "priority": "string",
+  "requestedBy": "UserRef",
+  "requestedDate": "2026-06-21T12:00:00Z",
+  "departmentId": "uuid",
+  "departmentName": "string",
+  "changeOwner": "UserRef",
+  "qaReviewer": "UserRef",
+  "raReviewer": "UserRef",
+  "plantSiteId": "uuid",
+  "plantSiteName": "string",
+  "affectedAreas": ["string"],
+  "targetImplementationDate": "2026-06-21T12:00:00Z",
+  "actualImplementationDate": "2026-06-21T12:00:00Z",
+  "effectivenessCheckDate": "2026-06-21T12:00:00Z",
+  "closedDate": "2026-06-21T12:00:00Z",
+  "regulatoryFilingRequired": false,
+  "validationRequired": false,
+  "validationDetails": "string",
+  "trainingRequired": false,
+  "relatedDeviations": ["string"],
+  "relatedCapas": ["string"],
+  "relatedChanges": ["string"],
+  "currentWorkflowStep": "string",
+  "impactAssessment": "ChangeImpactResponse",
+  "regulatoryFiling": "RegulatoryFilingResponse",
+  "affectedDocuments": ["AffectedDocumentResponse"],
+  "affectedProducts": ["AffectedProductResponse"],
+  "implementationTasks": ["ImplementationTaskResponse"],
+  "trainingRequirements": ["TrainingRequirementResponse"],
+  "approvals": ["ChangeApprovalResponse"],
+  "effectivenessReviews": ["EffectivenessReviewResponse"],
+  "createdAt": "2026-06-21T12:00:00Z",
+  "updatedAt": "2026-06-21T12:00:00Z",
+  "version": 1
+}
+```
 
-### Change Control Closure Rules
-- All implementation tasks must be COMPLETED
-- All required approvals must be APPROVED
-- If trainingRequired=true, all training must be COMPLETED
-- If validationRequired=true, validation evidence must be attached
-- Effectiveness review must be submitted
+### Frequently Used Nested Responses
+
+```json
+{
+  "userRef": {
+    "id": "uuid",
+    "displayName": "string",
+    "email": "user@example.com"
+  },
+  "auditTrail": {
+    "id": "uuid",
+    "recordType": "string",
+    "recordId": "uuid",
+    "recordNumber": "string",
+    "action": "string",
+    "fieldName": "string",
+    "oldValue": "string",
+    "newValue": "string",
+    "comments": "string",
+    "reasonForChange": "string",
+    "userId": "uuid",
+    "userName": "string",
+    "ipAddress": "string",
+    "timestamp": "2026-06-21T12:00:00Z"
+  },
+  "workflowHistory": {
+    "id": "uuid",
+    "stepName": "string",
+    "status": "string",
+    "assignedTo": "UserRef",
+    "startedAt": "2026-06-21T12:00:00Z",
+    "completedAt": "2026-06-21T12:00:00Z",
+    "comments": "string",
+    "stepOrder": 1
+  }
+}
+```
+
+### CAPA Nested Responses
+
+```json
+{
+  "rootCauseAnalysis": {
+    "id": "uuid",
+    "method": "string",
+    "description": "string",
+    "rootCauses": ["string"],
+    "contributingFactors": ["string"],
+    "fiveWhyEntries": [
+      {
+        "level": 1,
+        "question": "string",
+        "answer": "string"
+      }
+    ],
+    "fishboneCategories": [
+      {
+        "categoryName": "string",
+        "causes": ["string"]
+      }
+    ],
+    "completedDate": "2026-06-21T12:00:00Z",
+    "completedBy": "UserRef"
+  },
+  "riskAssessment": {
+    "id": "uuid",
+    "severity": 4,
+    "occurrence": 3,
+    "detection": 2,
+    "rpn": 24,
+    "riskLevel": "string",
+    "justification": "string",
+    "assessedBy": "UserRef",
+    "assessedDate": "2026-06-21T12:00:00Z"
+  },
+  "capaAction": {
+    "id": "uuid",
+    "actionNumber": "string",
+    "description": "string",
+    "type": "string",
+    "status": "string",
+    "assignedTo": "UserRef",
+    "dueDate": "2026-06-21T12:00:00Z",
+    "completedDate": "2026-06-21T12:00:00Z",
+    "evidence": "string",
+    "verifiedBy": "UserRef",
+    "verifiedDate": "2026-06-21T12:00:00Z",
+    "verificationComments": "string"
+  },
+  "effectivenessCheck": {
+    "id": "uuid",
+    "criteria": "string",
+    "checkDate": "2026-06-21T12:00:00Z",
+    "result": "string",
+    "evidence": "string",
+    "verifiedBy": "UserRef",
+    "comments": "string",
+    "requiresRecurrence": false,
+    "recurrenceMonths": 3,
+    "nextCheckDate": "2026-06-21T12:00:00Z",
+    "checkNumber": 1
+  }
+}
+```
+
+### Deviation Nested Responses
+
+```json
+{
+  "affectedBatch": {
+    "id": "uuid",
+    "batchNumber": "string",
+    "productName": "string",
+    "batchSize": "string",
+    "impactDescription": "string",
+    "disposition": "string"
+  },
+  "investigation": {
+    "id": "uuid",
+    "investigator": "UserRef",
+    "startDate": "2026-06-21T12:00:00Z",
+    "completedDate": "2026-06-21T12:00:00Z",
+    "probableCause": "string",
+    "rootCause": "string",
+    "findings": "string",
+    "conclusion": "string",
+    "method": "string",
+    "immediateActions": ["string"]
+  },
+  "impactAssessment": {
+    "id": "uuid",
+    "productQualityImpact": "string",
+    "patientSafetyImpact": "string",
+    "regulatoryImpact": "string",
+    "businessImpact": "string",
+    "overallRiskLevel": "string",
+    "affectedProducts": ["string"],
+    "affectedBatches": ["string"],
+    "batchDisposition": "string",
+    "justification": "string",
+    "assessedBy": "UserRef",
+    "assessedDate": "2026-06-21T12:00:00Z"
+  },
+  "disposition": {
+    "id": "uuid",
+    "decision": "string",
+    "justification": "string",
+    "conditions": "string",
+    "approvedBy": "UserRef",
+    "approvedDate": "2026-06-21T12:00:00Z",
+    "qaReviewComments": "string"
+  }
+}
+```
+
+### Change Request Nested Responses
+
+```json
+{
+  "changeImpact": {
+    "id": "uuid",
+    "productQuality": "string",
+    "patientSafety": "string",
+    "regulatoryCompliance": "string",
+    "validationStatus": "string",
+    "documentation": "string",
+    "training": "string",
+    "supplierQualification": "string",
+    "stability": "string",
+    "overallRiskLevel": "string",
+    "assessmentSummary": "string",
+    "assessedBy": "UserRef",
+    "assessedDate": "2026-06-21T12:00:00Z"
+  },
+  "affectedDocument": {
+    "id": "uuid",
+    "documentNumber": "string",
+    "documentTitle": "string",
+    "documentType": "string",
+    "currentVersion": "string",
+    "action": "string",
+    "newVersion": "string",
+    "status": "string"
+  },
+  "affectedProduct": {
+    "id": "uuid",
+    "productName": "string",
+    "productCode": "string",
+    "dosageForm": "string",
+    "markets": ["string"],
+    "impactDescription": "string"
+  },
+  "implementationTask": {
+    "id": "uuid",
+    "taskNumber": 1,
+    "title": "string",
+    "description": "string",
+    "assignedTo": "UserRef",
+    "departmentName": "string",
+    "dueDate": "2026-06-21T12:00:00Z",
+    "completedDate": "2026-06-21T12:00:00Z",
+    "status": "string",
+    "comments": "string"
+  },
+  "trainingRequirement": {
+    "id": "uuid",
+    "trainingTitle": "string",
+    "targetAudience": "string",
+    "departmentName": "string",
+    "trainingType": "string",
+    "dueDate": "2026-06-21T12:00:00Z",
+    "completionStatus": "string",
+    "completionPercentage": 0
+  },
+  "approval": {
+    "id": "uuid",
+    "approver": "UserRef",
+    "role": "string",
+    "department": "string",
+    "decision": "string",
+    "comments": "string",
+    "decisionDate": "2026-06-21T12:00:00Z",
+    "approvalOrder": 1
+  },
+  "effectivenessReview": {
+    "id": "uuid",
+    "reviewDate": "2026-06-21T12:00:00Z",
+    "reviewer": "UserRef",
+    "overallEffective": true,
+    "summary": "string",
+    "followUpRequired": false,
+    "followUpActions": "string",
+    "criteria": [
+      {
+        "id": "uuid",
+        "criterion": "string",
+        "met": true,
+        "evidence": "string"
+      }
+    ]
+  }
+}
+```
+
+### Attachment, Notification, Lookup Responses
+
+```json
+{
+  "attachment": {
+    "id": "uuid",
+    "recordType": "string",
+    "recordId": "uuid",
+    "fileName": "string",
+    "fileType": "string",
+    "fileSize": 1000,
+    "category": "string",
+    "description": "string",
+    "uploadedBy": "UserRef",
+    "uploadedDate": "2026-06-21T12:00:00Z",
+    "downloadUrl": "string"
+  },
+  "notification": {
+    "id": "uuid",
+    "title": "string",
+    "message": "string",
+    "notificationType": "string",
+    "recordType": "string",
+    "recordId": "uuid",
+    "recordNumber": "string",
+    "isRead": false,
+    "readAt": "2026-06-21T12:00:00Z",
+    "priority": "string",
+    "createdAt": "2026-06-21T12:00:00Z"
+  },
+  "lookupValue": {
+    "id": "uuid",
+    "category": "string",
+    "code": "string",
+    "displayValue": "string",
+    "description": "string",
+    "sortOrder": 1
+  }
+}
+```
+
+### Dashboard Responses
+
+```json
+{
+  "dashboard": {
+    "openCapas": 0,
+    "openDeviations": 0,
+    "openChangeRequests": 0,
+    "overdueCapas": 0,
+    "overdueDeviations": 0,
+    "overdueChangeRequests": 0,
+    "pendingReviews": 0,
+    "capasByStatus": {
+      "OPEN": 0
+    },
+    "deviationsByStatus": {
+      "OPEN": 0
+    },
+    "changeRequestsByStatus": {
+      "OPEN": 0
+    }
+  },
+  "capaMetrics": {
+    "totalCapas": 0,
+    "openCapas": 0,
+    "overdueCapas": 0,
+    "closedCapas": 0,
+    "byStatus": {},
+    "byPriority": {},
+    "byDepartment": {}
+  },
+  "deviationMetrics": {
+    "totalDeviations": 0,
+    "openDeviations": 0,
+    "overdueDeviations": 0,
+    "closedDeviations": 0,
+    "byStatus": {},
+    "byClassification": {},
+    "byCategory": {},
+    "byDepartment": {}
+  },
+  "changeControlMetrics": {
+    "totalChangeRequests": 0,
+    "openChangeRequests": 0,
+    "overdueChangeRequests": 0,
+    "closedChangeRequests": 0,
+    "byStatus": {},
+    "byType": {},
+    "byClassification": {},
+    "byDepartment": {}
+  }
+}
+```
+
+### Administration Entity Responses
+
+These endpoints currently return JPA entities directly.
+
+```json
+{
+  "systemConfiguration": {
+    "id": "uuid",
+    "configKey": "string",
+    "configValue": "string",
+    "configType": "STRING",
+    "module": "string",
+    "plantSite": "PlantSite",
+    "description": "string",
+    "isEncrypted": false,
+    "updatedAt": "2026-06-21T12:00:00Z",
+    "updatedBy": "User"
+  },
+  "organization": {
+    "id": "uuid",
+    "name": "string",
+    "code": "string",
+    "type": "string",
+    "address": "string",
+    "city": "string",
+    "state": "string",
+    "country": "string",
+    "phone": "string",
+    "email": "string",
+    "gmpCertification": "string",
+    "licenseNumber": "string",
+    "isActive": true,
+    "createdAt": "2026-06-21T12:00:00Z",
+    "updatedAt": "2026-06-21T12:00:00Z"
+  },
+  "plantSite": {
+    "id": "uuid",
+    "organization": "Organization",
+    "name": "string",
+    "code": "string",
+    "address": "string",
+    "city": "string",
+    "state": "string",
+    "country": "string",
+    "siteType": "string",
+    "fdaRegistration": "string",
+    "isActive": true,
+    "createdAt": "2026-06-21T12:00:00Z",
+    "updatedAt": "2026-06-21T12:00:00Z"
+  },
+  "department": {
+    "id": "uuid",
+    "plantSite": "PlantSite",
+    "name": "string",
+    "code": "string",
+    "description": "string",
+    "parentDepartment": "Department",
+    "isActive": true,
+    "createdAt": "2026-06-21T12:00:00Z",
+    "updatedAt": "2026-06-21T12:00:00Z"
+  },
+  "product": {
+    "id": "uuid",
+    "productCode": "string",
+    "productName": "string",
+    "dosageForm": "string",
+    "strength": "string",
+    "therapeuticCategory": "string",
+    "plantSite": "PlantSite",
+    "isActive": true,
+    "createdAt": "2026-06-21T12:00:00Z",
+    "updatedAt": "2026-06-21T12:00:00Z"
+  },
+  "batch": {
+    "id": "uuid",
+    "batchNumber": "string",
+    "product": "Product",
+    "batchSize": "string",
+    "manufacturingDate": "2026-06-21",
+    "expiryDate": "2026-06-21",
+    "status": "IN_PROCESS",
+    "plantSite": "PlantSite",
+    "createdAt": "2026-06-21T12:00:00Z"
+  },
+  "electronicSignature": {
+    "id": "uuid",
+    "user": "User",
+    "recordType": "string",
+    "recordId": "uuid",
+    "action": "string",
+    "meaning": "string",
+    "signatureHash": "string",
+    "signedAt": "2026-06-21T12:00:00Z",
+    "ipAddress": "string",
+    "comments": "string",
+    "isValid": true,
+    "invalidatedAt": "2026-06-21T12:00:00Z",
+    "invalidatedBy": "User",
+    "invalidationReason": "string"
+  }
+}
+```

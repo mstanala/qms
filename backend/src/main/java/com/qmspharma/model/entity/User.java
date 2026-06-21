@@ -3,6 +3,7 @@ package com.qmspharma.model.entity;
 import com.qmspharma.model.enums.UserType;
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -14,9 +15,11 @@ import java.util.UUID;
 @Entity
 @Table(name = "users")
 @Data
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
+    @EqualsAndHashCode.Include
     private UUID id;
 
     @Column(name = "employee_id", nullable = false, unique = true, length = 50)

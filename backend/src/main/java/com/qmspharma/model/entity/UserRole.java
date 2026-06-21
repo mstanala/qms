@@ -2,6 +2,7 @@ package com.qmspharma.model.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -9,9 +10,11 @@ import java.util.UUID;
 @Entity
 @Table(name = "user_roles", uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "role_id", "plant_site_id"}))
 @Data
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class UserRole {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
+    @EqualsAndHashCode.Include
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
