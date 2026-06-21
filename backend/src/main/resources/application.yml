@@ -1,0 +1,70 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: qms-pharma-api
+
+  datasource:
+    url: jdbc:postgresql://localhost:5434/qms
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:Pandu#4492}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: false
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:qms-pharma-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256}
+  expiration-ms: 3600000
+  refresh-expiration-ms: 86400000
+
+# CORS
+cors:
+  allowed-origins: http://localhost:4200,http://localhost:4201,http://localhost:4202,http://localhost:4203
+
+# GCS Configuration
+gcs:
+  bucket-name: ${GCS_BUCKET:qms-pharma-attachments}
+  project-id: ${GCS_PROJECT_ID:qms-pharma}
+
+# Flowable
+flowable:
+  database-schema-update: true
+  async-executor-activate: true
+
+# OpenAPI
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.qmspharma: DEBUG
+    org.springframework.security: INFO
+    org.flowable: INFO

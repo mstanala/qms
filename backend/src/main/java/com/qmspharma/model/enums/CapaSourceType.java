@@ -1,0 +1,7 @@
+package com.qmspharma.model.enums;
+
+public enum CapaSourceType {
+    DEVIATION, AUDIT_FINDING, COMPLAINT, OOS_RESULT,
+    RISK_ASSESSMENT, MANAGEMENT_REVIEW, REGULATORY_OBSERVATION,
+    SELF_IDENTIFIED
+}
