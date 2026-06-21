@@ -2,15 +2,18 @@ package com.qmspharma.model.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.util.UUID;
 
 @Entity
 @Table(name = "permissions", uniqueConstraints = @UniqueConstraint(columnNames = {"module", "action", "resource"}))
 @Data
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class Permission {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
+    @EqualsAndHashCode.Include
     private UUID id;
 
     @Column(nullable = false, length = 50)

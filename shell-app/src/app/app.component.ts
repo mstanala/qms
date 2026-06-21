@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { Router, RouterModule, NavigationEnd } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatIconModule } from '@angular/material/icon';
@@ -10,6 +11,25 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
 import { filter } from 'rxjs/operators';
 import { AuthService, AuthUser } from './auth/auth.service';
+
+const API_BASE_URL = 'http://localhost:8082/api/v1';
+
+interface ApiPage<T> {
+  content?: T[];
+}
+
+interface NotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  notificationType: string;
+  recordType: string;
+  recordId: string;
+  recordNumber: string;
+  isRead: boolean;
+  priority: string;
+  createdAt: string;
+}
 
 @Component({
   selector: 'app-root',
@@ -45,13 +65,18 @@ import { AuthService, AuthUser } from './auth/auth.service';
         </div>
         <div class="title-bar-right">
           <button class="tb-btn" matTooltip="Notifications" [matMenuTriggerFor]="notifMenu">
-            <mat-icon [matBadge]="'3'" matBadgeSize="small" matBadgeColor="warn">notifications_none</mat-icon>
+            <mat-icon [matBadge]="notificationBadge" matBadgeSize="small" matBadgeColor="warn">notifications_none</mat-icon>
           </button>
           <mat-menu #notifMenu="matMenu" class="notif-menu">
             <div class="notif-header">Notifications</div>
-            <button mat-menu-item><mat-icon>warning</mat-icon><span>CAPA-2025-008 overdue</span></button>
-            <button mat-menu-item><mat-icon>check_circle</mat-icon><span>DEV-2025-003 approved</span></button>
-            <button mat-menu-item><mat-icon>assignment</mat-icon><span>CC-2025-005 needs review</span></button>
+            <button mat-menu-item *ngFor="let notification of notifications">
+              <mat-icon>{{ notificationIcon(notification) }}</mat-icon>
+              <span>{{ notification.title || notification.message || notification.recordNumber }}</span>
+            </button>
+            <button mat-menu-item disabled *ngIf="notifications.length === 0">
+              <mat-icon>notifications_off</mat-icon>
+              <span>No notifications</span>
+            </button>
           </mat-menu>
           <button class="tb-btn" matTooltip="Help">
             <mat-icon>help_outline</mat-icon>
@@ -97,21 +122,37 @@ import { AuthService, AuthUser } from './auth/auth.service';
           <button mat-menu-item routerLink="/change-control/list"><mat-icon>list</mat-icon>All Change Controls</button>
         </mat-menu>
 
-        <button class="menu-item" [matMenuTriggerFor]="toolsMenu">Tools</button>
+        <button class="menu-item" [matMenuTriggerFor]="toolsMenu" [disabled]="!canAccessTools">Tools</button>
         <mat-menu #toolsMenu="matMenu">
-          <button mat-menu-item disabled><mat-icon>assessment</mat-icon>Reports</button>
-          <button mat-menu-item disabled><mat-icon>bar_chart</mat-icon>Analytics</button>
-          <button mat-menu-item disabled><mat-icon>fact_check</mat-icon>Audit Trail Viewer</button>
+          <button mat-menu-item routerLink="/tools/reports" [disabled]="!canViewReports">
+            <mat-icon>assessment</mat-icon>Reports
+          </button>
+          <button mat-menu-item routerLink="/tools/analytics" [disabled]="!canViewReports">
+            <mat-icon>bar_chart</mat-icon>Analytics
+          </button>
+          <button mat-menu-item routerLink="/tools/audit-trail" [disabled]="!canViewAuditTrail">
+            <mat-icon>fact_check</mat-icon>Audit Trail Viewer
+          </button>
           <mat-divider></mat-divider>
-          <button mat-menu-item disabled><mat-icon>import_export</mat-icon>Import / Export</button>
+          <button mat-menu-item routerLink="/tools/import-export" [disabled]="!canImportExport">
+            <mat-icon>import_export</mat-icon>Import / Export
+          </button>
         </mat-menu>
 
-        <button class="menu-item" [matMenuTriggerFor]="adminMenu">Admin</button>
+        <button class="menu-item" [matMenuTriggerFor]="adminMenu" [disabled]="!canAccessAdmin">Admin</button>
         <mat-menu #adminMenu="matMenu">
-          <button mat-menu-item disabled><mat-icon>people</mat-icon>User Management</button>
-          <button mat-menu-item disabled><mat-icon>admin_panel_settings</mat-icon>Roles & Permissions</button>
-          <button mat-menu-item disabled><mat-icon>tune</mat-icon>System Configuration</button>
-          <button mat-menu-item disabled><mat-icon>security</mat-icon>Compliance Settings</button>
+          <button mat-menu-item routerLink="/admin/users" [disabled]="!canManageUsers">
+            <mat-icon>people</mat-icon>User Management
+          </button>
+          <button mat-menu-item routerLink="/admin/roles" [disabled]="!canConfigureAdmin">
+            <mat-icon>admin_panel_settings</mat-icon>Roles & Permissions
+          </button>
+          <button mat-menu-item routerLink="/admin/configuration" [disabled]="!canConfigureAdmin">
+            <mat-icon>tune</mat-icon>System Configuration
+          </button>
+          <button mat-menu-item routerLink="/admin/compliance" [disabled]="!canConfigureAdmin">
+            <mat-icon>security</mat-icon>Compliance Settings
+          </button>
         </mat-menu>
 
         <button class="menu-item" [matMenuTriggerFor]="helpMenu">Help</button>
@@ -273,6 +314,8 @@ import { AuthService, AuthUser } from './auth/auth.service';
       font-size: 12px; padding: 4px 10px; cursor: pointer; border-radius: 3px;
     }
     .menu-item:hover { background: rgba(255,255,255,0.12); color: #fff; }
+    .menu-item:disabled { color: rgba(255,255,255,0.35); cursor: default; }
+    .menu-item:disabled:hover { background: none; color: rgba(255,255,255,0.35); }
 
     /* ── MODULE TABS ── */
     .module-tabs {
@@ -350,10 +393,20 @@ export class AppComponent {
   currentTime = '';
   currentUser: AuthUser | null = null;
   isLoginRoute = false;
+  unreadNotificationCount = 0;
+  notifications: NotificationItem[] = [];
+  canAccessAdmin = false;
+  canManageUsers = false;
+  canConfigureAdmin = false;
+  canAccessTools = false;
+  canViewReports = false;
+  canViewAuditTrail = false;
+  canImportExport = false;
 
   constructor(
     private router: Router,
-    public authService: AuthService
+    public authService: AuthService,
+    private http: HttpClient
   ) {
     this.updateTime();
     this.updateRouteState(this.router.url);
@@ -365,6 +418,10 @@ export class AppComponent {
         const url = event.urlAfterRedirects || event.url;
         this.updateRouteState(url);
       });
+  }
+
+  get notificationBadge(): string {
+    return this.unreadNotificationCount > 0 ? this.unreadNotificationCount.toString() : '';
   }
 
   get userInitials(): string {
@@ -380,22 +437,95 @@ export class AppComponent {
   logout(): void {
     this.authService.logout();
     this.currentUser = null;
+    this.notifications = [];
+    this.unreadNotificationCount = 0;
+    this.canAccessAdmin = false;
+    this.canManageUsers = false;
+    this.canConfigureAdmin = false;
+    this.canAccessTools = false;
+    this.canViewReports = false;
+    this.canViewAuditTrail = false;
+    this.canImportExport = false;
     this.router.navigate(['/login']);
+  }
+
+  notificationIcon(notification: NotificationItem): string {
+    if (notification.priority === 'HIGH' || notification.priority === 'CRITICAL') return 'warning';
+    if (notification.notificationType === 'APPROVAL') return 'how_to_reg';
+    if (notification.notificationType === 'TASK') return 'assignment';
+    return notification.isRead ? 'notifications_none' : 'notifications';
   }
 
   private updateRouteState(url: string): void {
     this.isLoginRoute = url.startsWith('/login');
     this.currentUser = this.authService.getUser();
+    if (!this.isLoginRoute && this.authService.isAuthenticated()) {
+      this.refreshAdminAccess();
+      this.loadNotifications();
+    }
 
     if (url.startsWith('/capa')) this.activeModuleLabel = 'CAPA Management';
     else if (url.startsWith('/deviations')) this.activeModuleLabel = 'Deviation Management';
     else if (url.startsWith('/change-control')) this.activeModuleLabel = 'Change Control';
+    else if (url.startsWith('/admin')) this.activeModuleLabel = 'Administration';
+    else if (url.startsWith('/tools')) this.activeModuleLabel = 'Tools';
     else this.activeModuleLabel = 'Overview';
   }
 
   private updateTime(): void {
     this.currentTime = new Date().toLocaleString('en-US', {
       hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short', year: 'numeric'
+    });
+  }
+
+  private loadNotifications(): void {
+    this.http
+      .get<ApiPage<NotificationItem>>(`${API_BASE_URL}/notifications`, {
+        params: { page: '0', size: '5', sort: 'createdAt,desc' },
+      })
+      .subscribe({
+        next: (page) => {
+          this.notifications = page.content || [];
+        },
+        error: () => {
+          this.notifications = [];
+        },
+      });
+
+    this.http
+      .get<{ count: number }>(`${API_BASE_URL}/notifications/unread-count`)
+      .subscribe({
+        next: (response) => {
+          this.unreadNotificationCount = response.count || 0;
+        },
+        error: () => {
+          this.unreadNotificationCount = 0;
+        },
+      });
+  }
+
+  private refreshAdminAccess(): void {
+    this.authService.ensureSessionContext().subscribe((user) => {
+      this.currentUser = user;
+      this.canAccessAdmin = this.authService.hasAdminAccess();
+      this.canManageUsers = this.authService.hasPermission('ADMIN', 'READ', 'user') ||
+        this.authService.hasPermission('ADMIN', 'CREATE', 'user') ||
+        this.authService.hasPermission('ADMIN', 'UPDATE', 'user') ||
+        this.currentUser?.userType === 'SYSTEM_ADMIN';
+      this.canConfigureAdmin = this.authService.hasPermission('ADMIN', 'CONFIGURE', 'system') ||
+        this.authService.hasPermission('ADMIN', 'CONFIGURE', 'workflow') ||
+        this.currentUser?.userType === 'SYSTEM_ADMIN';
+      this.canViewReports = this.authService.hasPermission('REPORT', 'READ') ||
+        this.authService.hasPermission('REPORT', 'EXPORT') ||
+        this.currentUser?.userType === 'SYSTEM_ADMIN';
+      this.canViewAuditTrail = this.authService.hasPermission('ADMIN', 'READ', 'audit_trail') ||
+        this.currentUser?.userType === 'SYSTEM_ADMIN';
+      this.canImportExport = this.authService.hasPermission('REPORT', 'EXPORT') ||
+        this.authService.hasPermission('CAPA', 'EXPORT') ||
+        this.authService.hasPermission('DEVIATION', 'EXPORT') ||
+        this.authService.hasPermission('CHANGE_CONTROL', 'EXPORT') ||
+        this.currentUser?.userType === 'SYSTEM_ADMIN';
+      this.canAccessTools = this.canViewReports || this.canViewAuditTrail || this.canImportExport;
     });
   }
 }

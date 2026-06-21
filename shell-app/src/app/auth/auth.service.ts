@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap } from 'rxjs';
+import { Observable, catchError, forkJoin, map, of, switchMap, tap } from 'rxjs';
 
 const API_BASE_URL = 'http://localhost:8082/api/v1';
 
@@ -11,17 +11,47 @@ export interface LoginRequest {
 
 export interface AuthUser {
   id: string;
-  username: string;
+  username?: string;
   displayName: string;
-  email: string;
-  userType: string;
+  email?: string;
+  userType?: string;
+  roles?: RoleResponse[] | string[];
+  permissions?: PermissionResponse[];
+  organizationId?: string;
+  organizationName?: string;
+  plantSiteId?: string;
+  plantSiteName?: string;
+  departmentId?: string;
+  departmentName?: string;
+  isActive?: boolean;
+  isLocked?: boolean;
 }
 
 export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
-  tokenType: string;
+  tokenType?: string;
+  expiresIn?: number;
   user: AuthUser;
+}
+
+export interface PermissionResponse {
+  id: string;
+  module: string;
+  action: string;
+  resource: string;
+  description?: string;
+}
+
+export interface RoleResponse {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  roleLevel?: string;
+  isSystem?: boolean;
+  isActive?: boolean;
+  permissions?: PermissionResponse[];
 }
 
 @Injectable({
@@ -31,12 +61,18 @@ export class AuthService {
   private readonly accessTokenKey = 'accessToken';
   private readonly refreshTokenKey = 'refreshToken';
   private readonly authKey = 'auth';
+  private sessionContextLoaded = false;
 
   constructor(private http: HttpClient) {}
 
   login(credentials: LoginRequest): Observable<AuthResponse> {
     return this.http.post<AuthResponse>(`${API_BASE_URL}/auth/login`, credentials).pipe(
-      tap((response) => this.storeSession(response))
+      tap((response) => this.storeSession(response)),
+      switchMap((response) =>
+        this.loadSessionContext().pipe(
+          map(() => response)
+        )
+      )
     );
   }
 
@@ -47,6 +83,7 @@ export class AuthService {
     sessionStorage.removeItem(this.accessTokenKey);
     sessionStorage.removeItem(this.refreshTokenKey);
     sessionStorage.removeItem(this.authKey);
+    this.sessionContextLoaded = false;
   }
 
   getAccessToken(): string | null {
@@ -68,9 +105,87 @@ export class AuthService {
     }
   }
 
+  ensureSessionContext(): Observable<AuthUser | null> {
+    if (!this.isAuthenticated()) return of(null);
+    const user = this.getUser();
+    if (this.sessionContextLoaded && user) return of(user);
+    return this.loadSessionContext();
+  }
+
+  loadSessionContext(): Observable<AuthUser | null> {
+    if (!this.isAuthenticated()) return of(null);
+
+    return forkJoin({
+      user: this.http.get<AuthUser>(`${API_BASE_URL}/auth/me`),
+      roles: this.http.get<RoleResponse[]>(`${API_BASE_URL}/roles`).pipe(catchError(() => of([] as RoleResponse[]))),
+    }).pipe(
+      map(({ user, roles }) => this.withResolvedPermissions(user, roles)),
+      tap((user) => {
+        this.updateStoredUser(user);
+        this.sessionContextLoaded = true;
+      }),
+      catchError(() => of(this.getUser()))
+    );
+  }
+
+  getRoleCodes(): string[] {
+    const roles = this.getUser()?.roles || [];
+    return roles
+      .map((role) => typeof role === 'string' ? role : role.code)
+      .filter((code): code is string => !!code);
+  }
+
+  getPermissions(): PermissionResponse[] {
+    return this.getUser()?.permissions || [];
+  }
+
+  hasRole(roleCode: string): boolean {
+    return this.getRoleCodes().includes(roleCode);
+  }
+
+  hasPermission(module: string, action?: string, resource?: string): boolean {
+    if (this.hasRole('VAULT_ADMIN')) return true;
+    return this.getPermissions().some((permission) =>
+      permission.module === module &&
+      (!action || permission.action === action) &&
+      (!resource || permission.resource === resource)
+    );
+  }
+
+  hasAdminAccess(): boolean {
+    return this.getUser()?.userType === 'SYSTEM_ADMIN' ||
+      this.hasRole('VAULT_ADMIN') ||
+      this.getPermissions().some((permission) => permission.module === 'ADMIN');
+  }
+
   private storeSession(response: AuthResponse): void {
     localStorage.setItem(this.accessTokenKey, response.accessToken);
     localStorage.setItem(this.refreshTokenKey, response.refreshToken);
     localStorage.setItem(this.authKey, JSON.stringify(response));
+  }
+
+  private updateStoredUser(user: AuthUser): void {
+    const raw = localStorage.getItem(this.authKey) || sessionStorage.getItem(this.authKey);
+    const session = raw ? JSON.parse(raw) as AuthResponse : { accessToken: '', refreshToken: '', user };
+    const updated = { ...session, user };
+    localStorage.setItem(this.authKey, JSON.stringify(updated));
+  }
+
+  private withResolvedPermissions(user: AuthUser, allRoles: RoleResponse[]): AuthUser {
+    const roleCodes = (user.roles || []).map((role) => typeof role === 'string' ? role : role.code);
+    const resolvedRoles = allRoles.filter((role) => roleCodes.includes(role.code));
+    const permissionMap = new Map<string, PermissionResponse>();
+
+    resolvedRoles.forEach((role) => {
+      (role.permissions || []).forEach((permission) => {
+        permissionMap.set(permission.id, permission);
+      });
+    });
+
+    return {
+      ...user,
+      roles: resolvedRoles.length ? resolvedRoles : user.roles,
+      permissions: Array.from(permissionMap.values()),
+    };
   }
 }

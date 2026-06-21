@@ -2,7 +2,10 @@ package com.qmspharma.controller;
 
 import com.qmspharma.model.dto.request.CreateDepartmentRequest;
 import com.qmspharma.model.dto.request.UpdateConfigRequest;
-import com.qmspharma.model.entity.*;
+import com.qmspharma.model.dto.response.DepartmentResponse;
+import com.qmspharma.model.dto.response.OrganizationResponse;
+import com.qmspharma.model.dto.response.PlantSiteResponse;
+import com.qmspharma.model.dto.response.SystemConfigurationResponse;
 import com.qmspharma.service.AdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,32 +24,32 @@ public class AdminController {
     private final AdminService adminService;
 
     @GetMapping("/configurations")
-    public ResponseEntity<List<SystemConfiguration>> listConfigurations() {
+    public ResponseEntity<List<SystemConfigurationResponse>> listConfigurations() {
         return ResponseEntity.ok(adminService.listConfigurations());
     }
 
     @PutMapping("/configurations/{key}")
-    public ResponseEntity<SystemConfiguration> updateConfiguration(@PathVariable String key, @Valid @RequestBody UpdateConfigRequest request) {
+    public ResponseEntity<SystemConfigurationResponse> updateConfiguration(@PathVariable String key, @Valid @RequestBody UpdateConfigRequest request) {
         return ResponseEntity.ok(adminService.updateConfiguration(key, request));
     }
 
     @GetMapping("/organizations")
-    public ResponseEntity<List<Organization>> listOrganizations() {
+    public ResponseEntity<List<OrganizationResponse>> listOrganizations() {
         return ResponseEntity.ok(adminService.listOrganizations());
     }
 
     @GetMapping("/plant-sites")
-    public ResponseEntity<List<PlantSite>> listPlantSites(@RequestParam(required = false) UUID organizationId) {
+    public ResponseEntity<List<PlantSiteResponse>> listPlantSites(@RequestParam(required = false) UUID organizationId) {
         return ResponseEntity.ok(adminService.listPlantSites(organizationId));
     }
 
     @GetMapping("/departments")
-    public ResponseEntity<List<Department>> listDepartments(@RequestParam(required = false) UUID plantSiteId) {
+    public ResponseEntity<List<DepartmentResponse>> listDepartments(@RequestParam(required = false) UUID plantSiteId) {
         return ResponseEntity.ok(adminService.listDepartments(plantSiteId));
     }
 
     @PostMapping("/departments")
-    public ResponseEntity<Department> createDepartment(@Valid @RequestBody CreateDepartmentRequest request) {
+    public ResponseEntity<DepartmentResponse> createDepartment(@Valid @RequestBody CreateDepartmentRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(adminService.createDepartment(request));
     }
 }
