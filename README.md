@@ -202,4 +202,4 @@ To add new microfrontends (e.g., Document Control), simply:
 Create a new Angular app on a new port (e.g., 4202)
 Configure webpack to expose its routes
 Add the remote entry to shell-app/src/assets/mf.manifest.json
-Add a route in shell-app/src/app/app.routes.ts
+Add a route in shell-app/src/app/app.routes.ts.
