@@ -22,6 +22,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CapaService {
 
+    private static final String PROCESS_KEY = "capaProcess";
+    private static final String RECORD_TYPE = "CAPA";
+
     private final CapaRepository capaRepository;
     private final CapaRootCauseAnalysisRepository rcaRepository;
     private final CapaFiveWhyEntryRepository fiveWhyRepository;
@@ -84,8 +87,9 @@ public class CapaService {
         capa.setTargetCompletionDate(request.getTargetCompletionDate());
         capa.setDueDate(request.getTargetCompletionDate());
         capa.setInitiator(currentUser);
-        capa.setOwner(userRepository.findById(request.getOwnerId())
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getOwnerId())));
+        User owner = userRepository.findById(request.getOwnerId())
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getOwnerId()));
+        capa.setOwner(owner);
         capa.setDepartment(departmentRepository.findById(request.getDepartmentId())
                 .orElseThrow(() -> new ResourceNotFoundException("Department", "id", request.getDepartmentId())));
         capa.setPlantSite(plantSiteRepository.findById(request.getPlantSiteId())
@@ -99,11 +103,26 @@ public class CapaService {
         capa.setUpdatedBy(currentUser);
         capa = capaRepository.save(capa);
 
-        auditTrailService.logAction("CAPA", capa.getId(), capa.getCapaNumber(), "CREATED", null, null, null, null);
-        workflowService.recordStep("CAPA", capa.getId(), "Initiation", WorkflowStepStatus.CURRENT, currentUser, null, 1);
+        // Start Flowable process
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("recordId", capa.getId().toString());
+        vars.put("capaNumber", capa.getCapaNumber());
+        vars.put("initiatorId", currentUser.getId().toString());
+        vars.put("ownerId", owner.getId().toString());
+        vars.put("priority", capa.getPriority().name());
+        vars.put("plantSiteId", capa.getPlantSite().getId().toString());
+        vars.put("departmentId", capa.getDepartment().getId().toString());
+        vars.put("targetCompletionDate", capa.getTargetCompletionDate().toString());
+
+        String processId = workflowService.startProcess(PROCESS_KEY, capa.getId().toString(), vars);
+        capa.setFlowableProcessId(processId);
+        capa = capaRepository.save(capa);
+
+        auditTrailService.logAction(RECORD_TYPE, capa.getId(), capa.getCapaNumber(), "CREATED", null, null, null, null);
+        workflowService.recordStep(RECORD_TYPE, capa.getId(), "Initiation", WorkflowStepStatus.CURRENT, currentUser, null, 1);
         notificationService.send(capa.getOwner().getId(), "CAPA Assigned",
                 "You are the owner of CAPA " + capa.getCapaNumber(),
-                NotificationType.TASK_ASSIGNED, "CAPA", capa.getId(), capa.getCapaNumber());
+                NotificationType.TASK_ASSIGNED, RECORD_TYPE, capa.getId(), capa.getCapaNumber());
         return toResponse(capa);
     }
 
@@ -120,7 +139,7 @@ public class CapaService {
         if (request.getProduct() != null) capa.setProduct(request.getProduct());
         if (request.getBatchNumber() != null) capa.setBatchNumber(request.getBatchNumber());
         capa.setUpdatedBy(currentUserProvider.getCurrentUser());
-        auditTrailService.logAction("CAPA", capa.getId(), capa.getCapaNumber(), "UPDATED", null, null, null, null);
+        auditTrailService.logAction(RECORD_TYPE, capa.getId(), capa.getCapaNumber(), "UPDATED", null, null, null, null);
         return toResponse(capaRepository.save(capa));
     }
 
@@ -129,16 +148,32 @@ public class CapaService {
         Capa capa = capaRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("CAPA", "id", id));
         String oldStatus = capa.getStatus().name();
         CapaStatus newStatus = CapaStatus.valueOf(request.getStatus());
+
+        if (newStatus == CapaStatus.UNDER_REVIEW) {
+            // Complete QA Review task - approved
+            Map<String, Object> taskVars = new HashMap<>();
+            taskVars.put("reviewDecision", "APPROVED");
+            workflowService.completeTask(capa.getFlowableProcessId(), "qaReview", taskVars);
+        }
+
+        if (newStatus == CapaStatus.REJECTED) {
+            Map<String, Object> taskVars = new HashMap<>();
+            taskVars.put("reviewDecision", "REJECTED");
+            workflowService.completeCurrentTask(capa.getFlowableProcessId(), taskVars);
+        }
+
         if (newStatus == CapaStatus.CLOSED) {
             validateClosureRules(capa);
             capa.setClosedAt(Instant.now());
             capa.setActualCompletionDate(Instant.now());
+            workflowService.completeCurrentTask(capa.getFlowableProcessId(), null);
         }
+
         capa.setStatus(newStatus);
         capa.setCurrentWorkflowStep(newStatus.name());
         capa.setUpdatedBy(currentUserProvider.getCurrentUser());
         capaRepository.save(capa);
-        auditTrailService.logAction("CAPA", capa.getId(), capa.getCapaNumber(), "STATUS_CHANGED",
+        auditTrailService.logAction(RECORD_TYPE, capa.getId(), capa.getCapaNumber(), "STATUS_CHANGED",
                 "status", oldStatus, newStatus.name(), request.getComments());
         return toResponse(capa);
     }
@@ -185,7 +220,15 @@ public class CapaService {
         capa.setCurrentWorkflowStep("Root Cause Identified");
         capa.setUpdatedBy(currentUser);
         capaRepository.save(capa);
-        auditTrailService.logAction("CAPA", capa.getId(), capa.getCapaNumber(), "RCA_SUBMITTED", null, null, null, null);
+
+        // Complete investigation task in Flowable
+        workflowService.completeTask(capa.getFlowableProcessId(), "investigation", null);
+
+        auditTrailService.logAction(RECORD_TYPE, capa.getId(), capa.getCapaNumber(), "RCA_SUBMITTED", null, null, null, null);
+        workflowService.recordStep(RECORD_TYPE, capa.getId(), "Root Cause Analysis",
+                WorkflowStepStatus.COMPLETED, currentUser, null, 3);
+        workflowService.recordStep(RECORD_TYPE, capa.getId(), "Risk Assessment",
+                WorkflowStepStatus.CURRENT, null, null, 4);
         return toResponse(capa);
     }
 
@@ -205,7 +248,19 @@ public class CapaService {
         ra.setAssessedDate(Instant.now());
         riskAssessmentRepository.save(ra);
 
-        auditTrailService.logAction("CAPA", capa.getId(), capa.getCapaNumber(), "RISK_ASSESSMENT_SUBMITTED", null, null, null, null);
+        capa.setStatus(CapaStatus.ACTION_PLANNING);
+        capa.setCurrentWorkflowStep("Action Planning");
+        capa.setUpdatedBy(currentUser);
+        capaRepository.save(capa);
+
+        // Complete risk assessment task in Flowable
+        workflowService.completeTask(capa.getFlowableProcessId(), "riskAssessment", null);
+
+        auditTrailService.logAction(RECORD_TYPE, capa.getId(), capa.getCapaNumber(), "RISK_ASSESSMENT_SUBMITTED", null, null, null, null);
+        workflowService.recordStep(RECORD_TYPE, capa.getId(), "Risk Assessment",
+                WorkflowStepStatus.COMPLETED, currentUser, null, 4);
+        workflowService.recordStep(RECORD_TYPE, capa.getId(), "Action Planning",
+                WorkflowStepStatus.CURRENT, null, null, 5);
         return toResponse(capa);
     }
 
@@ -227,7 +282,7 @@ public class CapaService {
 
         notificationService.send(assignee.getId(), "CAPA Action Assigned",
                 "You have been assigned action " + action.getActionNumber(),
-                NotificationType.TASK_ASSIGNED, "CAPA", capaId, capa.getCapaNumber());
+                NotificationType.TASK_ASSIGNED, RECORD_TYPE, capaId, capa.getCapaNumber());
         return toActionResponse(action);
     }
 
@@ -266,6 +321,51 @@ public class CapaService {
         return toActionResponse(actionRepository.save(action));
     }
 
+    /**
+     * Transition from Action Planning to Action Execution.
+     * Completes the actionPlanning Flowable task.
+     */
+    @Transactional
+    public CapaResponse startActionExecution(UUID id) {
+        Capa capa = capaRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("CAPA", "id", id));
+        if (capa.getActions().isEmpty()) {
+            throw new BusinessRuleException("At least one action must be defined before starting execution", "CAPA_NO_ACTIONS");
+        }
+        capa.setStatus(CapaStatus.ACTION_IN_PROGRESS);
+        capa.setCurrentWorkflowStep("Action Execution");
+        capa.setUpdatedBy(currentUserProvider.getCurrentUser());
+        capaRepository.save(capa);
+
+        workflowService.completeTask(capa.getFlowableProcessId(), "actionPlanning", null);
+        workflowService.recordStep(RECORD_TYPE, capa.getId(), "Action Planning",
+                WorkflowStepStatus.COMPLETED, null, null, 5);
+        workflowService.recordStep(RECORD_TYPE, capa.getId(), "Action Execution",
+                WorkflowStepStatus.CURRENT, capa.getOwner(), null, 6);
+        return toResponse(capa);
+    }
+
+    /**
+     * Complete action execution phase (all actions verified).
+     * Completes the actionExecution Flowable task.
+     */
+    @Transactional
+    public CapaResponse completeActionExecution(UUID id) {
+        Capa capa = capaRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("CAPA", "id", id));
+        long unverified = actionRepository.countByCapaIdAndStatusNot(capa.getId(), ActionStatus.VERIFIED);
+        if (unverified > 0) {
+            throw new BusinessRuleException(unverified + " actions not yet verified", "CAPA_ACTIONS_NOT_VERIFIED");
+        }
+        workflowService.completeTask(capa.getFlowableProcessId(), "actionExecution", null);
+        workflowService.recordStep(RECORD_TYPE, capa.getId(), "Action Execution",
+                WorkflowStepStatus.COMPLETED, null, "All actions verified", 6);
+        workflowService.recordStep(RECORD_TYPE, capa.getId(), "Effectiveness Check",
+                WorkflowStepStatus.CURRENT, null, null, 7);
+        capa.setStatus(CapaStatus.EFFECTIVENESS_CHECK);
+        capa.setCurrentWorkflowStep("Effectiveness Check");
+        capa.setUpdatedBy(currentUserProvider.getCurrentUser());
+        return toResponse(capaRepository.save(capa));
+    }
+
     @Transactional
     public CapaResponse submitEffectivenessCheck(UUID id, SubmitEffectivenessCheckRequest request) {
         Capa capa = capaRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("CAPA", "id", id));
@@ -284,12 +384,29 @@ public class CapaService {
         check.setCheckNumber(capa.getEffectivenessChecks().size() + 1);
         effectivenessCheckRepository.save(check);
 
-        capa.setStatus(CapaStatus.EFFECTIVENESS_CHECK);
-        capa.setCurrentWorkflowStep("Effectiveness Check");
+        // Complete effectiveness check task with result for gateway
+        Map<String, Object> taskVars = new HashMap<>();
+        taskVars.put("effectivenessResult", request.getResult());
+        workflowService.completeTask(capa.getFlowableProcessId(), "effectivenessCheck", taskVars);
+
+        if ("EFFECTIVE".equals(request.getResult())) {
+            capa.setStatus(CapaStatus.PENDING_CLOSURE);
+            capa.setCurrentWorkflowStep("Pending QA Approval");
+            workflowService.recordStep(RECORD_TYPE, capa.getId(), "Effectiveness Check",
+                    WorkflowStepStatus.COMPLETED, currentUser, "Effective", 7);
+            workflowService.recordStep(RECORD_TYPE, capa.getId(), "QA Approval",
+                    WorkflowStepStatus.CURRENT, null, null, 8);
+        } else {
+            capa.setStatus(CapaStatus.ACTION_PLANNING);
+            capa.setCurrentWorkflowStep("Action Re-planning");
+            workflowService.recordStep(RECORD_TYPE, capa.getId(), "Effectiveness Check",
+                    WorkflowStepStatus.COMPLETED, currentUser, "Not effective - re-planning required", 7);
+        }
+
         capa.setUpdatedBy(currentUser);
         capaRepository.save(capa);
 
-        auditTrailService.logAction("CAPA", capa.getId(), capa.getCapaNumber(), "EFFECTIVENESS_CHECK_SUBMITTED",
+        auditTrailService.logAction(RECORD_TYPE, capa.getId(), capa.getCapaNumber(), "EFFECTIVENESS_CHECK_SUBMITTED",
                 "result", null, request.getResult(), null);
         return toResponse(capa);
     }
@@ -297,7 +414,13 @@ public class CapaService {
     @Transactional(readOnly = true)
     public List<AuditTrailResponse> getAuditTrail(UUID id) {
         capaRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("CAPA", "id", id));
-        return auditTrailService.getByRecord("CAPA", id);
+        return auditTrailService.getByRecord(RECORD_TYPE, id);
+    }
+
+    @Transactional(readOnly = true)
+    public List<WorkflowHistoryResponse> getWorkflowHistory(UUID id) {
+        capaRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("CAPA", "id", id));
+        return workflowService.getHistory(RECORD_TYPE, id);
     }
 
     private void validateClosureRules(Capa capa) {

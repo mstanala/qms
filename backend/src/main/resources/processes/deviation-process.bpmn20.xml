@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+             targetNamespace="http://qmspharma.com/deviation"
+             id="deviationDefinitions">
+
+    <process id="deviationProcess" name="Deviation Management Process" isExecutable="true">
+
+        <!-- Process Variables:
+             recordId (UUID string), deviationNumber, reportedById, assignedToId,
+             reviewerId, classification, capaRequired, plantSiteId, departmentId -->
+
+        <startEvent id="start" name="Deviation Reported"/>
+
+        <!-- Step 1: QA Review - classify the deviation -->
+        <sequenceFlow id="flow-start-review" sourceRef="start" targetRef="qaReview"/>
+
+        <userTask id="qaReview" name="QA Review &amp; Classification"
+                  flowable:candidateGroups="QA_REVIEWER,QA_APPROVER"
+                  flowable:formKey="deviation-classify">
+            <documentation>Review and classify the reported deviation (Critical/Major/Minor)</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-review-investigate" sourceRef="qaReview" targetRef="notifyInvestigator"/>
+
+        <!-- Notify investigator assignment -->
+        <serviceTask id="notifyInvestigator" name="Notify Investigator"
+                     flowable:delegateExpression="${notificationDelegate}">
+            <extensionElements>
+                <flowable:field name="notificationType" stringValue="TASK_ASSIGNED"/>
+                <flowable:field name="titleTemplate" stringValue="Investigation Assigned: {deviationNumber}"/>
+                <flowable:field name="messageTemplate" stringValue="You have been assigned to investigate deviation {deviationNumber}"/>
+                <flowable:field name="recipientVariable" stringValue="assignedToId"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-notify-investigation" sourceRef="notifyInvestigator" targetRef="investigation"/>
+
+        <!-- Step 2: Investigation -->
+        <userTask id="investigation" name="Root Cause Investigation"
+                  flowable:assignee="${assignedToId}"
+                  flowable:formKey="deviation-investigate"
+                  flowable:dueDate="${targetClosureDate}">
+            <documentation>Perform root cause investigation, document findings and immediate actions</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-investigation-impact" sourceRef="investigation" targetRef="impactAssessment"/>
+
+        <!-- Step 3: Impact Assessment -->
+        <userTask id="impactAssessment" name="Impact Assessment"
+                  flowable:candidateGroups="QA_REVIEWER,QA_APPROVER"
+                  flowable:formKey="deviation-impact">
+            <documentation>Assess impact on product quality, patient safety, regulatory compliance</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-impact-disposition" sourceRef="impactAssessment" targetRef="disposition"/>
+
+        <!-- Step 4: Disposition Decision -->
+        <userTask id="disposition" name="Disposition Decision"
+                  flowable:candidateGroups="QA_APPROVER"
+                  flowable:formKey="deviation-disposition">
+            <documentation>Determine batch disposition (Release/Reject/Quarantine/Reprocess)</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-disposition-capagw" sourceRef="disposition" targetRef="capaGateway"/>
+
+        <!-- Gateway: CAPA Required? -->
+        <exclusiveGateway id="capaGateway" name="CAPA Required?"/>
+
+        <sequenceFlow id="flow-capa-yes" sourceRef="capaGateway" targetRef="capaInitiation">
+            <conditionExpression>${capaRequired == true}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow-capa-no" sourceRef="capaGateway" targetRef="pendingClosure">
+            <conditionExpression>${capaRequired == false}</conditionExpression>
+        </sequenceFlow>
+
+        <!-- Step 5a: CAPA Initiation (if required) -->
+        <userTask id="capaInitiation" name="Initiate CAPA"
+                  flowable:candidateGroups="QA_REVIEWER,OWNER"
+                  flowable:formKey="deviation-capa">
+            <documentation>Create CAPA record linked to this deviation</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-capa-pending" sourceRef="capaInitiation" targetRef="pendingClosure"/>
+
+        <!-- Step 6: Pending Closure / QA Final Approval -->
+        <userTask id="pendingClosure" name="QA Final Review &amp; Closure"
+                  flowable:candidateGroups="QA_APPROVER"
+                  flowable:formKey="deviation-close">
+            <documentation>Final QA review before closing the deviation</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-pending-end" sourceRef="pendingClosure" targetRef="notifyClosed"/>
+
+        <serviceTask id="notifyClosed" name="Notify Closure"
+                     flowable:delegateExpression="${notificationDelegate}">
+            <extensionElements>
+                <flowable:field name="notificationType" stringValue="STATUS_CHANGE"/>
+                <flowable:field name="titleTemplate" stringValue="Deviation Closed: {deviationNumber}"/>
+                <flowable:field name="messageTemplate" stringValue="Deviation {deviationNumber} has been closed"/>
+                <flowable:field name="recipientVariable" stringValue="reportedById"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-notify-end" sourceRef="notifyClosed" targetRef="end"/>
+
+        <endEvent id="end" name="Deviation Closed"/>
+
+        <!-- Boundary timer for overdue escalation on investigation -->
+        <boundaryEvent id="investigationTimer" attachedToRef="investigation" cancelActivity="false">
+            <timerEventDefinition>
+                <timeDuration>P25D</timeDuration>
+            </timerEventDefinition>
+        </boundaryEvent>
+
+        <sequenceFlow id="flow-timer-escalation" sourceRef="investigationTimer" targetRef="escalateOverdue"/>
+
+        <serviceTask id="escalateOverdue" name="Escalate Overdue Investigation"
+                     flowable:delegateExpression="${escalationDelegate}">
+            <extensionElements>
+                <flowable:field name="escalationType" stringValue="INVESTIGATION_OVERDUE"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-escalation-end" sourceRef="escalateOverdue" targetRef="escalationEnd"/>
+        <endEvent id="escalationEnd"/>
+
+    </process>
+</definitions>

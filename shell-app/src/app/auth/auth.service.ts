@@ -91,7 +91,13 @@ export class AuthService {
   }
 
   isAuthenticated(): boolean {
-    return !!this.getAccessToken();
+    const token = this.getAccessToken();
+    return !!token && !this.isTokenExpired(token);
+  }
+
+  hasExpiredSession(): boolean {
+    const token = this.getAccessToken();
+    return !!token && this.isTokenExpired(token);
   }
 
   getUser(): AuthUser | null {
@@ -187,5 +193,25 @@ export class AuthService {
       roles: resolvedRoles.length ? resolvedRoles : user.roles,
       permissions: Array.from(permissionMap.values()),
     };
+  }
+
+  private isTokenExpired(token: string): boolean {
+    const payload = this.decodeTokenPayload(token);
+    if (!payload?.exp) return false;
+    return payload.exp * 1000 <= Date.now();
+  }
+
+  private decodeTokenPayload(token: string): { exp?: number } | null {
+    const rawToken = token.startsWith('Bearer ') ? token.substring(7) : token;
+    const payload = rawToken.split('.')[1];
+    if (!payload) return null;
+
+    try {
+      const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=');
+      return JSON.parse(atob(padded));
+    } catch {
+      return null;
+    }
   }
 }

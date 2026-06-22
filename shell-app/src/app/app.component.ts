@@ -108,6 +108,8 @@ interface NotificationItem {
           <button mat-menu-item routerLink="/capa/create"><mat-icon>note_add</mat-icon>New CAPA</button>
           <button mat-menu-item routerLink="/deviations/create"><mat-icon>note_add</mat-icon>New Deviation</button>
           <button mat-menu-item routerLink="/change-control/create"><mat-icon>note_add</mat-icon>New Change Request</button>
+          <button mat-menu-item routerLink="/documents/create"><mat-icon>note_add</mat-icon>New Document</button>
+          <button mat-menu-item routerLink="/training/curricula/create"><mat-icon>note_add</mat-icon>New Training Curriculum</button>
           <mat-divider></mat-divider>
           <button mat-menu-item disabled><mat-icon>print</mat-icon>Print</button>
           <button mat-menu-item disabled><mat-icon>download</mat-icon>Export to PDF</button>
@@ -120,6 +122,11 @@ interface NotificationItem {
           <button mat-menu-item routerLink="/capa/list"><mat-icon>list</mat-icon>All CAPAs</button>
           <button mat-menu-item routerLink="/deviations/list"><mat-icon>list</mat-icon>All Deviations</button>
           <button mat-menu-item routerLink="/change-control/list"><mat-icon>list</mat-icon>All Change Controls</button>
+          <mat-divider></mat-divider>
+          <button mat-menu-item routerLink="/documents/list"><mat-icon>list</mat-icon>All Documents</button>
+          <button mat-menu-item routerLink="/training/curricula"><mat-icon>list</mat-icon>All Training Curricula</button>
+          <button mat-menu-item routerLink="/training/assignments"><mat-icon>list</mat-icon>Training Assignments</button>
+          <button mat-menu-item routerLink="/training/my-training"><mat-icon>list</mat-icon>My Training</button>
         </mat-menu>
 
         <button class="menu-item" [matMenuTriggerFor]="toolsMenu" [disabled]="!canAccessTools">Tools</button>
@@ -183,11 +190,11 @@ interface NotificationItem {
           <mat-icon>swap_horiz</mat-icon>
           <span>Change Control</span>
         </a>
-        <a class="mod-tab disabled-tab" matTooltip="Coming Soon">
+        <a class="mod-tab" routerLink="/documents" routerLinkActive="active">
           <mat-icon>description</mat-icon>
           <span>Documents</span>
         </a>
-        <a class="mod-tab disabled-tab" matTooltip="Coming Soon">
+        <a class="mod-tab" routerLink="/training" routerLinkActive="active">
           <mat-icon>school</mat-icon>
           <span>Training</span>
         </a>
@@ -200,6 +207,8 @@ interface NotificationItem {
             <button mat-menu-item routerLink="/capa/create"><mat-icon>assignment_turned_in</mat-icon>New CAPA</button>
             <button mat-menu-item routerLink="/deviations/create"><mat-icon>report_problem</mat-icon>New Deviation</button>
             <button mat-menu-item routerLink="/change-control/create"><mat-icon>swap_horiz</mat-icon>New Change Request</button>
+            <button mat-menu-item routerLink="/documents/create"><mat-icon>description</mat-icon>New Document</button>
+            <button mat-menu-item routerLink="/training/curricula/create"><mat-icon>school</mat-icon>New Curriculum</button>
           </mat-menu>
         </div>
       </div>
@@ -467,6 +476,8 @@ export class AppComponent {
     if (url.startsWith('/capa')) this.activeModuleLabel = 'CAPA Management';
     else if (url.startsWith('/deviations')) this.activeModuleLabel = 'Deviation Management';
     else if (url.startsWith('/change-control')) this.activeModuleLabel = 'Change Control';
+    else if (url.startsWith('/documents')) this.activeModuleLabel = 'Document Control';
+    else if (url.startsWith('/training')) this.activeModuleLabel = 'Training Management';
     else if (url.startsWith('/admin')) this.activeModuleLabel = 'Administration';
     else if (url.startsWith('/tools')) this.activeModuleLabel = 'Tools';
     else this.activeModuleLabel = 'Overview';

@@ -322,4 +322,84 @@ Decision:
 * Initiate Change Control
 
 Performed by: QA Manager
+------------------------------
+FLOWABLE:
+Common Pharma QMS Processes Managed by Flowable
+Process
+
+Typical Activities
+
+Deviation Management
+
+Logging, investigation, approvals, closure
+
+CAPA
+
+Action assignment, implementation, effectiveness checks
+
+Change Control
+
+Impact assessment, approvals, validation
+
+Audit Management
+
+Findings, action tracking, closure
+
+Complaint Handling
+
+Intake, investigation, regulatory reporting
+
+Supplier Quality
+
+Qualification, audits, monitoring
+
+Training Management
+
+Training assignment and completion tracking
+
+Document Control
+
+Review, approval, periodic review
+------
+
+1. ChangeRequestService.java — Flowable integration
+- Added PROCESS_KEY and RECORD_TYPE constants
+- create() now starts changeControlProcess Flowable process with variables (recordId, changeNumber, changeOwnerId, classification, regulatoryFilingRequired, etc.) and stores flowableProcessId
+- transitionStatus() now completes the correct Flowable user task for each status transition:
+    - SUBMITTED → completes submitChange task
+    - QA_REVIEW → completes impactAssessment task
+    - RA_REVIEW → completes qaReview with regulatoryFilingRequired=true
+    - PENDING_APPROVAL → completes raReview or qaReview depending on current status
+    - APPROVED/IMPLEMENTATION → completes pendingApproval with approvalDecision=APPROVED
+    - REJECTED → completes current task with approvalDecision=REJECTED
+    - VERIFICATION → completes implementation task
+    - EFFECTIVENESS_CHECK → completes verification task
+    - CLOSED → completes effectivenessCheck task
+- Added getWorkflowHistory() method
+- Each transition records dual workflow history steps
+
+2. CapaController.java — New endpoints added
+- POST /{id}/start-action-execution — transitions from Action Planning to Execution
+- POST /{id}/complete-action-execution — completes action execution phase
+- GET /{id}/workflow-history — returns workflow history
+
+3. ChangeRequestController.java — New endpoint added
+- GET /{id}/workflow-history — returns workflow history
+
+4. TaskInboxService.java + TaskInboxController.java — Created
+- GET /api/v1/tasks/inbox — returns all tasks for the current user (by assignee + candidate groups)
+- GET /api/v1/tasks/inbox/count — returns task count for badge display
+- GET /api/v1/tasks/by-record-type/{recordType} — filter tasks by DEVIATION/CAPA/CHANGE_CONTROL
+- POST /api/v1/tasks/{taskId}/claim — claim a candidate group task
+- POST /api/v1/tasks/{taskId}/unclaim — release a claimed task
+- Each task response includes recordType, recordId, recordNumber for Angular to link to the right record
+
+5. Bug fixes from previous session
+- Added assignedToId field to ClassifyDeviationRequest
+- Added capaRequired field to SubmitDispositionRequest
+- Fixed broken assign() in DeviationService (was using invalid BeanFactoryUtils call, now uses workflowService.updateProcessVariable())
+- Added updateProcessVariable() method to WorkflowService
+
+6. TaskInboxResponse DTO — Created with taskId, taskName, recordType, recordId, recordNumber, assignee, createTime, dueDate, formKey, priority
+
 

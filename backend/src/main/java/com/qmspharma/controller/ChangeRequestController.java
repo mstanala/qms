@@ -115,6 +115,11 @@ public class ChangeRequestController {
         return ResponseEntity.ok().build();
     }
 
+    @GetMapping("/{id}/workflow-history")
+    public ResponseEntity<List<WorkflowHistoryResponse>> getWorkflowHistory(@PathVariable UUID id) {
+        return ResponseEntity.ok(changeRequestService.getWorkflowHistory(id));
+    }
+
     @GetMapping("/{id}/audit-trail")
     public ResponseEntity<List<AuditTrailResponse>> getAuditTrail(@PathVariable UUID id) {
         return ResponseEntity.ok(changeRequestService.getAuditTrail(id));

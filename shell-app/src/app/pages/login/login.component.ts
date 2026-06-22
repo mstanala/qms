@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -140,7 +140,7 @@ import { AuthService } from '../../auth/auth.service';
     .login-btn mat-icon { margin-right: 6px; }
   `],
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   loginForm = this.fb.group({
     username: ['rajesh.kumar', Validators.required],
     password: ['Password@123', Validators.required],
@@ -155,6 +155,12 @@ export class LoginComponent {
     private router: Router,
     private route: ActivatedRoute
   ) {}
+
+  ngOnInit(): void {
+    if (this.route.snapshot.queryParamMap.get('message') === 'sessionExpired') {
+      this.errorMessage = 'Your session has expired. Please sign in again.';
+    }
+  }
 
   submit(): void {
     if (this.loginForm.invalid || this.isSubmitting) return;

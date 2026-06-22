@@ -10,5 +10,6 @@ public class SubmitDispositionRequest {
     @NotBlank private String justification;
     private String conditions;
     private String qaReviewComments;
+    private Boolean capaRequired;
     private ESignatureRequest electronicSignature;
 }

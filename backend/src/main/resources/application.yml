@@ -50,7 +50,7 @@ jwt:
 
 # CORS
 cors:
-  allowed-origins: http://localhost:4200,http://localhost:4201,http://localhost:4202,http://localhost:4203
+  allowed-origins: http://localhost:4200,http://localhost:4201,http://localhost:4202,http://localhost:4203,http://localhost:4204,http://localhost:4205
 
 # GCS Configuration
 gcs:

@@ -22,6 +22,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ChangeRequestService {
 
+    private static final String PROCESS_KEY = "changeControlProcess";
+    private static final String RECORD_TYPE = "CHANGE_CONTROL";
+
     private final ChangeRequestRepository changeRequestRepository;
     private final ChangeImpactAssessmentRepository impactRepository;
     private final ChangeRegulatoryFilingRepository filingRepository;
@@ -96,8 +99,28 @@ public class ChangeRequestService {
         cr.setUpdatedBy(currentUser);
         cr = changeRequestRepository.save(cr);
 
-        auditTrailService.logAction("CHANGE_CONTROL", cr.getId(), cr.getChangeNumber(), "CREATED", null, null, null, null);
-        workflowService.recordStep("CHANGE_CONTROL", cr.getId(), "Draft", WorkflowStepStatus.CURRENT, currentUser, null, 1);
+        // Start Flowable process
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("recordId", cr.getId().toString());
+        vars.put("changeNumber", cr.getChangeNumber());
+        vars.put("requestedById", currentUser.getId().toString());
+        vars.put("changeOwnerId", cr.getChangeOwner().getId().toString());
+        vars.put("classification", cr.getClassification().name());
+        vars.put("regulatoryFilingRequired", cr.getRegulatoryFilingRequired() != null ? cr.getRegulatoryFilingRequired() : false);
+        vars.put("trainingRequired", cr.getTrainingRequired() != null ? cr.getTrainingRequired() : false);
+        vars.put("plantSiteId", cr.getPlantSite().getId().toString());
+        vars.put("departmentId", cr.getDepartment().getId().toString());
+        vars.put("targetImplementationDate", cr.getTargetImplementationDate() != null ? cr.getTargetImplementationDate().toString() : null);
+
+        String processId = workflowService.startProcess(PROCESS_KEY, cr.getId().toString(), vars);
+        cr.setFlowableProcessId(processId);
+        cr = changeRequestRepository.save(cr);
+
+        auditTrailService.logAction(RECORD_TYPE, cr.getId(), cr.getChangeNumber(), "CREATED", null, null, null, null);
+        workflowService.recordStep(RECORD_TYPE, cr.getId(), "Draft", WorkflowStepStatus.CURRENT, currentUser, null, 1);
+        notificationService.send(cr.getChangeOwner().getId(), "Change Control Assigned",
+                "You are the owner of change control " + cr.getChangeNumber(),
+                NotificationType.TASK_ASSIGNED, RECORD_TYPE, cr.getId(), cr.getChangeNumber());
         return toResponse(cr);
     }
 
@@ -125,15 +148,80 @@ public class ChangeRequestService {
                 .orElseThrow(() -> new ResourceNotFoundException("ChangeRequest", "id", id));
         String oldStatus = cr.getStatus().name();
         ChangeStatus newStatus = ChangeStatus.valueOf(request.getStatus());
-        if (newStatus == ChangeStatus.CLOSED) {
-            validateClosureRules(cr);
-            cr.setClosedDate(Instant.now());
+        User currentUser = currentUserProvider.getCurrentUser();
+
+        switch (newStatus) {
+            case SUBMITTED:
+                workflowService.completeTask(cr.getFlowableProcessId(), "submitChange", null);
+                workflowService.recordStep(RECORD_TYPE, cr.getId(), "Submit Change", WorkflowStepStatus.COMPLETED, currentUser, null, 1);
+                workflowService.recordStep(RECORD_TYPE, cr.getId(), "Impact Assessment", WorkflowStepStatus.CURRENT, cr.getChangeOwner(), null, 2);
+                break;
+            case QA_REVIEW:
+                workflowService.completeTask(cr.getFlowableProcessId(), "impactAssessment", null);
+                workflowService.recordStep(RECORD_TYPE, cr.getId(), "Impact Assessment", WorkflowStepStatus.COMPLETED, currentUser, null, 2);
+                workflowService.recordStep(RECORD_TYPE, cr.getId(), "QA Review", WorkflowStepStatus.CURRENT, null, null, 3);
+                break;
+            case RA_REVIEW:
+                // QA review completed, route to RA review
+                Map<String, Object> qaVars = new HashMap<>();
+                qaVars.put("regulatoryFilingRequired", true);
+                workflowService.completeTask(cr.getFlowableProcessId(), "qaReview", qaVars);
+                workflowService.recordStep(RECORD_TYPE, cr.getId(), "QA Review", WorkflowStepStatus.COMPLETED, currentUser, null, 3);
+                workflowService.recordStep(RECORD_TYPE, cr.getId(), "RA Review", WorkflowStepStatus.CURRENT, null, null, 4);
+                break;
+            case PENDING_APPROVAL:
+                // Could come from QA Review (no RA needed) or RA Review
+                String taskKey = cr.getStatus() == ChangeStatus.RA_REVIEW ? "raReview" : "qaReview";
+                Map<String, Object> reviewVars = new HashMap<>();
+                if ("qaReview".equals(taskKey)) {
+                    reviewVars.put("regulatoryFilingRequired", false);
+                }
+                workflowService.completeTask(cr.getFlowableProcessId(), taskKey, reviewVars);
+                workflowService.recordStep(RECORD_TYPE, cr.getId(), cr.getStatus() == ChangeStatus.RA_REVIEW ? "RA Review" : "QA Review",
+                        WorkflowStepStatus.COMPLETED, currentUser, null, cr.getStatus() == ChangeStatus.RA_REVIEW ? 4 : 3);
+                workflowService.recordStep(RECORD_TYPE, cr.getId(), "Pending Approval", WorkflowStepStatus.CURRENT, null, null, 5);
+                break;
+            case APPROVED:
+            case IMPLEMENTATION:
+                Map<String, Object> approvalVars = new HashMap<>();
+                approvalVars.put("approvalDecision", "APPROVED");
+                workflowService.completeTask(cr.getFlowableProcessId(), "pendingApproval", approvalVars);
+                workflowService.recordStep(RECORD_TYPE, cr.getId(), "Approval", WorkflowStepStatus.COMPLETED, currentUser, "Approved", 5);
+                workflowService.recordStep(RECORD_TYPE, cr.getId(), "Implementation", WorkflowStepStatus.CURRENT, cr.getChangeOwner(), null, 6);
+                break;
+            case REJECTED:
+                Map<String, Object> rejectVars = new HashMap<>();
+                rejectVars.put("approvalDecision", "REJECTED");
+                workflowService.completeCurrentTask(cr.getFlowableProcessId(), rejectVars);
+                workflowService.recordStep(RECORD_TYPE, cr.getId(), "Rejected", WorkflowStepStatus.COMPLETED, currentUser, request.getComments(), 10);
+                break;
+            case VERIFICATION:
+                workflowService.completeTask(cr.getFlowableProcessId(), "implementation", null);
+                cr.setActualImplementationDate(Instant.now());
+                workflowService.recordStep(RECORD_TYPE, cr.getId(), "Implementation", WorkflowStepStatus.COMPLETED, currentUser, null, 6);
+                workflowService.recordStep(RECORD_TYPE, cr.getId(), "Verification", WorkflowStepStatus.CURRENT, null, null, 7);
+                break;
+            case EFFECTIVENESS_CHECK:
+                workflowService.completeTask(cr.getFlowableProcessId(), "verification", null);
+                workflowService.recordStep(RECORD_TYPE, cr.getId(), "Verification", WorkflowStepStatus.COMPLETED, currentUser, null, 7);
+                workflowService.recordStep(RECORD_TYPE, cr.getId(), "Effectiveness Check", WorkflowStepStatus.CURRENT, null, null, 8);
+                break;
+            case CLOSED:
+                validateClosureRules(cr);
+                cr.setClosedDate(Instant.now());
+                workflowService.completeTask(cr.getFlowableProcessId(), "effectivenessCheck", null);
+                workflowService.recordStep(RECORD_TYPE, cr.getId(), "Effectiveness Check", WorkflowStepStatus.COMPLETED, currentUser, null, 8);
+                workflowService.recordStep(RECORD_TYPE, cr.getId(), "Closed", WorkflowStepStatus.COMPLETED, currentUser, null, 9);
+                break;
+            default:
+                break;
         }
+
         cr.setStatus(newStatus);
         cr.setCurrentWorkflowStep(newStatus.name());
-        cr.setUpdatedBy(currentUserProvider.getCurrentUser());
+        cr.setUpdatedBy(currentUser);
         changeRequestRepository.save(cr);
-        auditTrailService.logAction("CHANGE_CONTROL", cr.getId(), cr.getChangeNumber(), "STATUS_CHANGED",
+        auditTrailService.logAction(RECORD_TYPE, cr.getId(), cr.getChangeNumber(), "STATUS_CHANGED",
                 "status", oldStatus, newStatus.name(), request.getComments());
         return toResponse(cr);
     }
@@ -157,7 +245,7 @@ public class ChangeRequestService {
         ia.setAssessedBy(currentUserProvider.getCurrentUser());
         ia.setAssessedDate(Instant.now());
         impactRepository.save(ia);
-        auditTrailService.logAction("CHANGE_CONTROL", cr.getId(), cr.getChangeNumber(), "IMPACT_ASSESSMENT_SUBMITTED", null, null, null, null);
+        auditTrailService.logAction(RECORD_TYPE, cr.getId(), cr.getChangeNumber(), "IMPACT_ASSESSMENT_SUBMITTED", null, null, null, null);
     }
 
     @Transactional
@@ -290,7 +378,13 @@ public class ChangeRequestService {
     @Transactional(readOnly = true)
     public List<AuditTrailResponse> getAuditTrail(UUID id) {
         changeRequestRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("ChangeRequest", "id", id));
-        return auditTrailService.getByRecord("CHANGE_CONTROL", id);
+        return auditTrailService.getByRecord(RECORD_TYPE, id);
+    }
+
+    @Transactional(readOnly = true)
+    public List<WorkflowHistoryResponse> getWorkflowHistory(UUID id) {
+        changeRequestRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("ChangeRequest", "id", id));
+        return workflowService.getHistory(RECORD_TYPE, id);
     }
 
     private void validateClosureRules(ChangeRequest cr) {

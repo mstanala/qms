@@ -38,6 +38,8 @@ public class SequenceGeneratorService {
             case "DEVIATION" -> "DEV";
             case "CAPA" -> "CAPA";
             case "CHANGE_CONTROL" -> "CC";
+            case "DOCUMENT" -> "DOC";
+            case "TRAINING" -> "TRN";
             default -> sequenceName.substring(0, Math.min(3, sequenceName.length()));
         };
     }

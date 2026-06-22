@@ -2,6 +2,7 @@ package com.qmspharma.controller;
 
 import com.qmspharma.model.dto.request.*;
 import com.qmspharma.model.dto.response.*;
+import com.qmspharma.model.dto.response.WorkflowHistoryResponse;
 import com.qmspharma.service.CapaService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -109,6 +110,21 @@ public class CapaController {
         str.setStatus("REJECTED");
         str.setComments(request.getComments());
         return ResponseEntity.ok(capaService.transitionStatus(id, str));
+    }
+
+    @PostMapping("/{id}/start-action-execution")
+    public ResponseEntity<CapaResponse> startActionExecution(@PathVariable UUID id) {
+        return ResponseEntity.ok(capaService.startActionExecution(id));
+    }
+
+    @PostMapping("/{id}/complete-action-execution")
+    public ResponseEntity<CapaResponse> completeActionExecution(@PathVariable UUID id) {
+        return ResponseEntity.ok(capaService.completeActionExecution(id));
+    }
+
+    @GetMapping("/{id}/workflow-history")
+    public ResponseEntity<List<WorkflowHistoryResponse>> getWorkflowHistory(@PathVariable UUID id) {
+        return ResponseEntity.ok(capaService.getWorkflowHistory(id));
     }
 
     @GetMapping("/{id}/audit-trail")

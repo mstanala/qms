@@ -1,0 +1,7 @@
+package com.qmspharma.model.enums;
+
+public enum DocumentType {
+    SOP, WORK_INSTRUCTION, BATCH_RECORD, PROTOCOL, REPORT,
+    POLICY, FORM, SPECIFICATION, VALIDATION_PROTOCOL,
+    STANDARD, GUIDELINE, MANUAL
+}

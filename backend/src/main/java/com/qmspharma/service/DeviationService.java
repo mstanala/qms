@@ -22,6 +22,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class DeviationService {
 
+    private static final String PROCESS_KEY = "deviationProcess";
+    private static final String RECORD_TYPE = "DEVIATION";
+
     private final DeviationRepository deviationRepository;
     private final DeviationInvestigationRepository investigationRepository;
     private final DeviationImpactAssessmentRepository impactAssessmentRepository;
@@ -108,8 +111,22 @@ public class DeviationService {
             }
         }
 
-        auditTrailService.logAction("DEVIATION", dev.getId(), dev.getDeviationNumber(), "CREATED", null, null, null, null);
-        workflowService.recordStep("DEVIATION", dev.getId(), "Reported", WorkflowStepStatus.CURRENT, currentUser, null, 1);
+        // Start Flowable process
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("recordId", dev.getId().toString());
+        vars.put("deviationNumber", dev.getDeviationNumber());
+        vars.put("reportedById", currentUser.getId().toString());
+        vars.put("plantSiteId", dev.getPlantSite().getId().toString());
+        vars.put("departmentId", dev.getDepartment().getId().toString());
+        vars.put("targetClosureDate", dev.getTargetClosureDate().toString());
+        vars.put("capaRequired", false);
+
+        String processId = workflowService.startProcess(PROCESS_KEY, dev.getId().toString(), vars);
+        dev.setFlowableProcessId(processId);
+        dev = deviationRepository.save(dev);
+
+        auditTrailService.logAction(RECORD_TYPE, dev.getId(), dev.getDeviationNumber(), "CREATED", null, null, null, null);
+        workflowService.recordStep(RECORD_TYPE, dev.getId(), "Reported", WorkflowStepStatus.CURRENT, currentUser, null, 1);
 
         return toResponse(dev);
     }
@@ -129,7 +146,7 @@ public class DeviationService {
         if (request.getPatientSafetyImpact() != null) dev.setPatientSafetyImpact(request.getPatientSafetyImpact());
         if (request.getRegulatoryImpact() != null) dev.setRegulatoryImpact(request.getRegulatoryImpact());
         dev.setUpdatedBy(currentUserProvider.getCurrentUser());
-        auditTrailService.logAction("DEVIATION", dev.getId(), dev.getDeviationNumber(), "UPDATED", null, null, null, null);
+        auditTrailService.logAction(RECORD_TYPE, dev.getId(), dev.getDeviationNumber(), "UPDATED", null, null, null, null);
         return toResponse(deviationRepository.save(dev));
     }
 
@@ -137,14 +154,34 @@ public class DeviationService {
     public DeviationResponse classify(UUID id, ClassifyDeviationRequest request) {
         Deviation dev = deviationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Deviation", "id", id));
+        User currentUser = currentUserProvider.getCurrentUser();
         String oldClassification = dev.getClassification() != null ? dev.getClassification().name() : null;
+
         dev.setClassification(DeviationClassification.valueOf(request.getClassification()));
         dev.setStatus(DeviationStatus.CLASSIFIED);
         dev.setCurrentWorkflowStep("Classified");
-        dev.setUpdatedBy(currentUserProvider.getCurrentUser());
-        auditTrailService.logAction("DEVIATION", dev.getId(), dev.getDeviationNumber(), "CLASSIFIED",
+        dev.setUpdatedBy(currentUser);
+
+        // Complete QA Review task in Flowable
+        Map<String, Object> taskVars = new HashMap<>();
+        taskVars.put("classification", request.getClassification());
+        taskVars.put("assignedToId", request.getAssignedToId() != null ? request.getAssignedToId().toString() : null);
+        workflowService.completeTask(dev.getFlowableProcessId(), "qaReview", taskVars);
+
+        // Assign investigator if provided
+        if (request.getAssignedToId() != null) {
+            User assignee = userRepository.findById(request.getAssignedToId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getAssignedToId()));
+            dev.setAssignedTo(assignee);
+        }
+
+        auditTrailService.logAction(RECORD_TYPE, dev.getId(), dev.getDeviationNumber(), "CLASSIFIED",
                 "classification", oldClassification, request.getClassification(), request.getComments());
-        workflowService.recordStep("DEVIATION", dev.getId(), "Classified", WorkflowStepStatus.CURRENT, null, request.getComments(), 3);
+        workflowService.recordStep(RECORD_TYPE, dev.getId(), "QA Review & Classification",
+                WorkflowStepStatus.COMPLETED, currentUser, request.getComments(), 2);
+        workflowService.recordStep(RECORD_TYPE, dev.getId(), "Investigation",
+                WorkflowStepStatus.CURRENT, dev.getAssignedTo(), null, 3);
+
         return toResponse(deviationRepository.save(dev));
     }
 
@@ -156,11 +193,19 @@ public class DeviationService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getAssignedToId()));
         dev.setAssignedTo(assignee);
         dev.setUpdatedBy(currentUserProvider.getCurrentUser());
-        auditTrailService.logAction("DEVIATION", dev.getId(), dev.getDeviationNumber(), "ASSIGNED",
+
+        // Update Flowable process variable for assignee
+        if (dev.getFlowableProcessId() != null) {
+            try {
+                workflowService.updateProcessVariable(dev.getFlowableProcessId(), "assignedToId", assignee.getId().toString());
+            } catch (Exception ignored) {}
+        }
+
+        auditTrailService.logAction(RECORD_TYPE, dev.getId(), dev.getDeviationNumber(), "ASSIGNED",
                 "assigned_to", null, assignee.getDisplayName(), request.getComments());
         notificationService.send(assignee.getId(), "Deviation Assigned",
                 "You have been assigned to deviation " + dev.getDeviationNumber(),
-                NotificationType.TASK_ASSIGNED, "DEVIATION", dev.getId(), dev.getDeviationNumber());
+                NotificationType.TASK_ASSIGNED, RECORD_TYPE, dev.getId(), dev.getDeviationNumber());
         return toResponse(deviationRepository.save(dev));
     }
 
@@ -179,6 +224,7 @@ public class DeviationService {
         inv.setFindings(request.getFindings());
         inv.setConclusion(request.getConclusion());
         inv.setMethod(request.getMethod());
+        inv.setCompletedDate(Instant.now());
         inv = investigationRepository.save(inv);
 
         if (request.getImmediateActions() != null) {
@@ -194,12 +240,18 @@ public class DeviationService {
         }
 
         dev.setStatus(DeviationStatus.INVESTIGATION);
-        dev.setCurrentWorkflowStep("Investigation");
+        dev.setCurrentWorkflowStep("Investigation Complete");
         dev.setUpdatedBy(currentUserProvider.getCurrentUser());
         deviationRepository.save(dev);
 
-        auditTrailService.logAction("DEVIATION", dev.getId(), dev.getDeviationNumber(), "INVESTIGATION_SUBMITTED", null, null, null, null);
-        workflowService.recordStep("DEVIATION", dev.getId(), "Investigation", WorkflowStepStatus.COMPLETED, investigator, null, 4);
+        // Complete investigation task in Flowable
+        workflowService.completeTask(dev.getFlowableProcessId(), "investigation", null);
+
+        auditTrailService.logAction(RECORD_TYPE, dev.getId(), dev.getDeviationNumber(), "INVESTIGATION_SUBMITTED", null, null, null, null);
+        workflowService.recordStep(RECORD_TYPE, dev.getId(), "Investigation",
+                WorkflowStepStatus.COMPLETED, investigator, "Investigation completed", 3);
+        workflowService.recordStep(RECORD_TYPE, dev.getId(), "Impact Assessment",
+                WorkflowStepStatus.CURRENT, null, null, 4);
         return toResponse(dev);
     }
 
@@ -224,11 +276,18 @@ public class DeviationService {
         impactAssessmentRepository.save(ia);
 
         dev.setStatus(DeviationStatus.IMPACT_ASSESSMENT);
-        dev.setCurrentWorkflowStep("Impact Assessment");
+        dev.setCurrentWorkflowStep("Impact Assessment Complete");
         dev.setUpdatedBy(currentUser);
         deviationRepository.save(dev);
 
-        auditTrailService.logAction("DEVIATION", dev.getId(), dev.getDeviationNumber(), "IMPACT_ASSESSMENT_SUBMITTED", null, null, null, null);
+        // Complete impact assessment task in Flowable
+        workflowService.completeTask(dev.getFlowableProcessId(), "impactAssessment", null);
+
+        auditTrailService.logAction(RECORD_TYPE, dev.getId(), dev.getDeviationNumber(), "IMPACT_ASSESSMENT_SUBMITTED", null, null, null, null);
+        workflowService.recordStep(RECORD_TYPE, dev.getId(), "Impact Assessment",
+                WorkflowStepStatus.COMPLETED, currentUser, null, 4);
+        workflowService.recordStep(RECORD_TYPE, dev.getId(), "Disposition",
+                WorkflowStepStatus.CURRENT, null, null, 5);
         return toResponse(dev);
     }
 
@@ -247,13 +306,30 @@ public class DeviationService {
         disp.setApprovedBy(currentUser);
         dispositionRepository.save(disp);
 
+        boolean capaRequired = request.getCapaRequired() != null ? request.getCapaRequired() : false;
+        dev.setCapaRequired(capaRequired);
         dev.setStatus(DeviationStatus.DISPOSITION);
         dev.setCurrentWorkflowStep("Disposition");
         dev.setUpdatedBy(currentUser);
         deviationRepository.save(dev);
 
-        auditTrailService.logAction("DEVIATION", dev.getId(), dev.getDeviationNumber(), "DISPOSITION_SUBMITTED",
+        // Complete disposition task in Flowable with CAPA decision
+        Map<String, Object> taskVars = new HashMap<>();
+        taskVars.put("capaRequired", capaRequired);
+        workflowService.completeTask(dev.getFlowableProcessId(), "disposition", taskVars);
+
+        auditTrailService.logAction(RECORD_TYPE, dev.getId(), dev.getDeviationNumber(), "DISPOSITION_SUBMITTED",
                 "decision", null, request.getDecision(), null);
+        workflowService.recordStep(RECORD_TYPE, dev.getId(), "Disposition",
+                WorkflowStepStatus.COMPLETED, currentUser, null, 5);
+
+        if (capaRequired) {
+            workflowService.recordStep(RECORD_TYPE, dev.getId(), "CAPA Initiation",
+                    WorkflowStepStatus.CURRENT, null, "CAPA required", 6);
+        } else {
+            workflowService.recordStep(RECORD_TYPE, dev.getId(), "Pending Closure",
+                    WorkflowStepStatus.CURRENT, null, null, 7);
+        }
         return toResponse(dev);
     }
 
@@ -267,6 +343,13 @@ public class DeviationService {
         if (newStatus == DeviationStatus.CLOSED) {
             validateClosureRules(dev);
             dev.setActualClosureDate(Instant.now());
+            // Complete the pending closure task in Flowable
+            workflowService.completeCurrentTask(dev.getFlowableProcessId(), null);
+        }
+
+        if (newStatus == DeviationStatus.CAPA_INITIATED) {
+            // Complete CAPA initiation task if exists
+            workflowService.completeTask(dev.getFlowableProcessId(), "capaInitiation", null);
         }
 
         dev.setStatus(newStatus);
@@ -274,7 +357,7 @@ public class DeviationService {
         dev.setUpdatedBy(currentUserProvider.getCurrentUser());
         deviationRepository.save(dev);
 
-        auditTrailService.logAction("DEVIATION", dev.getId(), dev.getDeviationNumber(), "STATUS_CHANGED",
+        auditTrailService.logAction(RECORD_TYPE, dev.getId(), dev.getDeviationNumber(), "STATUS_CHANGED",
                 "status", oldStatus, newStatus.name(), request.getComments());
         return toResponse(dev);
     }
@@ -293,13 +376,13 @@ public class DeviationService {
     @Transactional(readOnly = true)
     public List<AuditTrailResponse> getAuditTrail(UUID id) {
         deviationRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Deviation", "id", id));
-        return auditTrailService.getByRecord("DEVIATION", id);
+        return auditTrailService.getByRecord(RECORD_TYPE, id);
     }
 
     @Transactional(readOnly = true)
     public List<WorkflowHistoryResponse> getWorkflowHistory(UUID id) {
         deviationRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Deviation", "id", id));
-        return workflowService.getHistory("DEVIATION", id);
+        return workflowService.getHistory(RECORD_TYPE, id);
     }
 
     private UserRef toUserRef(User u) {

@@ -59,6 +59,26 @@ export const routes: Routes = [
       }).then((m) => m.CHANGE_CONTROL_ROUTES),
   },
   {
+    path: 'documents',
+    canActivate: [authGuard],
+    loadChildren: () =>
+      loadRemoteModule({
+        type: 'manifest',
+        remoteName: 'documentMfe',
+        exposedModule: './DocumentModule',
+      }).then((m) => m.DOCUMENT_ROUTES),
+  },
+  {
+    path: 'training',
+    canActivate: [authGuard],
+    loadChildren: () =>
+      loadRemoteModule({
+        type: 'manifest',
+        remoteName: 'trainingMfe',
+        exposedModule: './TrainingModule',
+      }).then((m) => m.TRAINING_ROUTES),
+  },
+  {
     path: 'admin',
     canActivate: [authGuard, adminGuard],
     children: [

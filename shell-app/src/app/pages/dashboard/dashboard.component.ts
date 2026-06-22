@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -105,22 +105,24 @@ interface StatusRow {
               <div class="mod-count">{{ dashboard?.openChangeRequests ?? 0 }} active</div>
               <mat-icon class="mod-arrow">chevron_right</mat-icon>
             </a>
-            <div class="mod-item disabled">
+            <a class="mod-item" routerLink="/documents">
               <div class="mod-icon doc"><mat-icon>description</mat-icon></div>
               <div class="mod-info">
                 <span class="mod-name">Document Control</span>
                 <span class="mod-desc">SOPs & controlled documents</span>
               </div>
-              <span class="mod-soon">Phase 2</span>
-            </div>
-            <div class="mod-item disabled">
+              <div class="mod-count">Manage</div>
+              <mat-icon class="mod-arrow">chevron_right</mat-icon>
+            </a>
+            <a class="mod-item" routerLink="/training">
               <div class="mod-icon trn"><mat-icon>school</mat-icon></div>
               <div class="mod-info">
                 <span class="mod-name">Training Management</span>
                 <span class="mod-desc">Track training & compliance</span>
               </div>
-              <span class="mod-soon">Phase 2</span>
-            </div>
+              <div class="mod-count">Manage</div>
+              <mat-icon class="mod-arrow">chevron_right</mat-icon>
+            </a>
           </div>
         </div>
 
@@ -261,7 +263,8 @@ interface StatusRow {
     .mod-icon.capa { background: #2C5F7C; }
     .mod-icon.dev { background: #ED8B00; }
     .mod-icon.cc { background: #1B3A4B; }
-    .mod-icon.doc, .mod-icon.trn { background: #9e9e9e; }
+    .mod-icon.doc { background: #5c6bc0; }
+    .mod-icon.trn { background: #00897b; }
     .mod-info, .task-info { flex: 1; display: flex; flex-direction: column; }
     .mod-name, .task-title { font-size: 13px; font-weight: 600; color: #333; }
     .mod-desc, .task-meta { font-size: 11px; color: #888; }
@@ -348,7 +351,12 @@ export class DashboardComponent implements OnInit {
         ].sort((a, b) => b.count - a.count);
         this.isLoading = false;
       },
-      error: () => {
+      error: (error: unknown) => {
+        if (error instanceof HttpErrorResponse && (error.status === 401 || error.status === 403)) {
+          this.isLoading = false;
+          return;
+        }
+
         this.loadError = 'Unable to load dashboard metrics from backend';
         this.isLoading = false;
       },

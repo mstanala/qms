@@ -1,0 +1,6 @@
+package com.qmspharma.model.enums;
+
+public enum AssignmentReason {
+    NEW_HIRE, SOP_REVISION, PERIODIC_RETRAINING, DEVIATION_RELATED,
+    CAPA_RELATED, ROLE_CHANGE, REGULATORY_UPDATE, MANUAL
+}
