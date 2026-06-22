@@ -11,7 +11,13 @@ public class UpdateDeviationRequest {
     private String description;
     private String type;
     private String category;
+    private String classification;
+    private String sourceArea;
+    private Instant occurredDate;
+    private Instant detectedDate;
     private Instant targetClosureDate;
+    private UUID plantSiteId;
+    private UUID departmentId;
     private UUID assignedToId;
     private String area;
     private String equipment;

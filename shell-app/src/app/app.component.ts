@@ -55,7 +55,7 @@ interface NotificationItem {
       <div class="title-bar">
         <div class="title-bar-left">
           <mat-icon class="app-logo">verified</mat-icon>
-          <span class="app-name">Secure Quality</span>
+          <span class="app-name">Mlabs Quality</span>
           <span class="app-divider">|</span>
           <span class="app-module">{{ activeModuleLabel }}</span>
         </div>
@@ -191,15 +191,15 @@ interface NotificationItem {
         <a class="mod-tab" routerLink="/dashboard" routerLinkActive="active"
            [routerLinkActiveOptions]="{exact: true}">
           <mat-icon>dashboard</mat-icon>
-          <span>Overview</span>
-        </a>
-        <a class="mod-tab" routerLink="/capa" routerLinkActive="active">
-          <mat-icon>assignment_turned_in</mat-icon>
-          <span>CAPA</span>
+          <span>Dashboard</span>
         </a>
         <a class="mod-tab" routerLink="/deviations" routerLinkActive="active">
           <mat-icon>report_problem</mat-icon>
           <span>Deviations</span>
+        </a>
+        <a class="mod-tab" routerLink="/capa" routerLinkActive="active">
+          <mat-icon>assignment_turned_in</mat-icon>
+          <span>CAPA</span>
         </a>
         <a class="mod-tab" routerLink="/change-control" routerLinkActive="active">
           <mat-icon>swap_horiz</mat-icon>
@@ -207,23 +207,23 @@ interface NotificationItem {
         </a>
         <a class="mod-tab" routerLink="/documents" routerLinkActive="active">
           <mat-icon>description</mat-icon>
-          <span>Documents</span>
+          <span>Document Mgmt</span>
         </a>
         <a class="mod-tab" routerLink="/training" routerLinkActive="active">
           <mat-icon>school</mat-icon>
-          <span>Training</span>
+          <span>Training Mgmt</span>
         </a>
         <a class="mod-tab" routerLink="/risk" routerLinkActive="active">
           <mat-icon>warning_amber</mat-icon>
-          <span>Risk</span>
+          <span>Risk Mgmt</span>
         </a>
         <a class="mod-tab" routerLink="/audit" routerLinkActive="active">
           <mat-icon>fact_check</mat-icon>
-          <span>Audit</span>
+          <span>Audits</span>
         </a>
         <a class="mod-tab" routerLink="/supplier" routerLinkActive="active">
           <mat-icon>local_shipping</mat-icon>
-          <span>Supplier</span>
+          <span>Suppliers</span>
         </a>
         <a class="mod-tab" routerLink="/complaint" routerLinkActive="active">
           <mat-icon>feedback</mat-icon>
@@ -231,7 +231,7 @@ interface NotificationItem {
         </a>
         <a class="mod-tab" routerLink="/nonconformance" routerLinkActive="active">
           <mat-icon>block</mat-icon>
-          <span>NC</span>
+          <span>Nonconformance</span>
         </a>
         <a class="mod-tab" routerLink="/equipment" routerLinkActive="active">
           <mat-icon>precision_manufacturing</mat-icon>
@@ -392,12 +392,15 @@ interface NotificationItem {
       display: flex; align-items: stretch; height: 36px; padding: 0 8px;
       background: #fff; border-bottom: 1px solid #d0d5dd; flex-shrink: 0;
       box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      overflow-x: auto; overflow-y: hidden;
     }
+    .module-tabs::-webkit-scrollbar { height: 4px; }
+    .module-tabs::-webkit-scrollbar-thumb { background: #c7d0d9; border-radius: 999px; }
     .mod-tab {
       display: flex; align-items: center; gap: 5px; padding: 0 14px;
       font-size: 12px; font-weight: 500; color: #555; text-decoration: none;
       border-bottom: 2px solid transparent; cursor: pointer;
-      transition: all 0.15s;
+      transition: all 0.15s; white-space: nowrap; flex: 0 0 auto;
     }
     .mod-tab mat-icon { font-size: 16px; width: 16px; height: 16px; }
     .mod-tab:hover { color: #1B3A4B; background: rgba(44,95,124,0.04); }
@@ -406,8 +409,8 @@ interface NotificationItem {
       background: rgba(237,139,0,0.04);
     }
     .mod-tab.disabled-tab { color: #bbb; cursor: default; pointer-events: none; }
-    .tab-spacer { flex: 1; }
-    .tab-actions { display: flex; align-items: center; }
+    .tab-spacer { flex: 1 0 12px; }
+    .tab-actions { display: flex; align-items: center; flex: 0 0 auto; }
     .quick-action-btn {
       display: flex; align-items: center; gap: 4px;
       background: #ED8B00; color: #fff; border: none;
@@ -459,7 +462,7 @@ interface NotificationItem {
 })
 export class AppComponent implements OnDestroy {
   title = 'QMS Pharma';
-  activeModuleLabel = 'Overview';
+  activeModuleLabel = 'Dashboard';
   currentTime = '';
   currentUser: AuthUser | null = null;
   isLoginRoute = false;
@@ -602,22 +605,22 @@ export class AppComponent implements OnDestroy {
       this.loadNotifications();
     }
 
-    if (url.startsWith('/capa')) this.activeModuleLabel = 'CAPA Management';
-    else if (url.startsWith('/deviations')) this.activeModuleLabel = 'Deviation Management';
+    if (url.startsWith('/capa')) this.activeModuleLabel = 'CAPA';
+    else if (url.startsWith('/deviations')) this.activeModuleLabel = 'Deviations';
     else if (url.startsWith('/change-control')) this.activeModuleLabel = 'Change Control';
-    else if (url.startsWith('/documents')) this.activeModuleLabel = 'Document Control';
-    else if (url.startsWith('/training')) this.activeModuleLabel = 'Training Management';
-    else if (url.startsWith('/risk')) this.activeModuleLabel = 'Risk Management';
-    else if (url.startsWith('/audit')) this.activeModuleLabel = 'Audit Management';
-    else if (url.startsWith('/supplier')) this.activeModuleLabel = 'Supplier Quality';
-    else if (url.startsWith('/complaint')) this.activeModuleLabel = 'Complaint Management';
+    else if (url.startsWith('/documents')) this.activeModuleLabel = 'Documents Management';
+    else if (url.startsWith('/training')) this.activeModuleLabel = 'Training Mgmt';
+    else if (url.startsWith('/risk')) this.activeModuleLabel = 'Risk Mgmt';
+    else if (url.startsWith('/audit')) this.activeModuleLabel = 'Audits';
+    else if (url.startsWith('/supplier')) this.activeModuleLabel = 'Suppliers';
+    else if (url.startsWith('/complaint')) this.activeModuleLabel = 'Complaints';
     else if (url.startsWith('/nonconformance')) this.activeModuleLabel = 'Nonconformance';
-    else if (url.startsWith('/equipment')) this.activeModuleLabel = 'Equipment & Calibration';
+    else if (url.startsWith('/equipment')) this.activeModuleLabel = 'Equipment';
     else if (url.startsWith('/admin')) this.activeModuleLabel = 'Administration';
     else if (url.startsWith('/tools')) this.activeModuleLabel = 'Tools';
     else if (url.startsWith('/profile')) this.activeModuleLabel = 'My Account';
     else if (url.startsWith('/notifications')) this.activeModuleLabel = 'Notifications';
-    else this.activeModuleLabel = 'Overview';
+    else this.activeModuleLabel = 'Dashboard';
   }
 
   private updateTime(): void {

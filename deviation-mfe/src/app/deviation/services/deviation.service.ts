@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
-import { Observable, map } from 'rxjs';
+import { Observable, catchError, map, of, switchMap } from 'rxjs';
 import {
   Deviation,
   DeviationStatus,
@@ -9,6 +9,7 @@ import {
   DeviationType,
   ImpactLevel,
   DispositionDecision,
+  DeviationWorkflowStep,
   DeviationDashboardMetrics,
   DeviationListFilter,
 } from '../models/deviation.model';
@@ -20,6 +21,18 @@ type ApiPage<T> = {
 };
 
 type ApiDeviation = any;
+type ApiWorkflowHistory = any;
+
+const DEVIATION_WORKFLOW_TEMPLATE = [
+  'Reported',
+  'QA Review & Classification',
+  'Investigation',
+  'Impact Assessment',
+  'Disposition',
+  'CAPA Initiation',
+  'Pending Closure',
+  'Closed',
+];
 
 /** Helper: returns a Date offset from today by the given number of days */
 function daysAgo(days: number): Date {
@@ -64,7 +77,21 @@ export class DeviationService {
   getDeviationById(id: string): Observable<Deviation | undefined> {
     return this.http
       .get<ApiDeviation>(`${this.apiUrl}/${id}`, { headers: this.authHeaders() })
-      .pipe(map((item) => this.toDeviation(item)));
+      .pipe(
+        map((item) => this.toDeviation(item)),
+        switchMap((deviation) =>
+          this.getWorkflowHistory(id).pipe(
+            map((history) => ({
+              ...deviation,
+              workflowHistory: this.toWorkflowSteps(history, DEVIATION_WORKFLOW_TEMPLATE, deviation.currentWorkflowStep),
+            })),
+            catchError(() => of({
+              ...deviation,
+              workflowHistory: this.toWorkflowSteps([], DEVIATION_WORKFLOW_TEMPLATE, deviation.currentWorkflowStep),
+            }))
+          )
+        )
+      );
   }
 
   createDeviation(deviation: Partial<Deviation>): Observable<Deviation> {
@@ -95,6 +122,34 @@ export class DeviationService {
       .pipe(map((item) => this.toDeviation(item)));
   }
 
+  updateDeviation(id: string, deviation: Partial<Deviation>): Observable<Deviation> {
+    const payload = {
+      title: deviation.title,
+      description: deviation.description,
+      type: deviation.type,
+      category: deviation.category,
+      classification: deviation.classification,
+      occurredDate: this.toIso(deviation.occurredDate),
+      detectedDate: this.toIso(deviation.detectedDate),
+      targetClosureDate: this.toIso(deviation.targetClosureDate),
+      plantSiteId: this.resolvePlantSiteId((deviation as any).plantSite),
+      departmentId: this.resolveDepartmentId((deviation as any).department),
+      assignedToId: this.resolveUserId((deviation as any).assignedToName),
+      area: deviation.area,
+      equipment: deviation.equipment,
+      product: deviation.product,
+      batchNumber: deviation.batchNumber,
+      gmpImpact: deviation.gmpImpact ?? false,
+      patientSafetyImpact: deviation.patientSafetyImpact ?? false,
+      regulatoryImpact: deviation.regulatoryImpact ?? false,
+      sourceArea: deviation.sourceArea,
+    };
+
+    return this.http
+      .put<ApiDeviation>(`${this.apiUrl}/${id}`, payload, { headers: this.authHeaders() })
+      .pipe(map((item) => this.toDeviation(item)));
+  }
+
   updateDeviationStatus(id: string, status: DeviationStatus): Observable<Deviation> {
     return this.http
       .patch<ApiDeviation>(
@@ -109,6 +164,10 @@ export class DeviationService {
     return this.http
       .get<Record<string, any>>(`${API_BASE_URL}/dashboard/deviation-metrics`, { headers: this.authHeaders() })
       .pipe(map((data) => this.toDashboardMetrics(data)));
+  }
+
+  getWorkflowHistory(id: string): Observable<ApiWorkflowHistory[]> {
+    return this.http.get<ApiWorkflowHistory[]>(`${this.apiUrl}/${id}/workflow-history`, { headers: this.authHeaders() });
   }
 
   private authHeaders(): HttpHeaders {
@@ -216,6 +275,37 @@ export class DeviationService {
     };
   }
 
+  private toWorkflowSteps(history: ApiWorkflowHistory[], template: string[], currentStep?: string): DeviationWorkflowStep[] {
+    const byName = new Map((history || []).map((step) => [this.normalizeStepName(step.stepName), step]));
+    const known = template.map((stepName) => {
+      const match = byName.get(this.normalizeStepName(stepName));
+      return this.toWorkflowStep(match, stepName, currentStep);
+    });
+
+    const extras = (history || [])
+      .filter((step) => !template.some((name) => this.normalizeStepName(name) === this.normalizeStepName(step.stepName)))
+      .sort((a, b) => (a.stepOrder || 0) - (b.stepOrder || 0))
+      .map((step) => this.toWorkflowStep(step, step.stepName, currentStep));
+
+    return [...known, ...extras];
+  }
+
+  private toWorkflowStep(step: ApiWorkflowHistory | undefined, fallbackName: string, currentStep?: string): DeviationWorkflowStep {
+    const status = (step?.status || (this.normalizeStepName(fallbackName) === this.normalizeStepName(currentStep || '') ? 'CURRENT' : 'PENDING')) as DeviationWorkflowStep['status'];
+    return {
+      stepName: step?.stepName || fallbackName,
+      status,
+      assignedTo: step?.assignedTo?.displayName,
+      startedAt: step?.startedAt ? this.toDate(step.startedAt) : undefined,
+      completedAt: step?.completedAt ? this.toDate(step.completedAt) : undefined,
+      comments: step?.comments,
+    };
+  }
+
+  private normalizeStepName(value: string): string {
+    return (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
   private toDashboardMetrics(data: any): DeviationDashboardMetrics {
     return {
       totalOpen: data.openDeviations ?? 0,
@@ -269,6 +359,18 @@ export class DeviationService {
       'Research & Development': 'c0000000-0000-0000-0000-000000000007',
     };
     return departments[name || ''] || departments['Quality Assurance'];
+  }
+
+  private resolveUserId(name?: string): string | null {
+    const users: Record<string, string> = {
+      'Rajesh Kumar': 'd0000000-0000-0000-0000-000000000001',
+      'Priya Sharma': 'd0000000-0000-0000-0000-000000000002',
+      'Lakshmi Devi': 'd0000000-0000-0000-0000-000000000003',
+      'Kavitha Reddy': 'd0000000-0000-0000-0000-000000000004',
+      'Deepak Joshi': 'd0000000-0000-0000-0000-000000000005',
+      'Mahesh Patil': 'd0000000-0000-0000-0000-000000000006',
+    };
+    return users[name || ''] || null;
   }
 
   private generateMockData(): Deviation[] {

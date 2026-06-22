@@ -4,13 +4,15 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { DeviationService } from '../../services/deviation.service';
 import { Deviation, DeviationStatus } from '../../models/deviation.model';
 
 @Component({
   selector: 'dev-detail',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatIconModule, MatButtonModule, MatTooltipModule],
+  imports: [CommonModule, RouterModule, MatIconModule, MatButtonModule, MatTooltipModule, MatMenuModule, MatSnackBarModule],
   template: `
     <div class="vault-detail" *ngIf="deviation">
       <!-- Record Header -->
@@ -21,18 +23,65 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
         <div class="record-title-row">
           <div class="record-id-group">
             <span class="record-number">{{ deviation.deviationNumber }}</span>
-            <span class="status-badge" [ngClass]="getStatusClass(deviation.status)">{{ formatStatus(deviation.status) }}</span>
           </div>
           <div class="record-actions">
-            <span class="record-meta">{{ deviation.type }} | {{ deviation.classification }}</span>
+            <div class="record-navigation" aria-label="Deviation record navigation">
+              <button mat-icon-button type="button" class="record-nav-btn" matTooltip="Previous Deviation" [disabled]="!previousDeviationId" (click)="navigateToDeviation(previousDeviationId)">
+                <mat-icon>chevron_left</mat-icon>
+              </button>
+              <button mat-icon-button type="button" class="record-nav-btn" matTooltip="Next Deviation" [disabled]="!nextDeviationId" (click)="navigateToDeviation(nextDeviationId)">
+                <mat-icon>chevron_right</mat-icon>
+              </button>
+            </div>
             <button mat-icon-button type="button" matTooltip="Attachments" (click)="showSection('attachments')">
               <mat-icon>attach_file</mat-icon>
             </button>
-            <button mat-icon-button matTooltip="Copy"><mat-icon>content_copy</mat-icon></button>
-            <button mat-icon-button matTooltip="More"><mat-icon>more_horiz</mat-icon></button>
+            <button mat-icon-button type="button" matTooltip="Edit Deviation" (click)="editDeviation()">
+              <mat-icon>edit</mat-icon>
+            </button>
+            <button mat-icon-button type="button" matTooltip="More actions" [matMenuTriggerFor]="recordActionsMenu">
+              <mat-icon>more_horiz</mat-icon>
+            </button>
+            <mat-menu #recordActionsMenu="matMenu" xPosition="before">
+              <button mat-menu-item type="button" (click)="editDeviation()">
+                <mat-icon>edit</mat-icon>
+                <span>Edit Deviation</span>
+              </button>
+              <button mat-menu-item type="button" (click)="showSection('attachments')">
+                <mat-icon>attach_file</mat-icon>
+                <span>Attachments</span>
+              </button>
+              <button mat-menu-item type="button" (click)="showSection('audit')">
+                <mat-icon>receipt_long</mat-icon>
+                <span>Record Audit Section</span>
+              </button>
+              <button mat-menu-item type="button" (click)="openAuditTrail()">
+                <mat-icon>history</mat-icon>
+                <span>Audit Trail</span>
+              </button>
+              <button mat-menu-item type="button" (click)="copyRecordLink()">
+                <mat-icon>content_copy</mat-icon>
+                <span>Copy Record Link</span>
+              </button>
+              <button mat-menu-item type="button" (click)="backToList()">
+                <mat-icon>list</mat-icon>
+                <span>Back to Deviations</span>
+              </button>
+            </mat-menu>
           </div>
         </div>
-        <div class="record-title">{{ deviation.title }}</div>
+        <div class="record-title-line">
+          <div class="record-title">{{ deviation.title }}</div>
+          <select
+            class="status-select"
+            [ngClass]="getStatusClass(deviation.status)"
+            [value]="deviation.status"
+            [disabled]="isStatusUpdating"
+            (change)="changeStatus(inputValue($event))">
+            <option *ngFor="let status of statusOptions" [value]="status">{{ formatStatus(status) }}</option>
+          </select>
+          <span class="record-meta">{{ deviation.type }} | {{ deviation.classification }}</span>
+        </div>
       </div>
 
       <!-- Veeva Lifecycle Bar -->
@@ -347,9 +396,55 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
     .record-breadcrumb { margin-bottom: 8px; }
     .breadcrumb-link { color: #2C5F7C; font-size: 13px; text-decoration: none; }
     .breadcrumb-link:hover { text-decoration: underline; }
-    .record-title-row { display: flex; justify-content: space-between; align-items: center; }
-    .record-id-group { display: flex; align-items: center; gap: 12px; }
+    .record-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      min-height: 40px;
+    }
+    .record-id-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+    .record-navigation {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      background: #fff;
+      border: 1px solid #d7dde3;
+      border-radius: 999px;
+      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+      overflow: hidden;
+    }
     .record-number { font-size: 22px; font-weight: 600; color: #333; }
+    .record-nav-btn {
+      width: 34px;
+      height: 34px;
+      min-width: 34px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      border-radius: 0;
+      color: #2C5F7C;
+      background: #f8fafc;
+    }
+    .record-nav-btn + .record-nav-btn { border-left: 1px solid #edf1f5; }
+    .record-nav-btn:hover:not(:disabled) { background: #eef6fa; color: #1B3A4B; }
+    .record-nav-btn:disabled { color: #b8c2cc; background: #f6f8fa; }
+    .record-nav-btn mat-icon {
+      display: block;
+      font-size: 22px;
+      width: 22px;
+      height: 22px;
+      line-height: 22px;
+      margin: 0;
+    }
     .status-badge { padding: 4px 14px; border-radius: 14px; font-size: 12px; font-weight: 600; }
     .status-badge.reported { background: #ED8B00; color: #fff; }
     .status-badge.under-review { background: #F5A623; color: #fff; }
@@ -360,20 +455,116 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
     .status-badge.capa-initiated { background: #7B1FA2; color: #fff; }
     .status-badge.pending-closure { background: #388E3C; color: #fff; }
     .status-badge.closed { background: #666; color: #fff; }
-    .record-actions { display: flex; align-items: center; gap: 4px; }
-    .record-meta { font-size: 12px; color: #888; margin-right: 8px; }
-    .record-title { font-size: 14px; color: #555; margin-top: 6px; }
+    .status-select {
+      min-width: 178px;
+      border: 0;
+      border-radius: 999px;
+      padding: 6px 32px 6px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      cursor: pointer;
+      outline: none;
+      appearance: none;
+      background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+      background-position: calc(100% - 17px) 11px, calc(100% - 12px) 11px;
+      background-size: 5px 5px, 5px 5px;
+      background-repeat: no-repeat;
+    }
+    .status-select.reported { background-color: #ED8B00; }
+    .status-select.under-review { background-color: #F5A623; }
+    .status-select.classified { background-color: #2C5F7C; }
+    .status-select.investigation { background-color: #ED8B00; }
+    .status-select.impact-assessment { background-color: #D4760A; }
+    .status-select.disposition { background-color: #2C5F7C; }
+    .status-select.capa-initiated { background-color: #7B1FA2; }
+    .status-select.pending-closure { background-color: #388E3C; }
+    .status-select.closed { background-color: #666; }
+    .status-select.rejected { background-color: #9E1B32; }
+    .status-select:disabled { cursor: progress; opacity: 0.75; }
+    .status-select option { background: #fff; color: #333; font-weight: 500; }
+    .record-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+    .record-title-line {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 12px;
+      margin-top: 10px;
+      min-width: 0;
+    }
+    .record-meta { font-size: 12px; color: #667085; }
+    .record-title {
+      max-width: min(720px, 55vw);
+      font-size: 14px;
+      color: #555;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
 
     /* Veeva Lifecycle Bar */
-    .lifecycle-bar { display: flex; margin: 0 -24px; background: #f5f5f5; border-bottom: 1px solid #ddd; }
-    .lifecycle-step { flex: 1; position: relative; text-align: center; padding: 10px 4px; font-size: 11px; font-weight: 500; color: #999; overflow: hidden; }
-    .lifecycle-step .lifecycle-fill { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 0; }
-    .lifecycle-step .lifecycle-label { position: relative; z-index: 1; }
-    .lifecycle-step.completed .lifecycle-fill { background: #2C5F7C; }
+    .lifecycle-bar {
+      display: flex;
+      margin: 0 -24px;
+      padding: 10px 24px;
+      background: #eef2f5;
+      border-bottom: 1px solid #d8dee4;
+      overflow-x: auto;
+    }
+    .lifecycle-step {
+      flex: 1 0 118px;
+      min-height: 38px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: -18px;
+      padding: 0 28px 0 34px;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: #697782;
+      overflow: visible;
+    }
+    .lifecycle-step:first-child { padding-left: 18px; }
+    .lifecycle-step:last-child { margin-right: 0; padding-right: 18px; }
+    .lifecycle-step .lifecycle-fill {
+      position: absolute;
+      top: 0;
+      right: 4px;
+      bottom: 0;
+      left: 0;
+      z-index: 0;
+      background: #fff;
+      border: 1px solid #d7dde3;
+      clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%, 18px 50%);
+    }
+    .lifecycle-step:first-child .lifecycle-fill {
+      clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%);
+    }
+    .lifecycle-step:last-child .lifecycle-fill {
+      right: 0;
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 18px 50%);
+    }
+    .lifecycle-step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 4px;
+      bottom: 0;
+      width: 18px;
+      z-index: 2;
+      background: #fff;
+      clip-path: polygon(0 0, 100% 50%, 0 100%, 5px 100%, 100% 50%, 5px 0);
+      pointer-events: none;
+    }
+    .lifecycle-step .lifecycle-label { position: relative; z-index: 3; line-height: 1.2; }
+    .lifecycle-step.completed .lifecycle-fill { background: #2C5F7C; border-color: #2C5F7C; }
     .lifecycle-step.completed { color: #fff; }
-    .lifecycle-step.current .lifecycle-fill { background: #ED8B00; }
-    .lifecycle-step.current { color: #fff; font-weight: 600; }
-    .lifecycle-step.pending .lifecycle-fill { background: transparent; }
+    .lifecycle-step.current .lifecycle-fill { background: #ED8B00; border-color: #ED8B00; }
+    .lifecycle-step.current { color: #fff; font-weight: 700; }
+    .lifecycle-step.pending .lifecycle-fill { background: #fff; border-color: #d7dde3; }
 
     /* Vault Body Layout */
     .vault-body { display: flex; gap: 0; margin: 0 -24px; min-height: calc(100vh - 280px); }
@@ -456,6 +647,11 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
     .no-data-msg { font-size: 13px; color: #999; padding: 16px; text-align: center; }
 
     @media (max-width: 768px) {
+      .record-title-row { flex-direction: column; align-items: stretch; row-gap: 10px; }
+      .record-id-group, .record-actions { justify-content: center; }
+      .record-id-group { flex-wrap: wrap; }
+      .record-title-line { flex-wrap: wrap; justify-content: flex-start; }
+      .record-title { max-width: 100%; white-space: normal; text-align: left; }
       .vault-body { flex-direction: column; }
       .vault-sidebar { width: 100%; min-width: auto; border-right: none; border-bottom: 1px solid #e0e0e0; }
       .field-grid { grid-template-columns: 1fr; }
@@ -464,6 +660,11 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
 })
 export class DeviationDetailComponent implements OnInit {
   deviation: Deviation | null = null;
+  statusOptions = Object.values(DeviationStatus);
+  isStatusUpdating = false;
+  previousDeviationId: string | null = null;
+  nextDeviationId: string | null = null;
+  private deviationList: Deviation[] = [];
   activeSection = 'general';
   expandedSections: { [key: string]: boolean } = {
     generalInfo: true, description: true, impactFlags: true,
@@ -475,16 +676,26 @@ export class DeviationDetailComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private deviationService: DeviationService
+    private deviationService: DeviationService,
+    private snackBar: MatSnackBar
   ) {}
 
   ngOnInit(): void {
-    const id = this.route.snapshot.paramMap.get('id');
-    if (id) {
-      this.deviationService.getDeviationById(id).subscribe((data) => {
-        this.deviation = data || null;
-      });
-    }
+    this.deviationService.getDeviations().subscribe((deviations) => {
+      this.deviationList = deviations;
+      this.updateNavigationState(this.deviation?.id || this.route.snapshot.paramMap.get('id'));
+    });
+
+    this.route.paramMap.subscribe((params) => {
+      const id = params.get('id');
+      if (id) {
+        this.loadDeviation(id);
+      }
+    });
+  }
+
+  inputValue(event: Event): DeviationStatus {
+    return (event.target as HTMLSelectElement).value as DeviationStatus;
   }
 
   toggleSection(section: string): void {
@@ -502,6 +713,75 @@ export class DeviationDetailComponent implements OnInit {
 
   backToList(): void {
     this.router.navigate(['/deviations/list']);
+  }
+
+  editDeviation(): void {
+    if (!this.deviation) {
+      return;
+    }
+    this.router.navigate(['/deviations/edit', this.deviation.id]);
+  }
+
+  navigateToDeviation(id: string | null): void {
+    if (!id) {
+      return;
+    }
+    this.router.navigate(['/deviations/detail', id]);
+  }
+
+  changeStatus(status: DeviationStatus): void {
+    if (!this.deviation || status === this.deviation.status || this.isStatusUpdating) {
+      return;
+    }
+
+    const previousStatus = this.deviation.status;
+    this.isStatusUpdating = true;
+    this.deviationService.updateDeviationStatus(this.deviation.id, status).subscribe({
+      next: () => {
+        if (this.deviation) {
+          this.deviation.status = status;
+        }
+        this.snackBar.open(`Deviation status changed to ${this.formatStatus(status)}`, 'Close', { duration: 3000 });
+        this.loadDeviation(this.deviation!.id);
+      },
+      error: () => {
+        if (this.deviation) {
+          this.deviation.status = previousStatus;
+        }
+        this.isStatusUpdating = false;
+        this.snackBar.open('Unable to update deviation status', 'Close', { duration: 4000 });
+      },
+      complete: () => {
+        this.isStatusUpdating = false;
+      },
+    });
+  }
+
+  openAuditTrail(): void {
+    if (!this.deviation) {
+      return;
+    }
+
+    this.router.navigate(['/tools/audit-trail'], {
+      queryParams: {
+        recordType: 'DEVIATION',
+        recordId: this.deviation.id,
+      },
+    });
+  }
+
+  copyRecordLink(): void {
+    const link = window.location.href;
+
+    if (!navigator.clipboard) {
+      this.snackBar.open('Copy is not available in this browser context', 'Close', { duration: 3000 });
+      return;
+    }
+
+    navigator.clipboard
+      .writeText(link)
+      .then(() => this.snackBar.open('Deviation record link copied', 'Close', { duration: 2500 }))
+      .catch(() => this.snackBar.open('Unable to copy record link', 'Close', { duration: 3000 }));
   }
 
   formatStatus(status: string): string {
@@ -532,5 +812,24 @@ export class DeviationDetailComponent implements OnInit {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  private loadDeviation(id: string): void {
+    this.deviationService.getDeviationById(id).subscribe((data) => {
+      this.deviation = data || null;
+      this.updateNavigationState(id);
+    });
+  }
+
+  private updateNavigationState(id: string | null): void {
+    if (!id || !this.deviationList.length) {
+      this.previousDeviationId = null;
+      this.nextDeviationId = null;
+      return;
+    }
+
+    const index = this.deviationList.findIndex((item) => item.id === id);
+    this.previousDeviationId = index > 0 ? this.deviationList[index - 1].id : null;
+    this.nextDeviationId = index >= 0 && index < this.deviationList.length - 1 ? this.deviationList[index + 1].id : null;
   }
 }

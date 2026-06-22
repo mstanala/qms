@@ -137,7 +137,28 @@ public class DeviationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Deviation", "id", id));
         if (request.getTitle() != null) dev.setTitle(request.getTitle());
         if (request.getDescription() != null) dev.setDescription(request.getDescription());
+        if (request.getType() != null) dev.setType(DeviationType.valueOf(request.getType()));
+        if (request.getCategory() != null) dev.setCategory(DeviationCategory.valueOf(request.getCategory()));
+        if (request.getClassification() != null) dev.setClassification(DeviationClassification.valueOf(request.getClassification()));
+        if (request.getSourceArea() != null) dev.setSourceArea(request.getSourceArea());
+        if (request.getOccurredDate() != null) dev.setOccurredDate(request.getOccurredDate());
+        if (request.getDetectedDate() != null) dev.setDetectedDate(request.getDetectedDate());
         if (request.getTargetClosureDate() != null) dev.setTargetClosureDate(request.getTargetClosureDate());
+        if (request.getPlantSiteId() != null) {
+            PlantSite plantSite = plantSiteRepository.findById(request.getPlantSiteId())
+                    .orElseThrow(() -> new ResourceNotFoundException("PlantSite", "id", request.getPlantSiteId()));
+            dev.setPlantSite(plantSite);
+        }
+        if (request.getDepartmentId() != null) {
+            Department department = departmentRepository.findById(request.getDepartmentId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Department", "id", request.getDepartmentId()));
+            dev.setDepartment(department);
+        }
+        if (request.getAssignedToId() != null) {
+            User assignee = userRepository.findById(request.getAssignedToId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getAssignedToId()));
+            dev.setAssignedTo(assignee);
+        }
         if (request.getArea() != null) dev.setArea(request.getArea());
         if (request.getEquipment() != null) dev.setEquipment(request.getEquipment());
         if (request.getProduct() != null) dev.setProduct(request.getProduct());
