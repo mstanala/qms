@@ -22,7 +22,7 @@ spring:
     open-in-view: false
 
   flyway:
-    enabled: true
+    enabled: ${FLYWAY_ENABLED:false}
     locations: classpath:db/migration
     baseline-on-migrate: true
 
