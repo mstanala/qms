@@ -1,6 +1,6 @@
 package com.qmspharma.controller;
 
-import com.qmspharma.model.entity.Nonconformance;
+import com.qmspharma.model.dto.response.NonconformanceResponse;
 import com.qmspharma.service.NonconformanceService;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
@@ -21,7 +21,7 @@ public class NonconformanceController {
     private final NonconformanceService ncService;
 
     @GetMapping
-    public ResponseEntity<Page<Nonconformance>> list(
+    public ResponseEntity<Page<NonconformanceResponse>> list(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String ncType,
             @RequestParam(required = false) String holdStatus,
@@ -32,32 +32,32 @@ public class NonconformanceController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Nonconformance> get(@PathVariable UUID id) {
+    public ResponseEntity<NonconformanceResponse> get(@PathVariable UUID id) {
         return ResponseEntity.ok(ncService.getById(id));
     }
 
     @PostMapping
-    public ResponseEntity<Nonconformance> create(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<NonconformanceResponse> create(@RequestBody Map<String, Object> request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ncService.create(request));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Nonconformance> update(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+    public ResponseEntity<NonconformanceResponse> update(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
         return ResponseEntity.ok(ncService.update(id, request));
     }
 
     @PatchMapping("/{id}/status")
-    public ResponseEntity<Nonconformance> transitionStatus(@PathVariable UUID id, @RequestBody Map<String, String> request) {
+    public ResponseEntity<NonconformanceResponse> transitionStatus(@PathVariable UUID id, @RequestBody Map<String, String> request) {
         return ResponseEntity.ok(ncService.transitionStatus(id, request.get("status")));
     }
 
     @PatchMapping("/{id}/disposition")
-    public ResponseEntity<Nonconformance> submitDisposition(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+    public ResponseEntity<NonconformanceResponse> submitDisposition(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
         return ResponseEntity.ok(ncService.submitDisposition(id, request));
     }
 
     @PatchMapping("/{id}/hold")
-    public ResponseEntity<Nonconformance> toggleHold(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+    public ResponseEntity<NonconformanceResponse> toggleHold(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
         return ResponseEntity.ok(ncService.toggleHold(id, request));
     }
 

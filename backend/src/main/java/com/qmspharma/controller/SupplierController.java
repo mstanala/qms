@@ -1,6 +1,6 @@
 package com.qmspharma.controller;
 
-import com.qmspharma.model.entity.Supplier;
+import com.qmspharma.model.dto.response.SupplierResponse;
 import com.qmspharma.service.SupplierService;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
@@ -21,7 +21,7 @@ public class SupplierController {
     private final SupplierService supplierService;
 
     @GetMapping
-    public ResponseEntity<Page<Supplier>> list(
+    public ResponseEntity<Page<SupplierResponse>> list(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String supplierType,
             @RequestParam(required = false) String category,
@@ -31,22 +31,22 @@ public class SupplierController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Supplier> get(@PathVariable UUID id) {
+    public ResponseEntity<SupplierResponse> get(@PathVariable UUID id) {
         return ResponseEntity.ok(supplierService.getById(id));
     }
 
     @PostMapping
-    public ResponseEntity<Supplier> create(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<SupplierResponse> create(@RequestBody Map<String, Object> request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(supplierService.create(request));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Supplier> update(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+    public ResponseEntity<SupplierResponse> update(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
         return ResponseEntity.ok(supplierService.update(id, request));
     }
 
     @PatchMapping("/{id}/status")
-    public ResponseEntity<Supplier> transitionStatus(@PathVariable UUID id, @RequestBody Map<String, String> request) {
+    public ResponseEntity<SupplierResponse> transitionStatus(@PathVariable UUID id, @RequestBody Map<String, String> request) {
         return ResponseEntity.ok(supplierService.transitionStatus(id, request.get("status")));
     }
 

@@ -1,6 +1,6 @@
 package com.qmspharma.controller;
 
-import com.qmspharma.model.entity.Complaint;
+import com.qmspharma.model.dto.response.ComplaintResponse;
 import com.qmspharma.service.ComplaintService;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
@@ -21,7 +21,7 @@ public class ComplaintController {
     private final ComplaintService complaintService;
 
     @GetMapping
-    public ResponseEntity<Page<Complaint>> list(
+    public ResponseEntity<Page<ComplaintResponse>> list(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String complaintType,
             @RequestParam(required = false) String classification,
@@ -32,22 +32,22 @@ public class ComplaintController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Complaint> get(@PathVariable UUID id) {
+    public ResponseEntity<ComplaintResponse> get(@PathVariable UUID id) {
         return ResponseEntity.ok(complaintService.getById(id));
     }
 
     @PostMapping
-    public ResponseEntity<Complaint> create(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<ComplaintResponse> create(@RequestBody Map<String, Object> request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(complaintService.create(request));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Complaint> update(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+    public ResponseEntity<ComplaintResponse> update(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
         return ResponseEntity.ok(complaintService.update(id, request));
     }
 
     @PatchMapping("/{id}/status")
-    public ResponseEntity<Complaint> transitionStatus(@PathVariable UUID id, @RequestBody Map<String, String> request) {
+    public ResponseEntity<ComplaintResponse> transitionStatus(@PathVariable UUID id, @RequestBody Map<String, String> request) {
         return ResponseEntity.ok(complaintService.transitionStatus(id, request.get("status")));
     }
 

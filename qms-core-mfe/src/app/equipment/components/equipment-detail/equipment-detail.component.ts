@@ -9,6 +9,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { Equipment, EquipmentService } from '../../services/equipment.service';
 
@@ -16,7 +17,7 @@ import { Equipment, EquipmentService } from '../../services/equipment.service';
   selector: 'qms-equipment-detail',
   standalone: true,
   imports: [CommonModule, RouterModule, FormsModule, MatButtonModule, MatCardModule, MatChipsModule,
-    MatFormFieldModule, MatIconModule, MatInputModule, MatMenuModule, MatSnackBarModule],
+    MatFormFieldModule, MatIconModule, MatInputModule, MatMenuModule, MatSelectModule, MatSnackBarModule],
   template: `
     <div class="page" *ngIf="equipment">
       <div class="page-header">
@@ -48,8 +49,20 @@ import { Equipment, EquipmentService } from '../../services/equipment.service';
         <mat-card-header><mat-card-title>Controlled Updates</mat-card-title></mat-card-header>
         <mat-card-content class="edit-grid">
           <mat-form-field appearance="outline"><mat-label>Name</mat-label><input matInput [(ngModel)]="edit.name"></mat-form-field>
-          <mat-form-field appearance="outline"><mat-label>Qualification Status</mat-label><input matInput [(ngModel)]="edit.qualificationStatus"></mat-form-field>
-          <mat-form-field appearance="outline"><mat-label>Calibration Status</mat-label><input matInput [(ngModel)]="edit.calibrationStatus"></mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Qualification Status</mat-label>
+            <mat-select [(ngModel)]="edit.qualificationStatus">
+              <mat-option value="">Not Set</mat-option>
+              <mat-option *ngFor="let status of qualificationStatuses" [value]="status">{{ label(status) }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Calibration Status</mat-label>
+            <mat-select [(ngModel)]="edit.calibrationStatus">
+              <mat-option value="">Not Set</mat-option>
+              <mat-option *ngFor="let status of calibrationStatuses" [value]="status">{{ label(status) }}</mat-option>
+            </mat-select>
+          </mat-form-field>
           <button mat-raised-button color="primary" (click)="save()"><mat-icon>save</mat-icon> Save</button>
         </mat-card-content>
       </mat-card>
@@ -65,6 +78,8 @@ export class EquipmentDetailComponent implements OnInit {
     calibrationStatus: '',
   };
   statuses = ['ACTIVE', 'INACTIVE', 'OUT_OF_SERVICE', 'DECOMMISSIONED'];
+  qualificationStatuses = ['NOT_QUALIFIED', 'IQ_COMPLETED', 'OQ_COMPLETED', 'PQ_COMPLETED', 'FULLY_QUALIFIED', 'REQUALIFICATION_DUE', 'QUALIFICATION_EXPIRED'];
+  calibrationStatuses = ['CALIBRATED', 'DUE', 'OVERDUE', 'NOT_APPLICABLE'];
 
   constructor(private route: ActivatedRoute, private equipmentService: EquipmentService, private snackBar: MatSnackBar) {}
 
