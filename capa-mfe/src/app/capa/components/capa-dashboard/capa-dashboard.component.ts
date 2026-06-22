@@ -35,6 +35,34 @@ import { CapaDashboardMetrics } from '../../models/capa.model';
         </div>
       </div>
 
+      <div class="quick-actions">
+        <mat-card>
+          <mat-card-header>
+            <mat-card-title>Quick Actions</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="actions-grid">
+              <button mat-stroked-button routerLink="../list" class="action-btn">
+                <mat-icon>list</mat-icon>
+                View All CAPAs
+              </button>
+              <button mat-stroked-button routerLink="../create" class="action-btn">
+                <mat-icon>add</mat-icon>
+                New CAPA
+              </button>
+              <button mat-stroked-button class="action-btn" disabled>
+                <mat-icon>assessment</mat-icon>
+                Generate Report
+              </button>
+              <button mat-stroked-button class="action-btn" disabled>
+                <mat-icon>download</mat-icon>
+                Export Data
+              </button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </div>
+
       <div class="metrics-row" *ngIf="metrics">
         <mat-card class="metric-card highlight-card">
           <div class="metric-icon-wrapper critical">
@@ -169,34 +197,6 @@ import { CapaDashboardMetrics } from '../../models/capa.model';
                 <span class="legend-item"><span class="legend-dot initiated"></span> Initiated</span>
                 <span class="legend-item"><span class="legend-dot closed"></span> Closed</span>
               </div>
-            </div>
-          </mat-card-content>
-        </mat-card>
-      </div>
-
-      <div class="quick-actions">
-        <mat-card>
-          <mat-card-header>
-            <mat-card-title>Quick Actions</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="actions-grid">
-              <button mat-stroked-button routerLink="../list" class="action-btn">
-                <mat-icon>list</mat-icon>
-                View All CAPAs
-              </button>
-              <button mat-stroked-button routerLink="../create" class="action-btn">
-                <mat-icon>add</mat-icon>
-                New CAPA
-              </button>
-              <button mat-stroked-button class="action-btn" disabled>
-                <mat-icon>assessment</mat-icon>
-                Generate Report
-              </button>
-              <button mat-stroked-button class="action-btn" disabled>
-                <mat-icon>download</mat-icon>
-                Export Data
-              </button>
             </div>
           </mat-card-content>
         </mat-card>
@@ -436,6 +436,10 @@ import { CapaDashboardMetrics } from '../../models/capa.model';
 
     .legend-dot.initiated { background: #ED8B00; }
     .legend-dot.closed { background: #66bb6a; }
+
+    .quick-actions {
+      margin-bottom: 24px;
+    }
 
     .actions-grid {
       display: flex;

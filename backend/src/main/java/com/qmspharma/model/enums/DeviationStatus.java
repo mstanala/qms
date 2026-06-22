@@ -1,0 +1,7 @@
+package com.qmspharma.model.enums;
+
+public enum DeviationStatus {
+    REPORTED, UNDER_REVIEW, CLASSIFIED, INVESTIGATION,
+    IMPACT_ASSESSMENT, DISPOSITION, CAPA_INITIATED,
+    PENDING_CLOSURE, CLOSED, REJECTED
+}

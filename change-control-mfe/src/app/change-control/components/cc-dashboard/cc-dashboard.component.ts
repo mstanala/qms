@@ -33,6 +33,34 @@ import { ChangeControlDashboardMetrics } from '../../models/change-control.model
         </div>
       </div>
 
+      <div class="quick-actions">
+        <mat-card>
+          <mat-card-header>
+            <mat-card-title>Quick Actions</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="actions-grid">
+              <button mat-stroked-button routerLink="../list" class="action-btn">
+                <mat-icon>list_alt</mat-icon>
+                View All Changes
+              </button>
+              <button mat-stroked-button routerLink="../create" class="action-btn">
+                <mat-icon>add_circle</mat-icon>
+                New Change Request
+              </button>
+              <button mat-stroked-button class="action-btn" disabled>
+                <mat-icon>assessment</mat-icon>
+                Cycle Time Report
+              </button>
+              <button mat-stroked-button class="action-btn" disabled>
+                <mat-icon>download</mat-icon>
+                Export Register
+              </button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </div>
+
       <div class="metrics-row" *ngIf="metrics">
         <mat-card class="metric-card">
           <div class="metric-icon-wrapper open">
@@ -197,34 +225,6 @@ import { ChangeControlDashboardMetrics } from '../../models/change-control.model
           </mat-card-content>
         </mat-card>
       </div>
-
-      <div class="quick-actions">
-        <mat-card>
-          <mat-card-header>
-            <mat-card-title>Quick Actions</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="actions-grid">
-              <button mat-stroked-button routerLink="../list" class="action-btn">
-                <mat-icon>list_alt</mat-icon>
-                View All Changes
-              </button>
-              <button mat-stroked-button routerLink="../create" class="action-btn">
-                <mat-icon>add_circle</mat-icon>
-                New Change Request
-              </button>
-              <button mat-stroked-button class="action-btn" disabled>
-                <mat-icon>assessment</mat-icon>
-                Cycle Time Report
-              </button>
-              <button mat-stroked-button class="action-btn" disabled>
-                <mat-icon>download</mat-icon>
-                Export Register
-              </button>
-            </div>
-          </mat-card-content>
-        </mat-card>
-      </div>
     </div>
   `,
   styles: [`
@@ -299,6 +299,7 @@ import { ChangeControlDashboardMetrics } from '../../models/change-control.model
     .legend-dot.closed { background: #66bb6a; }
     .legend-dot.rejected { background: #ef5350; }
 
+    .quick-actions { margin-bottom: 24px; }
     .actions-grid { display: flex; gap: 12px; flex-wrap: wrap; padding: 8px 0; }
     .action-btn { display: flex; align-items: center; gap: 8px; }
 

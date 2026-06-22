@@ -11,6 +11,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { CapaService } from '../../services/capa.service';
 import { Capa, RcaMethod } from '../../models/capa.model';
 
@@ -30,6 +31,7 @@ import { Capa, RcaMethod } from '../../models/capa.model';
     MatDividerModule,
     MatChipsModule,
     MatTooltipModule,
+    MatSnackBarModule,
   ],
   template: `
     <div class="rca-container" *ngIf="capa">
@@ -545,7 +547,8 @@ export class RootCauseAnalysisComponent implements OnInit {
 
   constructor(
     private route: ActivatedRoute,
-    private capaService: CapaService
+    private capaService: CapaService,
+    private snackBar: MatSnackBar
   ) {}
 
   ngOnInit(): void {
@@ -605,11 +608,22 @@ export class RootCauseAnalysisComponent implements OnInit {
   }
 
   saveRca(): void {
-    console.log('RCA saved:', {
+    if (!this.capa) return;
+
+    this.capaService.submitRootCauseAnalysis(this.capa.id, {
       method: this.selectedMethod,
-      fiveWhyEntries: this.fiveWhyEntries,
-      identifiedCauses: this.identifiedCauses.filter((c) => c.trim()),
+      description: 'Root cause analysis',
+      rootCauses: this.identifiedCauses.filter((c) => c.trim()),
       contributingFactors: this.contributingFactors.filter((f) => f.trim()),
+      fiveWhyAnalysis: this.fiveWhyEntries.filter((entry) => entry.question.trim() || entry.answer.trim()),
+    }).subscribe({
+      next: (updated) => {
+        this.capa = updated;
+        this.snackBar.open('Root cause analysis saved', 'OK', { duration: 3000 });
+      },
+      error: () => {
+        this.snackBar.open('Unable to save root cause analysis', 'OK', { duration: 5000 });
+      },
     });
   }
 }

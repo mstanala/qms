@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://qmspharma.com/changecontrol"
+             id="changeControlDefinitions">
+
+    <process id="changeControlProcess" name="Change Control Management Process" isExecutable="true">
+
+        <!-- Process Variables:
+             recordId, changeNumber, requestedById, changeOwnerId,
+             qaReviewerId, classification, trainingRequired,
+             plantSiteId, departmentId, targetImplementationDate -->
+
+        <startEvent id="start" name="Change Request Created"/>
+
+        <sequenceFlow id="flow-start-submit" sourceRef="start" targetRef="submitChange"/>
+
+        <!-- Step 1: Submit Change Request -->
+        <userTask id="submitChange" name="Complete &amp; Submit Change Request"
+                  flowable:assignee="${changeOwnerId}"
+                  flowable:formKey="cc-submit">
+            <documentation>Complete change request details, attach supporting documents</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-submit-impact" sourceRef="submitChange" targetRef="impactAssessment"/>
+
+        <!-- Step 2: Impact Assessment -->
+        <userTask id="impactAssessment" name="Impact Assessment"
+                  flowable:assignee="${changeOwnerId}"
+                  flowable:formKey="cc-impact">
+            <documentation>Assess impact across 8 dimensions: product quality, patient safety, regulatory, validation, documentation, training, supplier, stability</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-impact-qa" sourceRef="impactAssessment" targetRef="qaReview"/>
+
+        <!-- Step 3: QA Review -->
+        <userTask id="qaReview" name="QA Review"
+                  flowable:assignee="${qaReviewerId}"
+                  flowable:formKey="cc-qa-review">
+            <documentation>Quality Assurance review of change request and impact assessment</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-qa-ragw" sourceRef="qaReview" targetRef="raGateway"/>
+
+        <!-- Gateway: RA Review Required? -->
+        <exclusiveGateway id="raGateway" name="RA Review Required?"/>
+
+        <sequenceFlow id="flow-ra-yes" sourceRef="raGateway" targetRef="raReview">
+            <conditionExpression>${regulatoryFilingRequired == true}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow-ra-no" sourceRef="raGateway" targetRef="pendingApproval">
+            <conditionExpression>${regulatoryFilingRequired == false}</conditionExpression>
+        </sequenceFlow>
+
+        <!-- Step 3a: RA Review (if regulatory filing required) -->
+        <userTask id="raReview" name="Regulatory Affairs Review"
+                  flowable:candidateGroups="QA_REVIEWER"
+                  flowable:formKey="cc-ra-review">
+            <documentation>Regulatory Affairs review of filing requirements</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-ra-approval" sourceRef="raReview" targetRef="pendingApproval"/>
+
+        <!-- Step 4: Approval (sequential approvals handled externally) -->
+        <userTask id="pendingApproval" name="Pending Approval"
+                  flowable:candidateGroups="QA_APPROVER,APPROVER"
+                  flowable:formKey="cc-approval">
+            <documentation>Obtain required approvals for the change request</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-approval-gw" sourceRef="pendingApproval" targetRef="approvalGateway"/>
+
+        <exclusiveGateway id="approvalGateway" name="Approval Decision"/>
+
+        <sequenceFlow id="flow-approved" sourceRef="approvalGateway" targetRef="implementation">
+            <conditionExpression>${approvalDecision == 'APPROVED'}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow-rejected" sourceRef="approvalGateway" targetRef="rejectedEnd">
+            <conditionExpression>${approvalDecision == 'REJECTED'}</conditionExpression>
+        </sequenceFlow>
+
+        <endEvent id="rejectedEnd" name="Change Rejected"/>
+
+        <!-- Step 5: Implementation -->
+        <userTask id="implementation" name="Implementation"
+                  flowable:assignee="${changeOwnerId}"
+                  flowable:formKey="cc-implement"
+                  flowable:dueDate="${targetImplementationDate}">
+            <documentation>Execute implementation tasks, update documents, complete training</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-impl-verify" sourceRef="implementation" targetRef="verification"/>
+
+        <!-- Step 6: Verification -->
+        <userTask id="verification" name="Implementation Verification"
+                  flowable:candidateGroups="QA_REVIEWER"
+                  flowable:formKey="cc-verify">
+            <documentation>Verify all implementation tasks, documents, and training are complete</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-verify-effectiveness" sourceRef="verification" targetRef="effectivenessCheck"/>
+
+        <!-- Step 7: Effectiveness Check -->
+        <userTask id="effectivenessCheck" name="Effectiveness Check"
+                  flowable:candidateGroups="QA_APPROVER"
+                  flowable:formKey="cc-effectiveness">
+            <documentation>Evaluate change effectiveness against defined criteria</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-effectiveness-notify" sourceRef="effectivenessCheck" targetRef="notifyClosed"/>
+
+        <serviceTask id="notifyClosed" name="Notify Closure"
+                     flowable:delegateExpression="${notificationDelegate}">
+            <extensionElements>
+                <flowable:field name="notificationType" stringValue="STATUS_CHANGE"/>
+                <flowable:field name="titleTemplate" stringValue="Change Control Closed: {changeNumber}"/>
+                <flowable:field name="messageTemplate" stringValue="Change control {changeNumber} has been closed"/>
+                <flowable:field name="recipientVariable" stringValue="requestedById"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-notify-end" sourceRef="notifyClosed" targetRef="end"/>
+
+        <endEvent id="end" name="Change Closed"/>
+
+        <!-- Overdue timer on implementation -->
+        <boundaryEvent id="implTimer" attachedToRef="implementation" cancelActivity="false">
+            <timerEventDefinition>
+                <timeDuration>P30D</timeDuration>
+            </timerEventDefinition>
+        </boundaryEvent>
+
+        <sequenceFlow id="flow-impl-timer" sourceRef="implTimer" targetRef="escalateImpl"/>
+
+        <serviceTask id="escalateImpl" name="Escalate Overdue Implementation"
+                     flowable:delegateExpression="${escalationDelegate}">
+            <extensionElements>
+                <flowable:field name="escalationType" stringValue="IMPLEMENTATION_OVERDUE"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-impl-esc-end" sourceRef="escalateImpl" targetRef="escalationEnd"/>
+        <endEvent id="escalationEnd"/>
+
+    </process>
+</definitions>

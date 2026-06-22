@@ -33,6 +33,34 @@ import { DeviationDashboardMetrics } from '../../models/deviation.model';
         </div>
       </div>
 
+      <div class="quick-actions">
+        <mat-card>
+          <mat-card-header>
+            <mat-card-title>Quick Actions</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="actions-grid">
+              <button mat-stroked-button routerLink="../list" class="action-btn">
+                <mat-icon>list</mat-icon>
+                View All Deviations
+              </button>
+              <button mat-stroked-button routerLink="../create" class="action-btn">
+                <mat-icon>add</mat-icon>
+                Report Deviation
+              </button>
+              <button mat-stroked-button class="action-btn" disabled>
+                <mat-icon>assessment</mat-icon>
+                Trend Analysis Report
+              </button>
+              <button mat-stroked-button class="action-btn" disabled>
+                <mat-icon>download</mat-icon>
+                Export Register
+              </button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </div>
+
       <div class="metrics-row" *ngIf="metrics">
         <mat-card class="metric-card">
           <div class="metric-icon-wrapper open">
@@ -190,34 +218,6 @@ import { DeviationDashboardMetrics } from '../../models/deviation.model';
                 <span class="legend-item"><span class="legend-dot reported"></span> Reported</span>
                 <span class="legend-item"><span class="legend-dot closed"></span> Closed</span>
               </div>
-            </div>
-          </mat-card-content>
-        </mat-card>
-      </div>
-
-      <div class="quick-actions">
-        <mat-card>
-          <mat-card-header>
-            <mat-card-title>Quick Actions</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="actions-grid">
-              <button mat-stroked-button routerLink="../list" class="action-btn">
-                <mat-icon>list</mat-icon>
-                View All Deviations
-              </button>
-              <button mat-stroked-button routerLink="../create" class="action-btn">
-                <mat-icon>add</mat-icon>
-                Report Deviation
-              </button>
-              <button mat-stroked-button class="action-btn" disabled>
-                <mat-icon>assessment</mat-icon>
-                Trend Analysis Report
-              </button>
-              <button mat-stroked-button class="action-btn" disabled>
-                <mat-icon>download</mat-icon>
-                Export Register
-              </button>
             </div>
           </mat-card-content>
         </mat-card>
@@ -418,6 +418,10 @@ import { DeviationDashboardMetrics } from '../../models/deviation.model';
     .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
     .legend-dot.reported { background: #ED8B00; }
     .legend-dot.closed { background: #66bb6a; }
+
+    .quick-actions {
+      margin-bottom: 24px;
+    }
 
     .actions-grid {
       display: flex;

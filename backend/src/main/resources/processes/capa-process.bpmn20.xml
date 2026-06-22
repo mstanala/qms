@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://qmspharma.com/capa"
+             id="capaDefinitions">
+
+    <process id="capaProcess" name="CAPA Management Process" isExecutable="true">
+
+        <!-- Process Variables:
+             recordId, capaNumber, initiatorId, ownerId, priority,
+             plantSiteId, departmentId, targetCompletionDate -->
+
+        <startEvent id="start" name="CAPA Initiated"/>
+
+        <sequenceFlow id="flow-start-review" sourceRef="start" targetRef="qaReview"/>
+
+        <!-- Step 1: QA Review of CAPA initiation -->
+        <userTask id="qaReview" name="QA Review"
+                  flowable:candidateGroups="QA_REVIEWER"
+                  flowable:formKey="capa-review">
+            <documentation>Review CAPA initiation, verify source and scope</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-review-gw" sourceRef="qaReview" targetRef="reviewGateway"/>
+
+        <exclusiveGateway id="reviewGateway" name="Review Decision"/>
+
+        <sequenceFlow id="flow-review-approved" sourceRef="reviewGateway" targetRef="investigation">
+            <conditionExpression>${reviewDecision == 'APPROVED'}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow-review-rejected" sourceRef="reviewGateway" targetRef="rejectedEnd">
+            <conditionExpression>${reviewDecision == 'REJECTED'}</conditionExpression>
+        </sequenceFlow>
+
+        <endEvent id="rejectedEnd" name="CAPA Rejected"/>
+
+        <!-- Step 2: Investigation / Root Cause Analysis -->
+        <userTask id="investigation" name="Root Cause Analysis"
+                  flowable:assignee="${ownerId}"
+                  flowable:formKey="capa-rca"
+                  flowable:dueDate="${targetCompletionDate}">
+            <documentation>Perform root cause analysis using Five-Why, Fishbone, or other methods</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-investigation-risk" sourceRef="investigation" targetRef="riskAssessment"/>
+
+        <!-- Step 3: Risk Assessment -->
+        <userTask id="riskAssessment" name="Risk Assessment"
+                  flowable:assignee="${ownerId}"
+                  flowable:formKey="capa-risk">
+            <documentation>Assess risk using Severity/Occurrence/Detection (RPN calculation)</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-risk-planning" sourceRef="riskAssessment" targetRef="actionPlanning"/>
+
+        <!-- Step 4: Action Planning -->
+        <userTask id="actionPlanning" name="Action Planning"
+                  flowable:assignee="${ownerId}"
+                  flowable:formKey="capa-actions">
+            <documentation>Define corrective and preventive actions with assignments and due dates</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-planning-execution" sourceRef="actionPlanning" targetRef="actionExecution"/>
+
+        <!-- Step 5: Action Execution (owner monitors progress) -->
+        <userTask id="actionExecution" name="Action Execution &amp; Verification"
+                  flowable:assignee="${ownerId}"
+                  flowable:formKey="capa-execute">
+            <documentation>Monitor action completion and verify all actions are executed</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-execution-effectiveness" sourceRef="actionExecution" targetRef="effectivenessCheck"/>
+
+        <!-- Step 6: Effectiveness Check -->
+        <userTask id="effectivenessCheck" name="Effectiveness Verification"
+                  flowable:candidateGroups="QA_REVIEWER,QA_APPROVER"
+                  flowable:formKey="capa-effectiveness">
+            <documentation>Verify that CAPA actions are effective in preventing recurrence</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-effectiveness-gw" sourceRef="effectivenessCheck" targetRef="effectivenessGateway"/>
+
+        <exclusiveGateway id="effectivenessGateway" name="Effective?"/>
+
+        <sequenceFlow id="flow-effective-approval" sourceRef="effectivenessGateway" targetRef="qaApproval">
+            <conditionExpression>${effectivenessResult == 'EFFECTIVE'}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow-not-effective-replan" sourceRef="effectivenessGateway" targetRef="actionPlanning">
+            <conditionExpression>${effectivenessResult != 'EFFECTIVE'}</conditionExpression>
+        </sequenceFlow>
+
+        <!-- Step 7: QA Approval for Closure -->
+        <userTask id="qaApproval" name="QA Approval for Closure"
+                  flowable:candidateGroups="QA_APPROVER"
+                  flowable:formKey="capa-approve">
+            <documentation>Final QA approval before closing the CAPA</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-approval-notify" sourceRef="qaApproval" targetRef="notifyClosed"/>
+
+        <serviceTask id="notifyClosed" name="Notify Closure"
+                     flowable:delegateExpression="${notificationDelegate}">
+            <extensionElements>
+                <flowable:field name="notificationType" stringValue="STATUS_CHANGE"/>
+                <flowable:field name="titleTemplate" stringValue="CAPA Closed: {capaNumber}"/>
+                <flowable:field name="messageTemplate" stringValue="CAPA {capaNumber} has been closed after effectiveness verification"/>
+                <flowable:field name="recipientVariable" stringValue="initiatorId"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-notify-end" sourceRef="notifyClosed" targetRef="end"/>
+
+        <endEvent id="end" name="CAPA Closed"/>
+
+        <!-- Overdue reminder on action execution -->
+        <boundaryEvent id="actionTimer" attachedToRef="actionExecution" cancelActivity="false">
+            <timerEventDefinition>
+                <timeCycle>R3/P7D</timeCycle>
+            </timerEventDefinition>
+        </boundaryEvent>
+
+        <sequenceFlow id="flow-action-timer" sourceRef="actionTimer" targetRef="reminderTask"/>
+
+        <serviceTask id="reminderTask" name="Send Action Reminder"
+                     flowable:delegateExpression="${reminderDelegate}">
+            <extensionElements>
+                <flowable:field name="reminderType" stringValue="CAPA_ACTION_DUE"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-reminder-end" sourceRef="reminderTask" targetRef="reminderEnd"/>
+        <endEvent id="reminderEnd"/>
+
+    </process>
+</definitions>

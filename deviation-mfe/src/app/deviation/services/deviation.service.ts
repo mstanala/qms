@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, of, delay } from 'rxjs';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { Observable, map } from 'rxjs';
 import {
   Deviation,
   DeviationStatus,
@@ -11,6 +12,14 @@ import {
   DeviationDashboardMetrics,
   DeviationListFilter,
 } from '../models/deviation.model';
+
+const API_BASE_URL = 'http://localhost:8082/api/v1';
+
+type ApiPage<T> = {
+  content?: T[];
+};
+
+type ApiDeviation = any;
 
 /** Helper: returns a Date offset from today by the given number of days */
 function daysAgo(days: number): Date {
@@ -31,185 +40,235 @@ function daysFromNow(days: number): Date {
   providedIn: 'root',
 })
 export class DeviationService {
-  // TODO: Replace mock data with HttpClient calls to Spring Boot API
-  // API Base URL: environment.apiUrl + '/api/v1/deviations'
-  private deviations: Deviation[] = this.generateMockData();
-  private deviationsSubject = new BehaviorSubject<Deviation[]>(this.deviations);
+  private readonly apiUrl = `${API_BASE_URL}/deviations`;
 
-  // GET /api/v1/deviations?status=&classification=&search=
+  constructor(private http: HttpClient) {}
+
   getDeviations(filter?: DeviationListFilter): Observable<Deviation[]> {
-    let filtered = [...this.deviations];
+    let params = new HttpParams()
+      .set('page', '0')
+      .set('size', '100')
+      .set('sort', 'createdAt,desc');
 
-    if (filter) {
-      if (filter.status && filter.status.length > 0) {
-        filtered = filtered.filter((d) => filter.status!.includes(d.status));
-      }
-      if (filter.classification && filter.classification.length > 0) {
-        filtered = filtered.filter((d) => filter.classification!.includes(d.classification));
-      }
-      if (filter.category && filter.category.length > 0) {
-        filtered = filtered.filter((d) => filter.category!.includes(d.category));
-      }
-      if (filter.search) {
-        const search = filter.search.toLowerCase();
-        filtered = filtered.filter(
-          (d) =>
-            d.title.toLowerCase().includes(search) ||
-            d.deviationNumber.toLowerCase().includes(search) ||
-            d.description.toLowerCase().includes(search)
-        );
-      }
-      if (filter.department) {
-        filtered = filtered.filter((d) => d.department === filter.department);
-      }
-    }
+    filter?.status?.forEach((status) => (params = params.append('status', status)));
+    filter?.classification?.forEach((classification) => (params = params.append('classification', classification)));
+    filter?.category?.forEach((category) => (params = params.append('category', category)));
+    if (filter?.type) params = params.set('type', filter.type);
+    if (filter?.search) params = params.set('search', filter.search);
 
-    return of(filtered).pipe(delay(300));
+    return this.http
+      .get<ApiPage<ApiDeviation>>(this.apiUrl, { headers: this.authHeaders(), params })
+      .pipe(map((page) => (page.content || []).map((item) => this.toDeviation(item))));
   }
 
-  // GET /api/v1/deviations/{id}
   getDeviationById(id: string): Observable<Deviation | undefined> {
-    const deviation = this.deviations.find((d) => d.id === id);
-    return of(deviation).pipe(delay(200));
+    return this.http
+      .get<ApiDeviation>(`${this.apiUrl}/${id}`, { headers: this.authHeaders() })
+      .pipe(map((item) => this.toDeviation(item)));
   }
 
-  // POST /api/v1/deviations
   createDeviation(deviation: Partial<Deviation>): Observable<Deviation> {
-    const newDeviation: Deviation = {
-      ...deviation,
-      id: this.generateId(),
-      deviationNumber: this.generateDeviationNumber(),
-      status: DeviationStatus.REPORTED,
-      currentWorkflowStep: 'Reporting',
-      auditTrail: [
-        {
-          id: this.generateId(),
-          timestamp: new Date(),
-          userId: 'USR-001',
-          userName: 'Current User',
-          action: 'Deviation Reported',
-          comments: 'New deviation record created',
-        },
-      ],
-      workflowHistory: [
-        {
-          stepName: 'Reporting',
-          status: 'CURRENT',
-          assignedTo: deviation.reportedByName || 'Unassigned',
-          startedAt: new Date(),
-        },
-        { stepName: 'Initial Review', status: 'PENDING' },
-        { stepName: 'Classification', status: 'PENDING' },
-        { stepName: 'Investigation', status: 'PENDING' },
-        { stepName: 'Impact Assessment', status: 'PENDING' },
-        { stepName: 'Disposition', status: 'PENDING' },
-        { stepName: 'Closure', status: 'PENDING' },
-      ],
+    const payload = {
+      title: deviation.title,
+      description: deviation.description,
+      type: deviation.type,
+      category: deviation.category,
+      occurredDate: this.toIso(deviation.occurredDate),
+      detectedDate: this.toIso(deviation.detectedDate),
+      targetClosureDate: this.toIso(deviation.targetClosureDate),
+      plantSiteId: this.resolvePlantSiteId((deviation as any).plantSite),
+      departmentId: this.resolveDepartmentId((deviation as any).department),
+      area: deviation.area,
+      equipment: deviation.equipment,
+      product: deviation.product,
+      batchNumber: deviation.batchNumber,
+      batchSize: deviation.batchSize,
       affectedBatches: deviation.affectedBatches || [],
-      attachments: [],
-      capaRequired: false,
-      gmpImpact: false,
-      patientSafetyImpact: false,
-      regulatoryImpact: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    } as Deviation;
-
-    this.deviations.unshift(newDeviation);
-    this.deviationsSubject.next(this.deviations);
-    return of(newDeviation).pipe(delay(500));
-  }
-
-  // PUT /api/v1/deviations/{id}/status
-  updateDeviationStatus(id: string, status: DeviationStatus): Observable<Deviation> {
-    const deviation = this.deviations.find((d) => d.id === id);
-    if (deviation) {
-      const oldStatus = deviation.status;
-      deviation.status = status;
-      deviation.updatedAt = new Date();
-      deviation.auditTrail.push({
-        id: this.generateId(),
-        timestamp: new Date(),
-        userId: 'USR-001',
-        userName: 'Current User',
-        action: 'Status Changed',
-        field: 'status',
-        oldValue: oldStatus,
-        newValue: status,
-      });
-    }
-    return of(deviation!).pipe(delay(300));
-  }
-
-  // GET /api/v1/deviations/dashboard/metrics
-  getDashboardMetrics(): Observable<DeviationDashboardMetrics> {
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    const openStatuses = [
-      DeviationStatus.REPORTED, DeviationStatus.UNDER_REVIEW, DeviationStatus.CLASSIFIED,
-      DeviationStatus.INVESTIGATION, DeviationStatus.IMPACT_ASSESSMENT,
-      DeviationStatus.DISPOSITION, DeviationStatus.CAPA_INITIATED, DeviationStatus.PENDING_CLOSURE,
-    ];
-
-    const totalOpen = this.deviations.filter((d) => openStatuses.includes(d.status)).length;
-    const totalOverdue = this.deviations.filter(
-      (d) => openStatuses.includes(d.status) && new Date(d.targetClosureDate) < now
-    ).length;
-    const totalReportedThisMonth = this.deviations.filter(
-      (d) => new Date(d.reportedDate) >= startOfMonth
-    ).length;
-    const totalClosedThisMonth = this.deviations.filter(
-      (d) => d.status === DeviationStatus.CLOSED && d.actualClosureDate && new Date(d.actualClosureDate) >= startOfMonth
-    ).length;
-    const criticalOpen = this.deviations.filter(
-      (d) => d.classification === DeviationClassification.CRITICAL && openStatuses.includes(d.status)
-    ).length;
-
-    // Compute byStatus from actual data
-    const statusCounts = new Map<DeviationStatus, number>();
-    this.deviations.forEach((d) => statusCounts.set(d.status, (statusCounts.get(d.status) || 0) + 1));
-
-    // Compute byClassification from actual data
-    const classCounts = new Map<DeviationClassification, number>();
-    this.deviations.forEach((d) => classCounts.set(d.classification, (classCounts.get(d.classification) || 0) + 1));
-
-    // Compute byCategory from actual data (includes UTILITY)
-    const catCounts = new Map<DeviationCategory, number>();
-    this.deviations.forEach((d) => catCounts.set(d.category, (catCounts.get(d.category) || 0) + 1));
-
-    // Compute byDepartment from actual data
-    const deptCounts = new Map<string, number>();
-    this.deviations.forEach((d) => deptCounts.set(d.department, (deptCounts.get(d.department) || 0) + 1));
-
-    const capaCount = this.deviations.filter((d) => d.capaRequired).length;
-
-    const metrics: DeviationDashboardMetrics = {
-      totalOpen,
-      totalOverdue,
-      totalReportedThisMonth,
-      totalClosedThisMonth,
-      avgClosureTimeDays: 18,
-      criticalOpen,
-      capaConversionRate: this.deviations.length > 0 ? Math.round((capaCount / this.deviations.length) * 100) : 0,
-      byStatus: Array.from(statusCounts.entries()).map(([status, count]) => ({ status, count })),
-      byClassification: Array.from(classCounts.entries()).map(([classification, count]) => ({ classification, count })),
-      byCategory: Array.from(catCounts.entries())
-        .map(([category, count]) => ({ category, count }))
-        .sort((a, b) => b.count - a.count),
-      byDepartment: Array.from(deptCounts.entries())
-        .map(([department, count]) => ({ department, count }))
-        .sort((a, b) => b.count - a.count),
-      trendData: [
-        { month: 'M-5', reported: 8, closed: 7 },
-        { month: 'M-4', reported: 6, closed: 8 },
-        { month: 'M-3', reported: 9, closed: 6 },
-        { month: 'M-2', reported: 7, closed: 9 },
-        { month: 'M-1', reported: 5, closed: 7 },
-        { month: 'This Mo', reported: totalReportedThisMonth, closed: totalClosedThisMonth },
-      ],
+      gmpImpact: deviation.gmpImpact ?? false,
+      patientSafetyImpact: deviation.patientSafetyImpact ?? false,
+      regulatoryImpact: deviation.regulatoryImpact ?? false,
+      sourceArea: deviation.sourceArea,
     };
-    return of(metrics).pipe(delay(300));
+
+    return this.http
+      .post<ApiDeviation>(this.apiUrl, payload, { headers: this.authHeaders() })
+      .pipe(map((item) => this.toDeviation(item)));
+  }
+
+  updateDeviationStatus(id: string, status: DeviationStatus): Observable<Deviation> {
+    return this.http
+      .patch<ApiDeviation>(
+        `${this.apiUrl}/${id}/status`,
+        { status, comments: `Status changed to ${status}` },
+        { headers: this.authHeaders() }
+      )
+      .pipe(map((item) => this.toDeviation(item)));
+  }
+
+  getDashboardMetrics(): Observable<DeviationDashboardMetrics> {
+    return this.http
+      .get<Record<string, any>>(`${API_BASE_URL}/dashboard/deviation-metrics`, { headers: this.authHeaders() })
+      .pipe(map((data) => this.toDashboardMetrics(data)));
+  }
+
+  private authHeaders(): HttpHeaders {
+    const token = this.readAccessToken();
+    return token ? new HttpHeaders({ Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}` }) : new HttpHeaders();
+  }
+
+  private readAccessToken(): string | null {
+    const directKeys = ['accessToken', 'authToken', 'token', 'jwt', 'qmsAccessToken'];
+    for (const key of directKeys) {
+      const value = localStorage.getItem(key) || sessionStorage.getItem(key);
+      if (value) return value;
+    }
+
+    for (const key of ['auth', 'currentUser', 'user']) {
+      const raw = localStorage.getItem(key) || sessionStorage.getItem(key);
+      if (!raw) continue;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.accessToken) return parsed.accessToken;
+        if (parsed?.token) return parsed.token;
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }
+
+  private toDeviation(item: ApiDeviation): Deviation {
+    return {
+      id: item.id,
+      deviationNumber: item.deviationNumber,
+      title: item.title,
+      description: item.description,
+      type: item.type as DeviationType,
+      category: item.category as DeviationCategory,
+      classification: (item.classification || DeviationClassification.MINOR) as DeviationClassification,
+      status: item.status as DeviationStatus,
+      sourceArea: item.sourceArea || '',
+      occurredDate: this.toDate(item.occurredDate),
+      reportedDate: this.toDate(item.reportedDate),
+      detectedDate: this.toDate(item.detectedDate),
+      targetClosureDate: this.toDate(item.targetClosureDate),
+      actualClosureDate: item.actualClosureDate ? this.toDate(item.actualClosureDate) : undefined,
+      reportedById: item.reportedBy?.id || '',
+      reportedByName: item.reportedBy?.displayName || '',
+      assignedToId: item.assignedTo?.id || '',
+      assignedToName: item.assignedTo?.displayName || '',
+      reviewerId: item.reviewer?.id,
+      reviewerName: item.reviewer?.displayName,
+      approvedById: item.approvedBy?.id,
+      approvedByName: item.approvedBy?.displayName,
+      plantSite: item.plantSiteName || '',
+      department: item.departmentName || '',
+      area: item.area || '',
+      equipment: item.equipment,
+      product: item.product,
+      batchNumber: item.batchNumber,
+      batchSize: item.batchSize,
+      affectedBatches: (item.affectedBatches || []).map((batch: any) => (typeof batch === 'string' ? batch : batch.batchNumber)),
+      gmpImpact: item.gmpImpact ?? false,
+      patientSafetyImpact: item.patientSafetyImpact ?? false,
+      regulatoryImpact: item.regulatoryImpact ?? false,
+      investigation: item.investigation ? {
+        investigatorId: item.investigation.investigator?.id || '',
+        investigatorName: item.investigation.investigator?.displayName || '',
+        startDate: this.toDate(item.investigation.startDate),
+        completedDate: item.investigation.completedDate ? this.toDate(item.investigation.completedDate) : undefined,
+        probableCause: item.investigation.probableCause || '',
+        rootCause: item.investigation.rootCause || '',
+        immediateActions: item.investigation.immediateActions || [],
+        findings: item.investigation.findings || '',
+        conclusion: item.investigation.conclusion || '',
+        method: item.investigation.method || '',
+      } : undefined,
+      impactAssessment: item.impactAssessment ? {
+        productQualityImpact: item.impactAssessment.productQualityImpact,
+        patientSafetyImpact: item.impactAssessment.patientSafetyImpact,
+        regulatoryImpact: item.impactAssessment.regulatoryImpact,
+        businessImpact: item.impactAssessment.businessImpact,
+        overallRiskLevel: item.impactAssessment.overallRiskLevel,
+        affectedProducts: item.impactAssessment.affectedProducts || [],
+        affectedBatches: item.impactAssessment.affectedBatches || [],
+        batchDisposition: item.impactAssessment.batchDisposition || '',
+        justification: item.impactAssessment.justification || '',
+        assessedBy: item.impactAssessment.assessedBy?.displayName || '',
+        assessedDate: this.toDate(item.impactAssessment.assessedDate),
+      } : undefined,
+      disposition: item.disposition ? {
+        decision: item.disposition.decision,
+        justification: item.disposition.justification || '',
+        conditions: item.disposition.conditions,
+        approvedBy: item.disposition.approvedBy?.displayName || '',
+        approvedDate: this.toDate(item.disposition.approvedDate),
+        qaReviewComments: item.disposition.qaReviewComments || '',
+      } : undefined,
+      capaRequired: item.capaRequired ?? false,
+      capaReference: item.capaNumber,
+      auditTrail: [],
+      currentWorkflowStep: item.currentWorkflowStep || '',
+      workflowHistory: [],
+      createdAt: this.toDate(item.createdAt),
+      updatedAt: this.toDate(item.updatedAt),
+      attachments: [],
+    };
+  }
+
+  private toDashboardMetrics(data: any): DeviationDashboardMetrics {
+    return {
+      totalOpen: data.openDeviations ?? 0,
+      totalOverdue: data.overdueDeviations ?? 0,
+      totalReportedThisMonth: data.totalDeviations ?? 0,
+      totalClosedThisMonth: data.closedDeviations ?? 0,
+      avgClosureTimeDays: 0,
+      criticalOpen: data.byClassification?.CRITICAL ?? 0,
+      capaConversionRate: 0,
+      byStatus: this.toCountArray<DeviationStatus>(data.byStatus, 'status'),
+      byClassification: this.toCountArray<DeviationClassification>(data.byClassification, 'classification'),
+      byCategory: this.toCountArray<DeviationCategory>(data.byCategory, 'category'),
+      byDepartment: Object.entries(data.byDepartment || {}).map(([department, count]) => ({ department, count: Number(count) })),
+      trendData: [{ month: 'Current', reported: data.totalDeviations ?? 0, closed: data.closedDeviations ?? 0 }],
+    };
+  }
+
+  private toCountArray<T extends string>(source: any, key: string): any[] {
+    return Object.entries(source || {}).map(([name, count]) => ({ [key]: name as T, count: Number(count) }));
+  }
+
+  private toDate(value: unknown): Date {
+    return value ? new Date(value as string) : new Date();
+  }
+
+  private toIso(value: unknown): string {
+    return this.toDate(value).toISOString();
+  }
+
+  private resolvePlantSiteId(name?: string): string {
+    const sites: Record<string, string> = {
+      'Hyderabad Unit-1': 'b0000000-0000-0000-0000-000000000001',
+      'Hyderabad Unit-2': 'b0000000-0000-0000-0000-000000000002',
+      'Vizag Unit-1': 'b0000000-0000-0000-0000-000000000003',
+      'Genome Valley Manufacturing Unit': 'b0000000-0000-0000-0000-000000000001',
+    };
+    return sites[name || ''] || sites['Hyderabad Unit-1'];
+  }
+
+  private resolveDepartmentId(name?: string): string {
+    const departments: Record<string, string> = {
+      Production: 'c0000000-0000-0000-0000-000000000001',
+      'Quality Assurance': 'c0000000-0000-0000-0000-000000000002',
+      'Quality Control': 'c0000000-0000-0000-0000-000000000003',
+      Engineering: 'c0000000-0000-0000-0000-000000000004',
+      'Engineering & Maintenance': 'c0000000-0000-0000-0000-000000000004',
+      Warehouse: 'c0000000-0000-0000-0000-000000000005',
+      'Warehouse & Stores': 'c0000000-0000-0000-0000-000000000005',
+      'Regulatory Affairs': 'c0000000-0000-0000-0000-000000000006',
+      'R&D': 'c0000000-0000-0000-0000-000000000007',
+      'Research & Development': 'c0000000-0000-0000-0000-000000000007',
+    };
+    return departments[name || ''] || departments['Quality Assurance'];
   }
 
   private generateMockData(): Deviation[] {
@@ -598,7 +657,6 @@ export class DeviationService {
   }
 
   private generateDeviationNumber(): string {
-    const count = this.deviations.length + 1;
-    return `DEV-2025-${(count + 22).toString().padStart(3, '0')}`;
+    return `DEV-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
   }
 }
