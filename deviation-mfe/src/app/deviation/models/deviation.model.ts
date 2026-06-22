@@ -185,6 +185,7 @@ export interface DeviationAttachment {
   fileSize: number;
   uploadedBy: string;
   uploadedDate: Date;
+  category?: string;
   description?: string;
 }
 

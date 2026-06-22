@@ -1,6 +1,6 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -14,7 +14,7 @@ import { MatStepperModule } from '@angular/material/stepper';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { ChangeControlService } from '../../services/change-control.service';
-import { ChangeType, ChangeCategory, ChangeClassification, ChangePriority, ImpactRating, FilingType } from '../../models/change-control.model';
+import { ChangeRequest, ChangeType, ChangeCategory, ChangeClassification, ChangePriority, ImpactRating, FilingType } from '../../models/change-control.model';
 
 @Component({
   selector: 'cc-form',
@@ -43,8 +43,8 @@ import { ChangeType, ChangeCategory, ChangeClassification, ChangePriority, Impac
             <mat-icon>arrow_back</mat-icon>
           </button>
           <div>
-            <h1>Initiate Change Request</h1>
-            <p class="subtitle">Create a new change control request for review and approval</p>
+            <h1>{{ isEditMode ? 'Edit Change Request' : 'Initiate Change Request' }}</h1>
+            <p class="subtitle">{{ isEditMode ? 'Update change control request details' : 'Create a new change control request for review and approval' }}</p>
           </div>
         </div>
       </div>
@@ -235,11 +235,11 @@ import { ChangeType, ChangeCategory, ChangeClassification, ChangePriority, Impac
 
             <div class="step-actions">
               <button mat-stroked-button matStepperPrevious><mat-icon>arrow_back</mat-icon> Back</button>
-              <button mat-stroked-button (click)="saveDraft()">
+              <button mat-stroked-button *ngIf="!isEditMode" (click)="saveDraft()">
                 <mat-icon>save</mat-icon> Save as Draft
               </button>
               <button mat-raised-button color="primary" (click)="submitChange()" style="background:#ED8B00;color:#fff">
-                <mat-icon>send</mat-icon> Submit for Review
+                <mat-icon>{{ isEditMode ? 'save' : 'send' }}</mat-icon> {{ isEditMode ? 'Save Changes' : 'Submit for Review' }}
               </button>
             </div>
           </mat-card>
@@ -271,12 +271,14 @@ import { ChangeType, ChangeCategory, ChangeClassification, ChangePriority, Impac
     h3 { font-size: 16px; font-weight: 600; margin: 0 0 16px; color: #333; }
   `],
 })
-export class CcFormComponent {
+export class CcFormComponent implements OnInit {
   typeOptions = Object.values(ChangeType);
   categoryOptions = Object.values(ChangeCategory);
   classifications = ChangeClassification;
   priorityOptions = Object.values(ChangePriority);
   filingTypes = Object.values(FilingType);
+  isEditMode = false;
+  private changeRequestId: string | null = null;
 
   descriptionForm: FormGroup;
   scopeForm: FormGroup;
@@ -284,6 +286,7 @@ export class CcFormComponent {
   constructor(
     private fb: FormBuilder,
     private ccService: ChangeControlService,
+    private route: ActivatedRoute,
     private router: Router,
     private snackBar: MatSnackBar
   ) {
@@ -312,12 +315,29 @@ export class CcFormComponent {
     });
   }
 
+  ngOnInit(): void {
+    this.changeRequestId = this.route.snapshot.paramMap.get('id');
+    this.isEditMode = !!this.changeRequestId;
+
+    if (this.changeRequestId) {
+      this.ccService.getChangeRequestById(this.changeRequestId).subscribe((changeRequest) => {
+        if (changeRequest) {
+          this.populateForms(changeRequest);
+        }
+      });
+    }
+  }
+
   formatEnum(value: string): string {
     if (!value) return '';
     return value.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
   }
 
   backToList(): void {
+    if (this.isEditMode && this.changeRequestId) {
+      this.router.navigate(['/change-control/detail', this.changeRequestId]);
+      return;
+    }
     this.router.navigate(['/change-control/list']);
   }
 
@@ -332,11 +352,45 @@ export class CcFormComponent {
   submitChange(): void {
     if (this.descriptionForm.valid && this.scopeForm.valid) {
       const data = this.buildChangeData();
-      this.ccService.createChangeRequest(data).subscribe((created) => {
-        this.snackBar.open(`Change Request ${created.changeNumber} submitted for review`, 'View', { duration: 5000 });
-        this.router.navigate(['/change-control/list']);
+      const request$ = this.isEditMode && this.changeRequestId
+        ? this.ccService.updateChangeRequest(this.changeRequestId, data)
+        : this.ccService.createChangeRequest(data);
+
+      request$.subscribe((saved) => {
+        this.snackBar.open(
+          this.isEditMode ? `Change Request ${saved.changeNumber} updated successfully` : `Change Request ${saved.changeNumber} submitted for review`,
+          'View',
+          { duration: 5000 }
+        );
+        this.router.navigate(this.isEditMode ? ['/change-control/detail', saved.id] : ['/change-control/list']);
       });
     }
+  }
+
+  private populateForms(changeRequest: ChangeRequest): void {
+    this.descriptionForm.patchValue({
+      title: changeRequest.title,
+      description: changeRequest.description,
+      justification: changeRequest.justification,
+      type: changeRequest.type,
+      category: changeRequest.category,
+      classification: changeRequest.classification,
+      priority: changeRequest.priority,
+    });
+
+    this.scopeForm.patchValue({
+      plantSite: changeRequest.plantSite,
+      department: changeRequest.department,
+      changeOwnerName: changeRequest.changeOwnerName,
+      qaReviewerName: changeRequest.qaReviewerName || '',
+      targetImplementationDate: changeRequest.targetImplementationDate,
+      affectedAreasText: (changeRequest.affectedAreas || []).join(', '),
+      affectedProcessesText: (changeRequest.affectedProcesses || []).join(', '),
+      regulatoryFilingRequired: changeRequest.regulatoryFiling?.filingRequired ?? false,
+      validationRequired: changeRequest.validationRequired,
+      trainingRequired: changeRequest.trainingRequired,
+      filingType: changeRequest.regulatoryFiling?.filingType || FilingType.NONE,
+    });
   }
 
   private buildChangeData(): any {

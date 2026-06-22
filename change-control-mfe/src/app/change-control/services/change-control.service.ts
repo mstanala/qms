@@ -122,6 +122,33 @@ export class ChangeControlService {
       .pipe(map((item) => this.toChangeRequest(item)));
   }
 
+  updateChangeRequest(id: string, changeRequest: Partial<ChangeRequest>): Observable<ChangeRequest> {
+    const payload = {
+      title: changeRequest.title,
+      description: changeRequest.description,
+      justification: changeRequest.justification,
+      type: changeRequest.type,
+      category: changeRequest.category,
+      classification: changeRequest.classification,
+      priority: changeRequest.priority,
+      changeOwnerId: this.resolveUserId((changeRequest as any).changeOwnerName),
+      targetImplementationDate: this.toIso(changeRequest.targetImplementationDate),
+      affectedAreas: changeRequest.affectedAreas || [],
+      validationRequired: changeRequest.validationRequired ?? false,
+      trainingRequired: changeRequest.trainingRequired ?? false,
+    };
+
+    return this.http
+      .put<ApiChangeRequest>(`${this.apiUrl}/${id}`, payload, { headers: this.authHeaders() })
+      .pipe(
+        switchMap(() => this.getChangeRequestById(id)),
+        map((item) => {
+          if (!item) throw new Error('Change request was updated but could not be reloaded');
+          return item;
+        })
+      );
+  }
+
   updateStatus(id: string, status: ChangeStatus): Observable<ChangeRequest> {
     return this.http
       .patch<ApiChangeRequest>(

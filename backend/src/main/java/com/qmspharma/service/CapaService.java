@@ -131,9 +131,15 @@ public class CapaService {
         if (request.getDescription() != null) capa.setDescription(request.getDescription());
         if (request.getType() != null) capa.setType(CapaType.valueOf(request.getType()));
         if (request.getPriority() != null) capa.setPriority(CapaPriority.valueOf(request.getPriority()));
+        if (request.getSourceType() != null) capa.setSourceType(CapaSourceType.valueOf(request.getSourceType()));
+        if (request.getSourceReference() != null) capa.setSourceReference(request.getSourceReference());
         if (request.getTargetCompletionDate() != null) capa.setTargetCompletionDate(request.getTargetCompletionDate());
         if (request.getOwnerId() != null) capa.setOwner(userRepository.findById(request.getOwnerId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getOwnerId())));
+        if (request.getDepartmentId() != null) capa.setDepartment(departmentRepository.findById(request.getDepartmentId())
+                .orElseThrow(() -> new ResourceNotFoundException("Department", "id", request.getDepartmentId())));
+        if (request.getPlantSiteId() != null) capa.setPlantSite(plantSiteRepository.findById(request.getPlantSiteId())
+                .orElseThrow(() -> new ResourceNotFoundException("PlantSite", "id", request.getPlantSiteId())));
         if (request.getProduct() != null) capa.setProduct(request.getProduct());
         if (request.getBatchNumber() != null) capa.setBatchNumber(request.getBatchNumber());
         capa.setUpdatedBy(currentUserProvider.getCurrentUser());

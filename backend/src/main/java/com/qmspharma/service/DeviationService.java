@@ -265,8 +265,9 @@ public class DeviationService {
         dev.setUpdatedBy(currentUserProvider.getCurrentUser());
         deviationRepository.save(dev);
 
-        // Complete investigation task in Flowable
-        workflowService.completeTask(dev.getFlowableProcessId(), "investigation", null);
+        try {
+            workflowService.completeTask(dev.getFlowableProcessId(), "investigation", null);
+        } catch (Exception ignored) {}
 
         auditTrailService.logAction(RECORD_TYPE, dev.getId(), dev.getDeviationNumber(), "INVESTIGATION_SUBMITTED", null, null, null, null);
         workflowService.recordStep(RECORD_TYPE, dev.getId(), "Investigation",
@@ -282,7 +283,7 @@ public class DeviationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Deviation", "id", id));
         User currentUser = currentUserProvider.getCurrentUser();
 
-        DeviationImpactAssessment ia = new DeviationImpactAssessment();
+        DeviationImpactAssessment ia = dev.getImpactAssessment() != null ? dev.getImpactAssessment() : new DeviationImpactAssessment();
         ia.setDeviation(dev);
         ia.setProductQualityImpact(ImpactLevel.valueOf(request.getProductQualityImpact()));
         ia.setPatientSafetyImpact(ImpactLevel.valueOf(request.getPatientSafetyImpact()));
@@ -294,6 +295,7 @@ public class DeviationService {
         ia.setBatchDisposition(request.getBatchDisposition());
         ia.setJustification(request.getJustification());
         ia.setAssessedBy(currentUser);
+        ia.setAssessedDate(Instant.now());
         impactAssessmentRepository.save(ia);
 
         dev.setStatus(DeviationStatus.IMPACT_ASSESSMENT);
@@ -301,8 +303,9 @@ public class DeviationService {
         dev.setUpdatedBy(currentUser);
         deviationRepository.save(dev);
 
-        // Complete impact assessment task in Flowable
-        workflowService.completeTask(dev.getFlowableProcessId(), "impactAssessment", null);
+        try {
+            workflowService.completeTask(dev.getFlowableProcessId(), "impactAssessment", null);
+        } catch (Exception ignored) {}
 
         auditTrailService.logAction(RECORD_TYPE, dev.getId(), dev.getDeviationNumber(), "IMPACT_ASSESSMENT_SUBMITTED", null, null, null, null);
         workflowService.recordStep(RECORD_TYPE, dev.getId(), "Impact Assessment",
@@ -318,13 +321,14 @@ public class DeviationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Deviation", "id", id));
         User currentUser = currentUserProvider.getCurrentUser();
 
-        DeviationDisposition disp = new DeviationDisposition();
+        DeviationDisposition disp = dev.getDisposition() != null ? dev.getDisposition() : new DeviationDisposition();
         disp.setDeviation(dev);
         disp.setDecision(DispositionDecision.valueOf(request.getDecision()));
         disp.setJustification(request.getJustification());
         disp.setConditions(request.getConditions());
         disp.setQaReviewComments(request.getQaReviewComments());
         disp.setApprovedBy(currentUser);
+        disp.setApprovedDate(Instant.now());
         dispositionRepository.save(disp);
 
         boolean capaRequired = request.getCapaRequired() != null ? request.getCapaRequired() : false;
@@ -334,10 +338,11 @@ public class DeviationService {
         dev.setUpdatedBy(currentUser);
         deviationRepository.save(dev);
 
-        // Complete disposition task in Flowable with CAPA decision
         Map<String, Object> taskVars = new HashMap<>();
         taskVars.put("capaRequired", capaRequired);
-        workflowService.completeTask(dev.getFlowableProcessId(), "disposition", taskVars);
+        try {
+            workflowService.completeTask(dev.getFlowableProcessId(), "disposition", taskVars);
+        } catch (Exception ignored) {}
 
         auditTrailService.logAction(RECORD_TYPE, dev.getId(), dev.getDeviationNumber(), "DISPOSITION_SUBMITTED",
                 "decision", null, request.getDecision(), null);

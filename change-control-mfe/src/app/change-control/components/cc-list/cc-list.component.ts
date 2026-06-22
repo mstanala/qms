@@ -151,6 +151,10 @@ import { ChangeRequest, ChangeStatus, ChangeClassification, ChangeType, ChangePr
                     <mat-icon>visibility</mat-icon>
                     <span>View Details</span>
                   </button>
+                  <button mat-menu-item [routerLink]="['../edit', cr.id]" (click)="stopRowNavigation($event)">
+                    <mat-icon>edit</mat-icon>
+                    <span>Edit</span>
+                  </button>
                   <button mat-menu-item [routerLink]="['/tools/audit-trail']" [queryParams]="{recordType: 'CHANGE_CONTROL', recordId: cr.id}" (click)="stopRowNavigation($event)">
                     <mat-icon>history</mat-icon>
                     <span>Audit Trail</span>

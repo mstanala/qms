@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -7,12 +8,12 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { DeviationService } from '../../services/deviation.service';
-import { Deviation, DeviationStatus } from '../../models/deviation.model';
+import { Deviation, DeviationStatus, ImpactLevel, DispositionDecision } from '../../models/deviation.model';
 
 @Component({
   selector: 'dev-detail',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatIconModule, MatButtonModule, MatTooltipModule, MatMenuModule, MatSnackBarModule],
+  imports: [CommonModule, FormsModule, RouterModule, MatIconModule, MatButtonModule, MatTooltipModule, MatMenuModule, MatSnackBarModule],
   template: `
     <div class="vault-detail" *ngIf="deviation">
       <!-- Record Header -->
@@ -23,6 +24,12 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
         <div class="record-title-row">
           <div class="record-id-group">
             <span class="record-number">{{ deviation.deviationNumber }}</span>
+            <div class="impact-summary" aria-label="Impact flags">
+              <span class="impact-summary-badge gmp" *ngIf="deviation.gmpImpact">GMP Impact</span>
+              <span class="impact-summary-badge patient" *ngIf="deviation.patientSafetyImpact">Patient Safety</span>
+              <span class="impact-summary-badge regulatory" *ngIf="deviation.regulatoryImpact">Regulatory</span>
+              <span class="impact-summary-badge capa" *ngIf="deviation.capaRequired">CAPA Required</span>
+            </div>
           </div>
           <div class="record-actions">
             <div class="record-navigation" aria-label="Deviation record navigation">
@@ -84,15 +91,6 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
         </div>
       </div>
 
-      <!-- Veeva Lifecycle Bar -->
-      <div class="lifecycle-bar">
-        <div class="lifecycle-step" *ngFor="let step of deviation.workflowHistory; let i = index"
-             [ngClass]="{'completed': step.status === 'COMPLETED', 'current': step.status === 'CURRENT', 'pending': step.status === 'PENDING'}">
-          <div class="lifecycle-fill"></div>
-          <span class="lifecycle-label">{{ step.stepName }}</span>
-        </div>
-      </div>
-
       <!-- Veeva Layout: Sidebar + Content -->
       <div class="vault-body">
         <!-- Left Sidebar Navigation -->
@@ -122,6 +120,15 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
 
         <!-- Main Content Area -->
         <div class="vault-content">
+          <!-- Veeva Lifecycle Bar -->
+          <div class="lifecycle-bar" [style.--workflow-step-count]="deviation.workflowHistory.length">
+            <div class="lifecycle-step" *ngFor="let step of deviation.workflowHistory; let i = index"
+                 [ngClass]="{'completed': step.status === 'COMPLETED', 'current': step.status === 'CURRENT', 'pending': step.status === 'PENDING'}">
+              <div class="lifecycle-fill"></div>
+              <span class="lifecycle-label">{{ step.stepName }}</span>
+            </div>
+          </div>
+
           <!-- General Details Section -->
           <div class="vault-section" *ngIf="activeSection === 'general'">
             <div class="section-header" (click)="toggleSection('generalInfo')">
@@ -261,7 +268,7 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
             <div class="section-body" *ngIf="expandedSections['rootCauseInfo']">
               <div class="vault-table">
                 <div class="table-toolbar">
-                  <button class="vault-btn-create">+ Create</button>
+                  <button type="button" class="vault-btn-create" (click)="openRootCauseForm()">+ Create</button>
                   <span class="table-title">Show in Tab</span>
                 </div>
                 <table *ngIf="deviation.investigation">
@@ -275,6 +282,54 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
                     </tr>
                   </tbody>
                 </table>
+                <div class="rca-form-card" *ngIf="rootCauseFormVisible">
+                  <div class="rca-form-header">
+                    <div>
+                      <h3>{{ deviation.investigation ? 'Update Root Cause Analysis' : 'Create Root Cause Analysis' }}</h3>
+                      <p>Capture the investigation method, probable cause, confirmed root cause, and conclusion.</p>
+                    </div>
+                    <button type="button" class="icon-close-btn" aria-label="Close root cause form" (click)="cancelRootCauseForm()">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </div>
+                  <div class="rca-form-grid">
+                    <label>
+                      <span>Method</span>
+                      <select [(ngModel)]="rootCauseForm.method">
+                        <option value="5 Why Analysis">5 Why Analysis</option>
+                        <option value="Fishbone Analysis">Fishbone Analysis</option>
+                        <option value="Fault Tree Analysis">Fault Tree Analysis</option>
+                        <option value="Root Cause Analysis">Root Cause Analysis</option>
+                      </select>
+                    </label>
+                    <label class="full">
+                      <span>Probable Cause</span>
+                      <textarea rows="3" [(ngModel)]="rootCauseForm.probableCause"></textarea>
+                    </label>
+                    <label class="full">
+                      <span>Root Cause</span>
+                      <textarea rows="3" [(ngModel)]="rootCauseForm.rootCause"></textarea>
+                    </label>
+                    <label class="full">
+                      <span>Immediate Actions</span>
+                      <textarea rows="2" [(ngModel)]="rootCauseForm.immediateActionsText" placeholder="Enter one action per line"></textarea>
+                    </label>
+                    <label class="full">
+                      <span>Findings</span>
+                      <textarea rows="3" [(ngModel)]="rootCauseForm.findings"></textarea>
+                    </label>
+                    <label class="full">
+                      <span>Conclusion</span>
+                      <textarea rows="3" [(ngModel)]="rootCauseForm.conclusion"></textarea>
+                    </label>
+                  </div>
+                  <div class="rca-form-actions">
+                    <button type="button" class="vault-btn-secondary" (click)="cancelRootCauseForm()" [disabled]="rootCauseSubmitting">Cancel</button>
+                    <button type="button" class="vault-btn-primary" (click)="submitRootCauseAnalysis()" [disabled]="rootCauseSubmitting">
+                      {{ rootCauseSubmitting ? 'Saving...' : 'Save Root Cause Analysis' }}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -286,6 +341,76 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
               <span>Impact Assessment</span>
             </div>
             <div class="section-body" *ngIf="expandedSections['impactInfo']">
+              <div class="table-toolbar">
+                <button type="button" class="vault-btn-create" (click)="openImpactAssessmentForm()">
+                  {{ deviation.impactAssessment ? 'Edit' : '+ Create' }}
+                </button>
+              </div>
+              <div class="vault-form-card" *ngIf="impactAssessmentFormVisible">
+                <div class="rca-form-header">
+                  <div>
+                    <h3>{{ deviation.impactAssessment ? 'Edit Impact Assessment' : 'Create Impact Assessment' }}</h3>
+                    <p>Evaluate product quality, patient safety, regulatory, and business impact before disposition.</p>
+                  </div>
+                  <button type="button" class="icon-close-btn" aria-label="Close impact assessment form" (click)="cancelImpactAssessmentForm()">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+                <div class="rca-form-grid">
+                  <label>
+                    <span>Product Quality</span>
+                    <select [(ngModel)]="impactAssessmentForm.productQualityImpact">
+                      <option *ngFor="let level of impactLevelOptions" [value]="level">{{ formatStatus(level) }}</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Patient Safety</span>
+                    <select [(ngModel)]="impactAssessmentForm.patientSafetyImpact">
+                      <option *ngFor="let level of impactLevelOptions" [value]="level">{{ formatStatus(level) }}</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Regulatory</span>
+                    <select [(ngModel)]="impactAssessmentForm.regulatoryImpact">
+                      <option *ngFor="let level of impactLevelOptions" [value]="level">{{ formatStatus(level) }}</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Business</span>
+                    <select [(ngModel)]="impactAssessmentForm.businessImpact">
+                      <option *ngFor="let level of impactLevelOptions" [value]="level">{{ formatStatus(level) }}</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Overall Risk</span>
+                    <select [(ngModel)]="impactAssessmentForm.overallRiskLevel">
+                      <option *ngFor="let level of riskLevelOptions" [value]="level">{{ formatStatus(level) }}</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Batch Disposition</span>
+                    <input [(ngModel)]="impactAssessmentForm.batchDisposition" placeholder="e.g. Quarantine pending QA decision">
+                  </label>
+                  <label class="full">
+                    <span>Affected Products</span>
+                    <textarea rows="2" [(ngModel)]="impactAssessmentForm.affectedProductsText" placeholder="Enter one product per line"></textarea>
+                  </label>
+                  <label class="full">
+                    <span>Affected Batches</span>
+                    <textarea rows="2" [(ngModel)]="impactAssessmentForm.affectedBatchesText" placeholder="Enter one batch per line"></textarea>
+                  </label>
+                  <label class="full">
+                    <span>Justification</span>
+                    <textarea rows="4" [(ngModel)]="impactAssessmentForm.justification"></textarea>
+                  </label>
+                </div>
+                <div class="rca-form-actions">
+                  <button type="button" class="vault-btn-secondary" (click)="cancelImpactAssessmentForm()" [disabled]="impactAssessmentSubmitting">Cancel</button>
+                  <button type="button" class="vault-btn-primary" (click)="submitImpactAssessment()" [disabled]="impactAssessmentSubmitting">
+                    {{ impactAssessmentSubmitting ? 'Saving...' : 'Save Impact Assessment' }}
+                  </button>
+                </div>
+              </div>
               <div *ngIf="deviation.impactAssessment; else noImpact">
                 <div class="vault-table">
                   <table>
@@ -306,7 +431,7 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
                   <div class="field-item full"><label>Justification</label><span>{{ deviation.impactAssessment.justification }}</span></div>
                 </div>
               </div>
-              <ng-template #noImpact><p class="no-data-msg">Impact assessment has not been performed yet.</p></ng-template>
+              <ng-template #noImpact><p class="no-data-msg">Impact assessment has not been performed yet. Click "+ Create" to add one.</p></ng-template>
             </div>
           </div>
 
@@ -317,6 +442,55 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
               <span>Disposition</span>
             </div>
             <div class="section-body" *ngIf="expandedSections['dispositionInfo']">
+              <div class="table-toolbar">
+                <button type="button" class="vault-btn-create" (click)="openDispositionForm()">
+                  {{ deviation.disposition ? 'Edit' : '+ Create' }}
+                </button>
+              </div>
+              <div class="vault-form-card" *ngIf="dispositionFormVisible">
+                <div class="rca-form-header">
+                  <div>
+                    <h3>{{ deviation.disposition ? 'Edit Disposition' : 'Create Disposition' }}</h3>
+                    <p>Document the QA disposition decision and whether CAPA is required.</p>
+                  </div>
+                  <button type="button" class="icon-close-btn" aria-label="Close disposition form" (click)="cancelDispositionForm()">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+                <div class="rca-form-grid">
+                  <label>
+                    <span>Decision</span>
+                    <select [(ngModel)]="dispositionForm.decision">
+                      <option *ngFor="let decision of dispositionDecisionOptions" [value]="decision">{{ formatDisposition(decision) }}</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>CAPA Required</span>
+                    <select [(ngModel)]="dispositionForm.capaRequired">
+                      <option [ngValue]="true">Yes</option>
+                      <option [ngValue]="false">No</option>
+                    </select>
+                  </label>
+                  <label class="full">
+                    <span>Justification</span>
+                    <textarea rows="4" [(ngModel)]="dispositionForm.justification"></textarea>
+                  </label>
+                  <label class="full">
+                    <span>Conditions</span>
+                    <textarea rows="3" [(ngModel)]="dispositionForm.conditions"></textarea>
+                  </label>
+                  <label class="full">
+                    <span>QA Review Comments</span>
+                    <textarea rows="3" [(ngModel)]="dispositionForm.qaReviewComments"></textarea>
+                  </label>
+                </div>
+                <div class="rca-form-actions">
+                  <button type="button" class="vault-btn-secondary" (click)="cancelDispositionForm()" [disabled]="dispositionSubmitting">Cancel</button>
+                  <button type="button" class="vault-btn-primary" (click)="submitDisposition()" [disabled]="dispositionSubmitting">
+                    {{ dispositionSubmitting ? 'Saving...' : 'Save Disposition' }}
+                  </button>
+                </div>
+              </div>
               <div *ngIf="deviation.disposition; else noDisposition">
                 <div class="disposition-header">
                   <span class="decision-tag" [ngClass]="deviation.disposition.decision.toLowerCase().replace('_', '-')">{{ formatDisposition(deviation.disposition.decision) }}</span>
@@ -329,7 +503,7 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
                   <div class="field-item full"><label>QA Review Comments</label><span>{{ deviation.disposition.qaReviewComments }}</span></div>
                 </div>
               </div>
-              <ng-template #noDisposition><p class="no-data-msg">Disposition decision has not been made yet.</p></ng-template>
+              <ng-template #noDisposition><p class="no-data-msg">Disposition decision has not been made yet. Click "+ Create" to add one.</p></ng-template>
             </div>
           </div>
 
@@ -340,17 +514,61 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
               <span>Attachments ({{ deviation.attachments.length }})</span>
             </div>
             <div class="section-body" *ngIf="expandedSections['attachmentsInfo']">
+              <input #attachmentFileInput type="file" hidden (change)="onAttachmentSelected($event)">
+              <div class="attachment-dropzone"
+                   [ngClass]="{'dragging': attachmentDragActive}"
+                   (dragover)="onAttachmentDragOver($event)"
+                   (dragleave)="onAttachmentDragLeave($event)"
+                   (drop)="onAttachmentDrop($event)">
+                <mat-icon>cloud_upload</mat-icon>
+                <div>
+                  <strong>Drop files here or click Upload</strong>
+                  <span>Files are stored as attachments on this Deviation record.</span>
+                </div>
+                <button type="button" class="vault-btn-primary" (click)="attachmentFileInput.click()">Upload</button>
+              </div>
+              <div class="attachment-upload-form" *ngIf="selectedAttachmentFile">
+                <div class="selected-file">
+                  <mat-icon>attach_file</mat-icon>
+                  <span>{{ selectedAttachmentFile.name }}</span>
+                  <small>{{ formatFileSize(selectedAttachmentFile.size) }}</small>
+                </div>
+                <label>
+                  <span>Category</span>
+                  <select [(ngModel)]="attachmentForm.category">
+                    <option *ngFor="let category of attachmentCategoryOptions" [value]="category">{{ formatStatus(category) }}</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Description</span>
+                  <input [(ngModel)]="attachmentForm.description" placeholder="Optional searchable description">
+                </label>
+                <div class="attachment-upload-actions">
+                  <button type="button" class="vault-btn-secondary" (click)="clearSelectedAttachment()" [disabled]="attachmentUploading">Cancel</button>
+                  <button type="button" class="vault-btn-primary" (click)="uploadAttachment()" [disabled]="attachmentUploading">
+                    {{ attachmentUploading ? 'Uploading...' : 'Save Attachment' }}
+                  </button>
+                </div>
+              </div>
               <div class="vault-table" *ngIf="deviation.attachments.length; else noAttach">
-                <div class="table-toolbar"><button class="vault-btn-create">+ Add</button></div>
                 <table>
-                  <thead><tr><th>File Name</th><th>Uploaded By</th><th>Date</th><th>Size</th><th>Description</th></tr></thead>
+                  <thead><tr><th>File Name</th><th>Category</th><th>Uploaded By</th><th>Date</th><th>Size</th><th>Description</th><th>Actions</th></tr></thead>
                   <tbody>
                     <tr *ngFor="let att of deviation.attachments">
-                      <td><a class="vault-link">{{ att.fileName }}</a></td>
+                      <td><button type="button" class="vault-link link-button" (click)="downloadAttachment(att.id)">{{ att.fileName }}</button></td>
+                      <td>{{ formatStatus(att.category || 'OTHER') }}</td>
                       <td>{{ att.uploadedBy }}</td>
                       <td>{{ att.uploadedDate | date:'dd-MMM-yyyy' }}</td>
                       <td>{{ formatFileSize(att.fileSize) }}</td>
                       <td>{{ att.description || '-' }}</td>
+                      <td>
+                        <button type="button" class="table-icon-btn" matTooltip="Download" (click)="downloadAttachment(att.id)">
+                          <mat-icon>download</mat-icon>
+                        </button>
+                        <button type="button" class="table-icon-btn danger" matTooltip="Delete" (click)="deleteAttachment(att.id)">
+                          <mat-icon>delete</mat-icon>
+                        </button>
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -421,6 +639,23 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
       overflow: hidden;
     }
     .record-number { font-size: 22px; font-weight: 600; color: #333; }
+    .impact-summary { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .impact-summary-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .impact-summary-badge.gmp { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
+    .impact-summary-badge.patient { background: #fef2f2; color: #b42318; border-color: #fecaca; }
+    .impact-summary-badge.regulatory { background: #eff6ff; color: #175cd3; border-color: #bfdbfe; }
+    .impact-summary-badge.capa { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
     .record-nav-btn {
       width: 34px;
       height: 34px;
@@ -506,65 +741,68 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
     /* Veeva Lifecycle Bar */
     .lifecycle-bar {
       display: flex;
-      margin: 0 -24px;
-      padding: 10px 24px;
-      background: #eef2f5;
-      border-bottom: 1px solid #d8dee4;
+      gap: 0;
+      width: min(100%, max(760px, calc(var(--workflow-step-count, 8) * 118px)));
+      margin: 16px 0 18px;
+      padding: 8px;
+      background: #f8fafc;
+      border: 1px solid #d9e2ec;
+      border-radius: 999px;
+      box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
       overflow-x: auto;
     }
     .lifecycle-step {
-      flex: 1 0 118px;
-      min-height: 38px;
+      flex: 1 0 104px;
+      min-height: 32px;
       position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-right: -18px;
-      padding: 0 28px 0 34px;
+      padding: 0 14px;
       text-align: center;
-      font-size: 11px;
-      font-weight: 600;
+      font-size: 10.5px;
+      font-weight: 700;
       color: #697782;
       overflow: visible;
     }
-    .lifecycle-step:first-child { padding-left: 18px; }
-    .lifecycle-step:last-child { margin-right: 0; padding-right: 18px; }
+    .lifecycle-step + .lifecycle-step { margin-left: -1px; }
     .lifecycle-step .lifecycle-fill {
       position: absolute;
       top: 0;
-      right: 4px;
+      right: 0;
       bottom: 0;
       left: 0;
       z-index: 0;
-      background: #fff;
-      border: 1px solid #d7dde3;
-      clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%, 18px 50%);
+      background: #edf2f7;
+      border: 1px solid #d5dde6;
+      border-radius: 0;
     }
-    .lifecycle-step:first-child .lifecycle-fill {
-      clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%);
-    }
-    .lifecycle-step:last-child .lifecycle-fill {
-      right: 0;
-      clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 18px 50%);
-    }
+    .lifecycle-step:first-child .lifecycle-fill { border-radius: 999px 0 0 999px; }
+    .lifecycle-step:last-child .lifecycle-fill { border-radius: 0 999px 999px 0; }
+    .lifecycle-step:only-child .lifecycle-fill { border-radius: 999px; }
     .lifecycle-step:not(:last-child)::after {
       content: '';
       position: absolute;
       top: 0;
-      right: 4px;
+      right: -14px;
       bottom: 0;
-      width: 18px;
-      z-index: 2;
-      background: #fff;
-      clip-path: polygon(0 0, 100% 50%, 0 100%, 5px 100%, 100% 50%, 5px 0);
+      width: 28px;
+      z-index: 4;
+      background: #f8fafc;
+      clip-path: polygon(0 0, 50% 0, 100% 50%, 50% 100%, 0 100%, 50% 50%);
       pointer-events: none;
     }
     .lifecycle-step .lifecycle-label { position: relative; z-index: 3; line-height: 1.2; }
-    .lifecycle-step.completed .lifecycle-fill { background: #2C5F7C; border-color: #2C5F7C; }
-    .lifecycle-step.completed { color: #fff; }
-    .lifecycle-step.current .lifecycle-fill { background: #ED8B00; border-color: #ED8B00; }
+    .lifecycle-step.completed .lifecycle-fill { background: #e8eef4; border-color: #d5dde6; }
+    .lifecycle-step.completed { color: #475467; }
+    .lifecycle-step.current .lifecycle-fill {
+      background: linear-gradient(135deg, #1B3A4B, #2C5F7C);
+      border-color: #1B3A4B;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18);
+    }
     .lifecycle-step.current { color: #fff; font-weight: 700; }
-    .lifecycle-step.pending .lifecycle-fill { background: #fff; border-color: #d7dde3; }
+    .lifecycle-step.pending .lifecycle-fill { background: #e8eef4; border-color: #d5dde6; }
+    .lifecycle-step.pending { color: #475467; }
 
     /* Vault Body Layout */
     .vault-body { display: flex; gap: 0; margin: 0 -24px; min-height: calc(100vh - 280px); }
@@ -611,6 +849,187 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
     .table-title { font-size: 12px; color: #2C5F7C; cursor: pointer; }
     .vault-btn-create { background: none; border: 1px solid #ccc; padding: 3px 10px; font-size: 12px; border-radius: 3px; cursor: pointer; color: #333; }
     .vault-btn-create:hover { background: #f5f5f5; }
+    .vault-btn-primary,
+    .vault-btn-secondary {
+      border: 1px solid transparent;
+      border-radius: 4px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .vault-btn-primary { background: #1B3A4B; color: #fff; }
+    .vault-btn-primary:hover { background: #2C5F7C; }
+    .vault-btn-primary:disabled,
+    .vault-btn-secondary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .vault-btn-secondary { background: #fff; color: #333; border-color: #ccd5df; }
+    .vault-btn-secondary:hover { background: #f7f9fb; }
+    .rca-form-card {
+      margin: 16px 0 4px;
+      padding: 18px;
+      border: 1px solid #d9e2ec;
+      border-radius: 6px;
+      background: #fff;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+    }
+    .vault-form-card {
+      margin: 12px 0 18px;
+      padding: 18px;
+      border: 1px solid #d9e2ec;
+      border-radius: 6px;
+      background: #fff;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+    }
+    .rca-form-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+    .rca-form-header h3 { margin: 0; font-size: 16px; color: #1B3A4B; }
+    .rca-form-header p { margin: 4px 0 0; font-size: 12px; color: #667085; }
+    .icon-close-btn {
+      border: 0;
+      background: transparent;
+      color: #667085;
+      cursor: pointer;
+      padding: 2px;
+      height: 28px;
+      width: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .rca-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .rca-form-grid label { display: flex; flex-direction: column; gap: 6px; }
+    .rca-form-grid label.full { grid-column: 1 / -1; }
+    .rca-form-grid label span {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: #667085;
+    }
+    .rca-form-grid input,
+    .rca-form-grid select,
+    .rca-form-grid textarea {
+      width: 100%;
+      border: 1px solid #ccd5df;
+      border-radius: 4px;
+      padding: 8px 10px;
+      font: inherit;
+      font-size: 13px;
+      color: #1f2937;
+      background: #fff;
+      box-sizing: border-box;
+    }
+    .rca-form-grid textarea { resize: vertical; min-height: 70px; }
+    .rca-form-grid input:focus,
+    .rca-form-grid select:focus,
+    .rca-form-grid textarea:focus {
+      outline: none;
+      border-color: #2C5F7C;
+      box-shadow: 0 0 0 3px rgba(44, 95, 124, 0.12);
+    }
+    .rca-form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid #eef2f6;
+    }
+    .attachment-dropzone {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 18px;
+      margin-bottom: 14px;
+      border: 1px dashed #9fb3c8;
+      border-radius: 6px;
+      background: #f8fbfd;
+      color: #1f2937;
+    }
+    .attachment-dropzone.dragging {
+      border-color: #2C5F7C;
+      background: #eef6fa;
+    }
+    .attachment-dropzone mat-icon { color: #2C5F7C; }
+    .attachment-dropzone div { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+    .attachment-dropzone strong { font-size: 13px; }
+    .attachment-dropzone span { font-size: 12px; color: #667085; }
+    .attachment-upload-form {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) 180px minmax(220px, 1.4fr) auto;
+      align-items: end;
+      gap: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+      border: 1px solid #e1e7ef;
+      border-radius: 6px;
+      background: #fff;
+    }
+    .selected-file {
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr);
+      column-gap: 8px;
+      row-gap: 2px;
+      align-items: center;
+      min-width: 0;
+    }
+    .selected-file mat-icon { color: #2C5F7C; }
+    .selected-file span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .selected-file small { grid-column: 2; color: #667085; font-size: 11px; }
+    .attachment-upload-form label {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .attachment-upload-form label span {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #667085;
+    }
+    .attachment-upload-form input,
+    .attachment-upload-form select {
+      border: 1px solid #ccd5df;
+      border-radius: 4px;
+      padding: 8px 10px;
+      font: inherit;
+      font-size: 13px;
+    }
+    .attachment-upload-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .link-button {
+      border: 0;
+      background: transparent;
+      padding: 0;
+      cursor: pointer;
+      font: inherit;
+    }
+    .table-icon-btn {
+      width: 30px;
+      height: 30px;
+      border: 1px solid transparent;
+      background: transparent;
+      border-radius: 4px;
+      color: #506070;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 4px;
+    }
+    .table-icon-btn:hover { background: #f2f5f8; border-color: #d9e2ec; }
+    .table-icon-btn mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    .table-icon-btn.danger:hover { color: #b42318; background: #fff4f2; border-color: #fecdca; }
 
     .vault-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .vault-table thead th { background: #f5f5f5; border: 1px solid #ddd; padding: 8px 12px; text-align: left; font-weight: 600; color: #555; font-size: 12px; }
@@ -662,6 +1081,49 @@ export class DeviationDetailComponent implements OnInit {
   deviation: Deviation | null = null;
   statusOptions = Object.values(DeviationStatus);
   isStatusUpdating = false;
+  rootCauseFormVisible = false;
+  rootCauseSubmitting = false;
+  rootCauseForm = {
+    method: '5 Why Analysis',
+    probableCause: '',
+    rootCause: '',
+    immediateActionsText: '',
+    findings: '',
+    conclusion: '',
+  };
+  impactLevelOptions = Object.values(ImpactLevel);
+  riskLevelOptions = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+  dispositionDecisionOptions = Object.values(DispositionDecision);
+  attachmentCategoryOptions = ['INVESTIGATION', 'EVIDENCE', 'RISK_ASSESSMENT', 'VALIDATION', 'REGULATORY', 'TRAINING', 'SUPPORTING_DATA', 'OTHER'];
+  impactAssessmentFormVisible = false;
+  impactAssessmentSubmitting = false;
+  impactAssessmentForm = {
+    productQualityImpact: ImpactLevel.NONE,
+    patientSafetyImpact: ImpactLevel.NONE,
+    regulatoryImpact: ImpactLevel.NONE,
+    businessImpact: ImpactLevel.NONE,
+    overallRiskLevel: 'LOW',
+    affectedProductsText: '',
+    affectedBatchesText: '',
+    batchDisposition: '',
+    justification: '',
+  };
+  dispositionFormVisible = false;
+  dispositionSubmitting = false;
+  dispositionForm = {
+    decision: DispositionDecision.USE_AS_IS,
+    justification: '',
+    conditions: '',
+    qaReviewComments: '',
+    capaRequired: false,
+  };
+  selectedAttachmentFile: File | null = null;
+  attachmentUploading = false;
+  attachmentDragActive = false;
+  attachmentForm = {
+    category: 'OTHER',
+    description: '',
+  };
   previousDeviationId: string | null = null;
   nextDeviationId: string | null = null;
   private deviationList: Deviation[] = [];
@@ -757,6 +1219,277 @@ export class DeviationDetailComponent implements OnInit {
     });
   }
 
+  openRootCauseForm(): void {
+    if (!this.deviation) {
+      return;
+    }
+
+    const investigation = this.deviation.investigation;
+    this.rootCauseForm = {
+      method: investigation?.method || '5 Why Analysis',
+      probableCause: investigation?.probableCause || '',
+      rootCause: investigation?.rootCause || '',
+      immediateActionsText: (investigation?.immediateActions || []).join('\n'),
+      findings: investigation?.findings || '',
+      conclusion: investigation?.conclusion || '',
+    };
+    this.rootCauseFormVisible = true;
+    this.expandedSections['rootCauseInfo'] = true;
+  }
+
+  cancelRootCauseForm(): void {
+    this.rootCauseFormVisible = false;
+  }
+
+  submitRootCauseAnalysis(): void {
+    if (!this.deviation || this.rootCauseSubmitting) {
+      return;
+    }
+
+    const rootCause = this.rootCauseForm.rootCause.trim();
+    if (!rootCause) {
+      this.snackBar.open('Root cause is required', 'Close', { duration: 3000 });
+      return;
+    }
+
+    const investigatorId = this.deviation.assignedToId || this.deviation.reportedById;
+    if (!investigatorId) {
+      this.snackBar.open('Assign an investigator before creating root cause analysis', 'Close', { duration: 4000 });
+      return;
+    }
+
+    this.rootCauseSubmitting = true;
+    this.deviationService.submitInvestigation(this.deviation.id, {
+      investigatorId,
+      method: this.rootCauseForm.method,
+      probableCause: this.rootCauseForm.probableCause.trim(),
+      rootCause,
+      immediateActions: this.rootCauseForm.immediateActionsText
+        .split('\n')
+        .map((item) => item.trim())
+        .filter(Boolean),
+      findings: this.rootCauseForm.findings.trim(),
+      conclusion: this.rootCauseForm.conclusion.trim(),
+    }).subscribe({
+      next: (deviation) => {
+        this.deviation = deviation;
+        this.rootCauseFormVisible = false;
+        this.activeSection = 'rootcause';
+        this.snackBar.open('Root cause analysis saved', 'Close', { duration: 3000 });
+      },
+      error: () => {
+        this.snackBar.open('Unable to save root cause analysis', 'Close', { duration: 4000 });
+      },
+      complete: () => {
+        this.rootCauseSubmitting = false;
+      },
+    });
+  }
+
+  openImpactAssessmentForm(): void {
+    if (!this.deviation) {
+      return;
+    }
+
+    const assessment = this.deviation.impactAssessment;
+    this.impactAssessmentForm = {
+      productQualityImpact: assessment?.productQualityImpact || ImpactLevel.NONE,
+      patientSafetyImpact: assessment?.patientSafetyImpact || ImpactLevel.NONE,
+      regulatoryImpact: assessment?.regulatoryImpact || ImpactLevel.NONE,
+      businessImpact: assessment?.businessImpact || ImpactLevel.NONE,
+      overallRiskLevel: assessment?.overallRiskLevel || 'LOW',
+      affectedProductsText: (assessment?.affectedProducts || []).join('\n'),
+      affectedBatchesText: (assessment?.affectedBatches || []).join('\n'),
+      batchDisposition: assessment?.batchDisposition || '',
+      justification: assessment?.justification || '',
+    };
+    this.impactAssessmentFormVisible = true;
+    this.expandedSections['impactInfo'] = true;
+  }
+
+  cancelImpactAssessmentForm(): void {
+    this.impactAssessmentFormVisible = false;
+  }
+
+  submitImpactAssessment(): void {
+    if (!this.deviation || this.impactAssessmentSubmitting) {
+      return;
+    }
+
+    const justification = this.impactAssessmentForm.justification.trim();
+    if (!justification) {
+      this.snackBar.open('Impact assessment justification is required', 'Close', { duration: 3000 });
+      return;
+    }
+
+    this.impactAssessmentSubmitting = true;
+    this.deviationService.submitImpactAssessment(this.deviation.id, {
+      productQualityImpact: this.impactAssessmentForm.productQualityImpact,
+      patientSafetyImpact: this.impactAssessmentForm.patientSafetyImpact,
+      regulatoryImpact: this.impactAssessmentForm.regulatoryImpact,
+      businessImpact: this.impactAssessmentForm.businessImpact,
+      overallRiskLevel: this.impactAssessmentForm.overallRiskLevel,
+      affectedProducts: this.toLines(this.impactAssessmentForm.affectedProductsText),
+      affectedBatches: this.toLines(this.impactAssessmentForm.affectedBatchesText),
+      batchDisposition: this.impactAssessmentForm.batchDisposition.trim(),
+      justification,
+    }).subscribe({
+      next: (deviation) => {
+        this.deviation = deviation;
+        this.impactAssessmentFormVisible = false;
+        this.activeSection = 'impact';
+        this.snackBar.open('Impact assessment saved', 'Close', { duration: 3000 });
+      },
+      error: () => {
+        this.snackBar.open('Unable to save impact assessment', 'Close', { duration: 4000 });
+      },
+      complete: () => {
+        this.impactAssessmentSubmitting = false;
+      },
+    });
+  }
+
+  openDispositionForm(): void {
+    if (!this.deviation) {
+      return;
+    }
+
+    const disposition = this.deviation.disposition;
+    this.dispositionForm = {
+      decision: disposition?.decision || DispositionDecision.USE_AS_IS,
+      justification: disposition?.justification || '',
+      conditions: disposition?.conditions || '',
+      qaReviewComments: disposition?.qaReviewComments || '',
+      capaRequired: this.deviation.capaRequired || false,
+    };
+    this.dispositionFormVisible = true;
+    this.expandedSections['dispositionInfo'] = true;
+  }
+
+  cancelDispositionForm(): void {
+    this.dispositionFormVisible = false;
+  }
+
+  submitDisposition(): void {
+    if (!this.deviation || this.dispositionSubmitting) {
+      return;
+    }
+
+    const justification = this.dispositionForm.justification.trim();
+    if (!justification) {
+      this.snackBar.open('Disposition justification is required', 'Close', { duration: 3000 });
+      return;
+    }
+
+    this.dispositionSubmitting = true;
+    this.deviationService.submitDisposition(this.deviation.id, {
+      decision: this.dispositionForm.decision,
+      justification,
+      conditions: this.dispositionForm.conditions.trim(),
+      qaReviewComments: this.dispositionForm.qaReviewComments.trim(),
+      capaRequired: this.dispositionForm.capaRequired,
+    }).subscribe({
+      next: (deviation) => {
+        this.deviation = deviation;
+        this.dispositionFormVisible = false;
+        this.activeSection = 'disposition';
+        this.snackBar.open('Disposition saved', 'Close', { duration: 3000 });
+      },
+      error: () => {
+        this.snackBar.open('Unable to save disposition', 'Close', { duration: 4000 });
+      },
+      complete: () => {
+        this.dispositionSubmitting = false;
+      },
+    });
+  }
+
+  onAttachmentSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.selectedAttachmentFile = input.files?.[0] || null;
+    if (input) {
+      input.value = '';
+    }
+  }
+
+  onAttachmentDragOver(event: DragEvent): void {
+    event.preventDefault();
+    this.attachmentDragActive = true;
+  }
+
+  onAttachmentDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    this.attachmentDragActive = false;
+  }
+
+  onAttachmentDrop(event: DragEvent): void {
+    event.preventDefault();
+    this.attachmentDragActive = false;
+    this.selectedAttachmentFile = event.dataTransfer?.files?.[0] || null;
+  }
+
+  clearSelectedAttachment(): void {
+    this.selectedAttachmentFile = null;
+    this.attachmentForm = {
+      category: 'OTHER',
+      description: '',
+    };
+  }
+
+  uploadAttachment(): void {
+    if (!this.deviation || !this.selectedAttachmentFile || this.attachmentUploading) {
+      return;
+    }
+
+    this.attachmentUploading = true;
+    this.deviationService
+      .uploadAttachment(this.deviation.id, this.selectedAttachmentFile, this.attachmentForm.category, this.attachmentForm.description.trim())
+      .subscribe({
+        next: (attachment) => {
+          if (this.deviation) {
+            this.deviation = {
+              ...this.deviation,
+              attachments: [attachment, ...this.deviation.attachments],
+            };
+          }
+          this.clearSelectedAttachment();
+          this.snackBar.open('Attachment uploaded', 'Close', { duration: 3000 });
+        },
+        error: () => {
+          this.snackBar.open('Unable to upload attachment', 'Close', { duration: 4000 });
+        },
+        complete: () => {
+          this.attachmentUploading = false;
+        },
+      });
+  }
+
+  downloadAttachment(attachmentId: string): void {
+    this.deviationService.getAttachmentDownloadUrl(attachmentId).subscribe({
+      next: (url) => window.open(url, '_blank', 'noopener'),
+      error: () => this.snackBar.open('Unable to download attachment', 'Close', { duration: 4000 }),
+    });
+  }
+
+  deleteAttachment(attachmentId: string): void {
+    if (!this.deviation) {
+      return;
+    }
+
+    this.deviationService.deleteAttachment(attachmentId).subscribe({
+      next: () => {
+        if (this.deviation) {
+          this.deviation = {
+            ...this.deviation,
+            attachments: this.deviation.attachments.filter((attachment) => attachment.id !== attachmentId),
+          };
+        }
+        this.snackBar.open('Attachment deleted', 'Close', { duration: 3000 });
+      },
+      error: () => this.snackBar.open('Unable to delete attachment', 'Close', { duration: 4000 }),
+    });
+  }
+
   openAuditTrail(): void {
     if (!this.deviation) {
       return;
@@ -831,5 +1564,12 @@ export class DeviationDetailComponent implements OnInit {
     const index = this.deviationList.findIndex((item) => item.id === id);
     this.previousDeviationId = index > 0 ? this.deviationList[index - 1].id : null;
     this.nextDeviationId = index >= 0 && index < this.deviationList.length - 1 ? this.deviationList[index + 1].id : null;
+  }
+
+  private toLines(value: string): string[] {
+    return value
+      .split('\n')
+      .map((item) => item.trim())
+      .filter(Boolean);
   }
 }

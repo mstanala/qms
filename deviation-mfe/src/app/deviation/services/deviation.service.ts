@@ -9,6 +9,7 @@ import {
   DeviationType,
   ImpactLevel,
   DispositionDecision,
+  DeviationAttachment,
   DeviationWorkflowStep,
   DeviationDashboardMetrics,
   DeviationListFilter,
@@ -22,6 +23,7 @@ type ApiPage<T> = {
 
 type ApiDeviation = any;
 type ApiWorkflowHistory = any;
+type ApiAttachment = any;
 
 const DEVIATION_WORKFLOW_TEMPLATE = [
   'Reported',
@@ -75,8 +77,9 @@ export class DeviationService {
   }
 
   getDeviationById(id: string): Observable<Deviation | undefined> {
+    const params = new HttpParams().set('_ts', Date.now().toString());
     return this.http
-      .get<ApiDeviation>(`${this.apiUrl}/${id}`, { headers: this.authHeaders() })
+      .get<ApiDeviation>(`${this.apiUrl}/${id}`, { headers: this.authHeaders(), params })
       .pipe(
         map((item) => this.toDeviation(item)),
         switchMap((deviation) =>
@@ -89,6 +92,12 @@ export class DeviationService {
               ...deviation,
               workflowHistory: this.toWorkflowSteps([], DEVIATION_WORKFLOW_TEMPLATE, deviation.currentWorkflowStep),
             }))
+          )
+        ),
+        switchMap((deviation) =>
+          this.getAttachments(id).pipe(
+            map((attachments) => ({ ...deviation, attachments })),
+            catchError(() => of({ ...deviation, attachments: [] }))
           )
         )
       );
@@ -128,12 +137,7 @@ export class DeviationService {
       description: deviation.description,
       type: deviation.type,
       category: deviation.category,
-      classification: deviation.classification,
-      occurredDate: this.toIso(deviation.occurredDate),
-      detectedDate: this.toIso(deviation.detectedDate),
       targetClosureDate: this.toIso(deviation.targetClosureDate),
-      plantSiteId: this.resolvePlantSiteId((deviation as any).plantSite),
-      departmentId: this.resolveDepartmentId((deviation as any).department),
       assignedToId: this.resolveUserId((deviation as any).assignedToName),
       area: deviation.area,
       equipment: deviation.equipment,
@@ -142,12 +146,19 @@ export class DeviationService {
       gmpImpact: deviation.gmpImpact ?? false,
       patientSafetyImpact: deviation.patientSafetyImpact ?? false,
       regulatoryImpact: deviation.regulatoryImpact ?? false,
-      sourceArea: deviation.sourceArea,
     };
 
     return this.http
       .put<ApiDeviation>(`${this.apiUrl}/${id}`, payload, { headers: this.authHeaders() })
-      .pipe(map((item) => this.toDeviation(item)));
+      .pipe(
+        switchMap(() => this.getDeviationById(id)),
+        map((item) => {
+          if (!item) {
+            throw new Error('Deviation was updated but could not be reloaded');
+          }
+          return item;
+        })
+      );
   }
 
   updateDeviationStatus(id: string, status: DeviationStatus): Observable<Deviation> {
@@ -168,6 +179,105 @@ export class DeviationService {
 
   getWorkflowHistory(id: string): Observable<ApiWorkflowHistory[]> {
     return this.http.get<ApiWorkflowHistory[]>(`${this.apiUrl}/${id}/workflow-history`, { headers: this.authHeaders() });
+  }
+
+  submitInvestigation(
+    id: string,
+    investigation: {
+      investigatorId: string;
+      probableCause?: string;
+      rootCause?: string;
+      immediateActions?: string[];
+      findings?: string;
+      conclusion?: string;
+      method?: string;
+    }
+  ): Observable<Deviation> {
+    return this.http
+      .post<ApiDeviation>(`${this.apiUrl}/${id}/investigation`, investigation, { headers: this.authHeaders() })
+      .pipe(
+        switchMap(() => this.getDeviationById(id)),
+        map((item) => {
+          if (!item) {
+            throw new Error('Investigation was saved but deviation could not be reloaded');
+          }
+          return item;
+        })
+      );
+  }
+
+  submitImpactAssessment(id: string, assessment: {
+    productQualityImpact: string;
+    patientSafetyImpact: string;
+    regulatoryImpact: string;
+    businessImpact: string;
+    overallRiskLevel: string;
+    affectedProducts?: string[];
+    affectedBatches?: string[];
+    batchDisposition?: string;
+    justification: string;
+  }): Observable<Deviation> {
+    return this.http
+      .post<ApiDeviation>(`${this.apiUrl}/${id}/impact-assessment`, assessment, { headers: this.authHeaders() })
+      .pipe(
+        switchMap(() => this.getDeviationById(id)),
+        map((item) => {
+          if (!item) throw new Error('Impact assessment was saved but deviation could not be reloaded');
+          return item;
+        })
+      );
+  }
+
+  submitDisposition(id: string, disposition: {
+    decision: string;
+    justification: string;
+    conditions?: string;
+    qaReviewComments?: string;
+    capaRequired?: boolean;
+    electronicSignature?: { password: string; meaning: string };
+  }): Observable<Deviation> {
+    return this.http
+      .post<ApiDeviation>(`${this.apiUrl}/${id}/disposition`, disposition, { headers: this.authHeaders() })
+      .pipe(
+        switchMap(() => this.getDeviationById(id)),
+        map((item) => {
+          if (!item) throw new Error('Disposition was saved but deviation could not be reloaded');
+          return item;
+        })
+      );
+  }
+
+  getAttachments(id: string): Observable<DeviationAttachment[]> {
+    const params = new HttpParams()
+      .set('recordType', 'DEVIATION')
+      .set('recordId', id);
+
+    return this.http
+      .get<ApiAttachment[]>(`${API_BASE_URL}/attachments`, { headers: this.authHeaders(), params })
+      .pipe(map((items) => (items || []).map((item) => this.toAttachment(item))));
+  }
+
+  uploadAttachment(id: string, file: File, category?: string, description?: string): Observable<DeviationAttachment> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('recordType', 'DEVIATION');
+    formData.append('recordId', id);
+    if (category) formData.append('category', category);
+    if (description) formData.append('description', description);
+
+    return this.http
+      .post<ApiAttachment>(`${API_BASE_URL}/attachments`, formData, { headers: this.authHeaders() })
+      .pipe(map((item) => this.toAttachment(item)));
+  }
+
+  getAttachmentDownloadUrl(attachmentId: string): Observable<string> {
+    return this.http
+      .get<{ url: string }>(`${API_BASE_URL}/attachments/${attachmentId}/download`, { headers: this.authHeaders() })
+      .pipe(map((response) => response.url));
+  }
+
+  deleteAttachment(attachmentId: string): Observable<void> {
+    return this.http.delete<void>(`${API_BASE_URL}/attachments/${attachmentId}`, { headers: this.authHeaders() });
   }
 
   private authHeaders(): HttpHeaders {
@@ -299,6 +409,19 @@ export class DeviationService {
       startedAt: step?.startedAt ? this.toDate(step.startedAt) : undefined,
       completedAt: step?.completedAt ? this.toDate(step.completedAt) : undefined,
       comments: step?.comments,
+    };
+  }
+
+  private toAttachment(item: ApiAttachment): DeviationAttachment {
+    return {
+      id: item.id,
+      fileName: item.fileName,
+      fileType: item.fileType || '',
+      fileSize: item.fileSize || 0,
+      uploadedBy: item.uploadedBy?.displayName || '',
+      uploadedDate: this.toDate(item.uploadedDate),
+      category: item.category,
+      description: item.description,
     };
   }
 

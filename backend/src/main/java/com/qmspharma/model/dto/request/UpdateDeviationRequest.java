@@ -1,11 +1,13 @@
 package com.qmspharma.model.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 
 import java.time.Instant;
 import java.util.UUID;
 
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class UpdateDeviationRequest {
     private String title;
     private String description;

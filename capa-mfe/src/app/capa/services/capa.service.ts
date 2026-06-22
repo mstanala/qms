@@ -117,6 +117,33 @@ export class CapaService {
       .pipe(map((item) => this.toCapa(item)));
   }
 
+  updateCapa(id: string, capa: Partial<Capa>): Observable<Capa> {
+    const payload = {
+      title: capa.title,
+      description: capa.description,
+      type: capa.type,
+      priority: capa.priority,
+      sourceType: capa.sourceType,
+      sourceReference: capa.sourceReference,
+      targetCompletionDate: this.toIso(capa.targetCompletionDate || capa.dueDate),
+      ownerId: this.resolveUserId((capa as any).ownerName),
+      departmentId: this.resolveDepartmentId((capa as any).department || capa.assignedDepartment),
+      plantSiteId: this.resolvePlantSiteId((capa as any).plantSite),
+      product: capa.product,
+      batchNumber: capa.batchNumber,
+    };
+
+    return this.http
+      .put<ApiCapa>(`${this.apiUrl}/${id}`, payload, { headers: this.authHeaders() })
+      .pipe(
+        switchMap(() => this.getCapaById(id)),
+        map((item) => {
+          if (!item) throw new Error('CAPA was updated but could not be reloaded');
+          return item;
+        })
+      );
+  }
+
   updateCapaStatus(id: string, status: CapaStatus): Observable<Capa> {
     return this.http
       .patch<ApiCapa>(

@@ -28,6 +28,13 @@ export const CHANGE_CONTROL_ROUTES: Routes = [
       ),
   },
   {
+    path: 'edit/:id',
+    loadComponent: () =>
+      import('./components/cc-form/cc-form.component').then(
+        (m) => m.CcFormComponent
+      ),
+  },
+  {
     path: 'detail/:id',
     loadComponent: () =>
       import('./components/cc-detail/cc-detail.component').then(

@@ -1,6 +1,6 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -13,7 +13,7 @@ import { MatNativeDateModule } from '@angular/material/core';
 import { MatStepperModule } from '@angular/material/stepper';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { CapaService } from '../../services/capa.service';
-import { CapaType, CapaSourceType, CapaPriority } from '../../models/capa.model';
+import { Capa, CapaType, CapaSourceType, CapaPriority } from '../../models/capa.model';
 
 @Component({
   selector: 'capa-form',
@@ -41,8 +41,8 @@ import { CapaType, CapaSourceType, CapaPriority } from '../../models/capa.model'
             <mat-icon>arrow_back</mat-icon>
           </button>
           <div>
-            <h1>Initiate New CAPA</h1>
-            <p class="subtitle">Create a new Corrective and Preventive Action record</p>
+            <h1>{{ isEditMode ? 'Edit CAPA' : 'Initiate New CAPA' }}</h1>
+            <p class="subtitle">{{ isEditMode ? 'Update CAPA record details' : 'Create a new Corrective and Preventive Action record' }}</p>
           </div>
         </div>
       </div>
@@ -232,8 +232,8 @@ import { CapaType, CapaSourceType, CapaPriority } from '../../models/capa.model'
                 Back
               </button>
               <button mat-raised-button color="primary" (click)="submitCapa()" style="background:#ED8B00;color:#fff">
-                <mat-icon>send</mat-icon>
-                Submit CAPA
+                <mat-icon>{{ isEditMode ? 'save' : 'send' }}</mat-icon>
+                {{ isEditMode ? 'Save Changes' : 'Submit CAPA' }}
               </button>
             </div>
           </mat-card>
@@ -356,10 +356,12 @@ import { CapaType, CapaSourceType, CapaPriority } from '../../models/capa.model'
     }
   `],
 })
-export class CapaFormComponent {
+export class CapaFormComponent implements OnInit {
   capaTypes = CapaType;
   priorities = CapaPriority;
   sourceTypes = Object.values(CapaSourceType);
+  isEditMode = false;
+  private capaId: string | null = null;
 
   basicForm: FormGroup;
   assignmentForm: FormGroup;
@@ -367,6 +369,7 @@ export class CapaFormComponent {
   constructor(
     private fb: FormBuilder,
     private capaService: CapaService,
+    private route: ActivatedRoute,
     private router: Router,
     private snackBar: MatSnackBar
   ) {
@@ -389,12 +392,29 @@ export class CapaFormComponent {
     });
   }
 
+  ngOnInit(): void {
+    this.capaId = this.route.snapshot.paramMap.get('id');
+    this.isEditMode = !!this.capaId;
+
+    if (this.capaId) {
+      this.capaService.getCapaById(this.capaId).subscribe((capa) => {
+        if (capa) {
+          this.populateForms(capa);
+        }
+      });
+    }
+  }
+
   formatSource(source: string): string {
     if (!source) return '';
     return source.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
   }
 
   backToList(): void {
+    if (this.isEditMode && this.capaId) {
+      this.router.navigate(['/capa/detail', this.capaId]);
+      return;
+    }
     this.router.navigate(['/capa/list']);
   }
 
@@ -410,14 +430,38 @@ export class CapaFormComponent {
         ownerId: 'USR-002',
       };
 
-      this.capaService.createCapa(capaData).subscribe((created) => {
+      const request$ = this.isEditMode && this.capaId
+        ? this.capaService.updateCapa(this.capaId, capaData)
+        : this.capaService.createCapa(capaData);
+
+      request$.subscribe((saved) => {
         this.snackBar.open(
-          `CAPA ${created.capaNumber} initiated successfully`,
+          this.isEditMode ? `CAPA ${saved.capaNumber} updated successfully` : `CAPA ${saved.capaNumber} initiated successfully`,
           'View',
           { duration: 5000 }
         );
-        this.router.navigate(['/capa/list']);
+        this.router.navigate(this.isEditMode ? ['/capa/detail', saved.id] : ['/capa/list']);
       });
     }
+  }
+
+  private populateForms(capa: Capa): void {
+    this.basicForm.patchValue({
+      title: capa.title,
+      description: capa.description,
+      type: capa.type,
+      priority: capa.priority,
+      sourceType: capa.sourceType,
+      sourceReference: capa.sourceReference || '',
+    });
+
+    this.assignmentForm.patchValue({
+      plantSite: capa.plantSite,
+      department: capa.department || capa.assignedDepartment,
+      ownerName: capa.ownerName,
+      targetCompletionDate: capa.targetCompletionDate || capa.dueDate,
+      product: capa.product || '',
+      batchNumber: capa.batchNumber || '',
+    });
   }
 }
