@@ -151,7 +151,7 @@ import { Capa, CapaStatus, CapaPriority } from '../../models/capa.model';
                     <mat-icon>psychology</mat-icon>
                     <span>Root Cause Analysis</span>
                   </button>
-                  <button mat-menu-item type="button" (click)="stopRowNavigation($event)">
+                  <button mat-menu-item [routerLink]="['/tools/audit-trail']" [queryParams]="{recordType: 'CAPA', recordId: capa.id}" (click)="stopRowNavigation($event)">
                     <mat-icon>history</mat-icon>
                     <span>Audit Trail</span>
                   </button>
