@@ -6,6 +6,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatOptionModule } from '@angular/material/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { RiskService } from '../../services/risk.service';
@@ -15,7 +16,7 @@ import { RiskService } from '../../services/risk.service';
   standalone: true,
   imports: [
     CommonModule, RouterModule, ReactiveFormsModule,
-    MatCardModule, MatFormFieldModule, MatInputModule, MatSelectModule,
+    MatCardModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatOptionModule,
     MatButtonModule, MatIconModule
   ],
   template: `
@@ -44,24 +45,24 @@ import { RiskService } from '../../services/risk.service';
               <mat-form-field appearance="outline">
                 <mat-label>Risk Type</mat-label>
                 <mat-select formControlName="riskType">
-                  <option value="PRODUCT">Product</option>
-                  <option value="PROCESS">Process</option>
-                  <option value="PATIENT_SAFETY">Patient Safety</option>
-                  <option value="SUPPLY_CHAIN">Supply Chain</option>
-                  <option value="REGULATORY">Regulatory</option>
-                  <option value="DATA_INTEGRITY">Data Integrity</option>
+                  <mat-option value="PRODUCT">Product</mat-option>
+                  <mat-option value="PROCESS">Process</mat-option>
+                  <mat-option value="PATIENT_SAFETY">Patient Safety</mat-option>
+                  <mat-option value="SUPPLY_CHAIN">Supply Chain</mat-option>
+                  <mat-option value="REGULATORY">Regulatory</mat-option>
+                  <mat-option value="DATA_INTEGRITY">Data Integrity</mat-option>
                 </mat-select>
               </mat-form-field>
 
               <mat-form-field appearance="outline">
                 <mat-label>Methodology</mat-label>
                 <mat-select formControlName="methodology">
-                  <option value="FMEA">FMEA</option>
-                  <option value="HACCP">HACCP</option>
-                  <option value="FTA">Fault Tree Analysis</option>
-                  <option value="HAZOP">HAZOP</option>
-                  <option value="PHA">Preliminary Hazard Analysis</option>
-                  <option value="BOW_TIE">Bow-Tie</option>
+                  <mat-option value="FMEA">FMEA</mat-option>
+                  <mat-option value="HACCP">HACCP</mat-option>
+                  <mat-option value="FTA">Fault Tree Analysis</mat-option>
+                  <mat-option value="HAZOP">HAZOP</mat-option>
+                  <mat-option value="PHA">Preliminary Hazard Analysis</mat-option>
+                  <mat-option value="BOW_TIE">Bow-Tie</mat-option>
                 </mat-select>
               </mat-form-field>
 
@@ -73,10 +74,10 @@ import { RiskService } from '../../services/risk.service';
               <mat-form-field appearance="outline">
                 <mat-label>Priority</mat-label>
                 <mat-select formControlName="priority">
-                  <option value="LOW">Low</option>
-                  <option value="MEDIUM">Medium</option>
-                  <option value="HIGH">High</option>
-                  <option value="CRITICAL">Critical</option>
+                  <mat-option value="LOW">Low</mat-option>
+                  <mat-option value="MEDIUM">Medium</mat-option>
+                  <mat-option value="HIGH">High</mat-option>
+                  <mat-option value="CRITICAL">Critical</mat-option>
                 </mat-select>
               </mat-form-field>
 
@@ -127,12 +128,24 @@ export class RiskRegisterFormComponent {
 
   onSubmit(): void {
     if (this.form.invalid) return;
-    // In production, ownerId/departmentId/plantSiteId would come from user context
+    // Use current user context from localStorage
+    let ownerId = 'd0000000-0000-0000-0000-000000000001';
+    let departmentId = 'c0000000-0000-0000-0000-000000000002';
+    let plantSiteId = 'b0000000-0000-0000-0000-000000000001';
+    try {
+      const raw = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser');
+      if (raw) {
+        const user = JSON.parse(raw);
+        if (user?.id) ownerId = user.id;
+        if (user?.departmentId) departmentId = user.departmentId;
+        if (user?.plantSiteId) plantSiteId = user.plantSiteId;
+      }
+    } catch {}
     const request = {
       ...this.form.value,
-      ownerId: '00000000-0000-0000-0000-000000000001',
-      departmentId: '00000000-0000-0000-0000-000000000001',
-      plantSiteId: '00000000-0000-0000-0000-000000000001',
+      ownerId,
+      departmentId,
+      plantSiteId,
     };
     this.riskService.createRegister(request).subscribe((reg) => {
       this.router.navigate(['/risk/registers', reg.id]);
