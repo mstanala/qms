@@ -12,4 +12,5 @@ import java.util.UUID;
 public interface AuditTrailRepository extends JpaRepository<AuditTrail, UUID>, JpaSpecificationExecutor<AuditTrail> {
     List<AuditTrail> findByRecordTypeAndRecordIdOrderByTimestampDesc(String recordType, UUID recordId);
     Page<AuditTrail> findByRecordTypeAndRecordId(String recordType, UUID recordId, Pageable pageable);
+    Page<AuditTrail> findByUserId(UUID userId, Pageable pageable);
 }

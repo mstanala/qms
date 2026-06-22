@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -15,7 +15,7 @@ import { QmsDocument } from '../../models/document.model';
     <div class="detail-page" *ngIf="doc">
       <div class="detail-header">
         <div class="header-left">
-          <button class="back-btn" routerLink="../list"><mat-icon>arrow_back</mat-icon></button>
+          <button class="back-btn" type="button" (click)="backToList()"><mat-icon>arrow_back</mat-icon></button>
           <div>
             <div class="doc-number">{{ doc.documentNumber }}</div>
             <h2>{{ doc.title }}</h2>
@@ -198,11 +198,15 @@ import { QmsDocument } from '../../models/document.model';
 export class DocDetailComponent implements OnInit {
   doc: QmsDocument | null = null;
 
-  constructor(private route: ActivatedRoute, private docService: DocumentService) {}
+  constructor(private route: ActivatedRoute, private router: Router, private docService: DocumentService) {}
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) this.docService.getDocumentById(id).subscribe(d => this.doc = d || null);
+  }
+
+  backToList(): void {
+    this.router.navigate(['/documents/list']);
   }
 
   formatStatus(val: string): string { return val?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || ''; }

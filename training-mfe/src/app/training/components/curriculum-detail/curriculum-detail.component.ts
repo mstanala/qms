@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -15,7 +15,7 @@ import { TrainingCurriculum, TrainingAssignment } from '../../models/training.mo
     <div class="detail-page" *ngIf="curriculum">
       <div class="detail-header">
         <div class="header-left">
-          <button class="back-btn" routerLink="../../curricula"><mat-icon>arrow_back</mat-icon></button>
+          <button class="back-btn" type="button" (click)="backToList()"><mat-icon>arrow_back</mat-icon></button>
           <div>
             <div class="cur-number">{{ curriculum.curriculumNumber }}</div>
             <h2>{{ curriculum.title }}</h2>
@@ -159,7 +159,7 @@ export class CurriculumDetailComponent implements OnInit {
   curriculum: TrainingCurriculum | null = null;
   assignments: TrainingAssignment[] = [];
 
-  constructor(private route: ActivatedRoute, private trainingService: TrainingService) {}
+  constructor(private route: ActivatedRoute, private router: Router, private trainingService: TrainingService) {}
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -169,6 +169,10 @@ export class CurriculumDetailComponent implements OnInit {
         this.assignments = all.filter(a => a.curriculumId === id);
       });
     }
+  }
+
+  backToList(): void {
+    this.router.navigate(['/training/curricula']);
   }
 
   formatEnum(val: string): string { return val?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || ''; }

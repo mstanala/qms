@@ -11,9 +11,12 @@ export interface LoginRequest {
 
 export interface AuthUser {
   id: string;
+  employeeId?: string;
   username?: string;
   displayName: string;
   email?: string;
+  firstName?: string;
+  lastName?: string;
   userType?: string;
   roles?: RoleResponse[] | string[];
   permissions?: PermissionResponse[];
@@ -25,6 +28,9 @@ export interface AuthUser {
   departmentName?: string;
   isActive?: boolean;
   isLocked?: boolean;
+  jobTitle?: string;
+  phone?: string;
+  lastLoginAt?: string;
 }
 
 export interface AuthResponse {

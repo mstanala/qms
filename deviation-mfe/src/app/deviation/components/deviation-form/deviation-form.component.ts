@@ -39,7 +39,7 @@ import { DeviationType, DeviationCategory, DeviationClassification } from '../..
     <div class="deviation-form-container">
       <div class="page-header">
         <div class="header-left">
-          <button mat-icon-button routerLink="../list">
+          <button mat-icon-button type="button" (click)="backToList()">
             <mat-icon>arrow_back</mat-icon>
           </button>
           <div>
@@ -311,6 +311,10 @@ export class DeviationFormComponent {
     return category.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
   }
 
+  backToList(): void {
+    this.router.navigate(['/deviations/list']);
+  }
+
   submitDeviation(): void {
     if (this.eventForm.valid && this.locationForm.valid) {
       const deviationData = {
@@ -328,7 +332,7 @@ export class DeviationFormComponent {
           'View',
           { duration: 5000 }
         );
-        this.router.navigate(['../list'], { relativeTo: undefined });
+        this.router.navigate(['/deviations/list']);
       });
     }
   }

@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -37,7 +37,7 @@ import { Capa, RcaMethod } from '../../models/capa.model';
     <div class="rca-container" *ngIf="capa">
       <div class="page-header">
         <div class="header-left">
-          <button mat-icon-button [routerLink]="['../detail', capa.id]">
+          <button mat-icon-button type="button" (click)="backToDetail()">
             <mat-icon>arrow_back</mat-icon>
           </button>
           <div>
@@ -201,7 +201,7 @@ import { Capa, RcaMethod } from '../../models/capa.model';
 
       <!-- Actions -->
       <div class="form-actions">
-        <button mat-stroked-button [routerLink]="['../detail', capa.id]">Cancel</button>
+        <button mat-stroked-button type="button" (click)="backToDetail()">Cancel</button>
         <button mat-raised-button color="primary" (click)="saveRca()">
           <mat-icon>save</mat-icon>
           Save Root Cause Analysis
@@ -547,6 +547,7 @@ export class RootCauseAnalysisComponent implements OnInit {
 
   constructor(
     private route: ActivatedRoute,
+    private router: Router,
     private capaService: CapaService,
     private snackBar: MatSnackBar
   ) {}
@@ -570,6 +571,15 @@ export class RootCauseAnalysisComponent implements OnInit {
 
   selectMethod(method: RcaMethod): void {
     this.selectedMethod = method;
+  }
+
+  backToDetail(): void {
+    if (this.capa?.id) {
+      this.router.navigate(['/capa/detail', this.capa.id]);
+      return;
+    }
+
+    this.router.navigate(['/capa/list']);
   }
 
   addWhyLevel(): void {

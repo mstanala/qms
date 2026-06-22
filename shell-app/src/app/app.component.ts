@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { Router, RouterModule, NavigationEnd } from '@angular/router';
@@ -9,8 +9,10 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
-import { filter } from 'rxjs/operators';
+import { Subject, Subscription, of } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, filter, switchMap, tap } from 'rxjs/operators';
 import { AuthService, AuthUser } from './auth/auth.service';
+import { ProfileApiService, SearchResult } from './profile/profile-api.service';
 
 const API_BASE_URL = 'http://localhost:8082/api/v1';
 
@@ -53,31 +55,44 @@ interface NotificationItem {
       <div class="title-bar">
         <div class="title-bar-left">
           <mat-icon class="app-logo">verified</mat-icon>
-          <span class="app-name">MLabs QMS</span>
+          <span class="app-name">Secure Quality</span>
           <span class="app-divider">|</span>
           <span class="app-module">{{ activeModuleLabel }}</span>
         </div>
         <div class="title-bar-center">
-          <div class="search-box">
-            <mat-icon>search</mat-icon>
-            <input type="text" placeholder="Search records, documents, actions..." />
+          <div class="search-shell">
+            <div class="search-box">
+              <mat-icon>search</mat-icon>
+              <input
+                type="text"
+                placeholder="Search records, documents, actions..."
+                [value]="searchTerm"
+                (input)="onSearchInput(inputValue($event))"
+                (focus)="showSearchPanel = searchTerm.length >= 2"
+                (keydown.enter)="openSearchResult(searchResults[0])"
+                (keydown.escape)="closeSearch()" />
+              <button class="clear-search" type="button" *ngIf="searchTerm" (click)="closeSearch()">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+            <div class="search-panel" *ngIf="showSearchPanel">
+              <div class="search-state" *ngIf="isSearching">Searching...</div>
+              <button class="search-result" type="button" *ngFor="let result of searchResults" (mousedown)="openSearchResult(result)">
+                <mat-icon>{{ searchIcon(result.type) }}</mat-icon>
+                <span class="result-main">
+                  <strong>{{ result.title }}</strong>
+                  <small>{{ result.type }}<ng-container *ngIf="result.number"> · {{ result.number }}</ng-container><ng-container *ngIf="result.status"> · {{ formatStatus(result.status) }}</ng-container></small>
+                </span>
+              </button>
+              <div class="search-state" *ngIf="!isSearching && searchTerm.length >= 2 && searchResults.length === 0">No results found</div>
+              <div class="search-state" *ngIf="searchTerm.length < 2">Type at least 2 characters</div>
+            </div>
           </div>
         </div>
         <div class="title-bar-right">
-          <button class="tb-btn" matTooltip="Notifications" [matMenuTriggerFor]="notifMenu">
+          <button class="tb-btn" matTooltip="Notifications" (click)="openNotifications()">
             <mat-icon [matBadge]="notificationBadge" matBadgeSize="small" matBadgeColor="warn">notifications_none</mat-icon>
           </button>
-          <mat-menu #notifMenu="matMenu" class="notif-menu">
-            <div class="notif-header">Notifications</div>
-            <button mat-menu-item *ngFor="let notification of notifications">
-              <mat-icon>{{ notificationIcon(notification) }}</mat-icon>
-              <span>{{ notification.title || notification.message || notification.recordNumber }}</span>
-            </button>
-            <button mat-menu-item disabled *ngIf="notifications.length === 0">
-              <mat-icon>notifications_off</mat-icon>
-              <span>No notifications</span>
-            </button>
-          </mat-menu>
           <button class="tb-btn" matTooltip="Help">
             <mat-icon>help_outline</mat-icon>
           </button>
@@ -92,9 +107,9 @@ interface NotificationItem {
               <span>{{ currentUser?.email || 'Signed in' }}</span>
             </div>
             <mat-divider></mat-divider>
-            <button mat-menu-item><mat-icon>person</mat-icon><span>My Profile</span></button>
-            <button mat-menu-item><mat-icon>settings</mat-icon><span>Preferences</span></button>
-            <button mat-menu-item><mat-icon>history</mat-icon><span>Activity Log</span></button>
+            <button mat-menu-item routerLink="/profile/me"><mat-icon>person</mat-icon><span>My Profile</span></button>
+            <button mat-menu-item routerLink="/profile/preferences"><mat-icon>settings</mat-icon><span>Preferences</span></button>
+            <button mat-menu-item routerLink="/profile/activity"><mat-icon>history</mat-icon><span>Activity Log</span></button>
             <mat-divider></mat-divider>
             <button mat-menu-item (click)="logout()"><mat-icon>exit_to_app</mat-icon><span>Sign Out</span></button>
           </mat-menu>
@@ -274,11 +289,12 @@ interface NotificationItem {
     .app-divider { color: rgba(255,255,255,0.3); margin: 0 2px; }
     .app-module { font-size: 12px; color: rgba(255,255,255,0.7); }
 
-    .title-bar-center { flex: 1; display: flex; justify-content: center; }
+    .title-bar-center { flex: 1; display: flex; justify-content: center; position: relative; }
+    .search-shell { position: relative; width: 420px; max-width: 100%; }
     .search-box {
       display: flex; align-items: center; gap: 6px;
       background: rgba(255,255,255,0.12); border-radius: 4px;
-      padding: 0 10px; width: 360px; max-width: 100%;
+      padding: 0 8px 0 10px; width: 100%;
     }
     .search-box mat-icon { font-size: 16px; width: 16px; height: 16px; color: rgba(255,255,255,0.5); }
     .search-box input {
@@ -286,6 +302,27 @@ interface NotificationItem {
       font-size: 12px; padding: 5px 0; width: 100%;
     }
     .search-box input::placeholder { color: rgba(255,255,255,0.4); }
+    .clear-search {
+      border: 0; background: transparent; color: rgba(255,255,255,0.6);
+      width: 20px; height: 20px; padding: 0; display: grid; place-items: center; cursor: pointer;
+    }
+    .clear-search mat-icon { font-size: 14px; width: 14px; height: 14px; }
+    .search-panel {
+      position: absolute; z-index: 30; top: 30px; left: 0; right: 0;
+      background: #fff; border: 1px solid #d8dee8; border-radius: 6px;
+      box-shadow: 0 14px 32px rgba(15, 23, 42, 0.22); overflow: hidden;
+    }
+    .search-result {
+      width: 100%; display: flex; align-items: center; gap: 10px; border: 0;
+      background: #fff; padding: 10px 12px; cursor: pointer; text-align: left;
+      border-bottom: 1px solid #eef2f6;
+    }
+    .search-result:hover { background: #f8fafc; }
+    .search-result mat-icon { color: #2C5F7C; font-size: 18px; width: 18px; height: 18px; }
+    .result-main { display: flex; flex-direction: column; min-width: 0; }
+    .result-main strong { color: #1f2937; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .result-main small { color: #667085; font-size: 11px; }
+    .search-state { color: #667085; font-size: 12px; padding: 12px; }
 
     .title-bar-right { display: flex; align-items: center; gap: 4px; }
     .tb-btn {
@@ -396,7 +433,7 @@ interface NotificationItem {
     .status-item { display: flex; align-items: center; }
   `],
 })
-export class AppComponent {
+export class AppComponent implements OnDestroy {
   title = 'QMS Pharma';
   activeModuleLabel = 'Overview';
   currentTime = '';
@@ -411,11 +448,18 @@ export class AppComponent {
   canViewReports = false;
   canViewAuditTrail = false;
   canImportExport = false;
+  searchTerm = '';
+  searchResults: SearchResult[] = [];
+  isSearching = false;
+  showSearchPanel = false;
+  private searchInput$ = new Subject<string>();
+  private searchSubscription: Subscription;
 
   constructor(
     private router: Router,
     public authService: AuthService,
-    private http: HttpClient
+    private http: HttpClient,
+    private profileApi: ProfileApiService
   ) {
     this.updateTime();
     this.updateRouteState(this.router.url);
@@ -427,6 +471,25 @@ export class AppComponent {
         const url = event.urlAfterRedirects || event.url;
         this.updateRouteState(url);
       });
+
+    this.searchSubscription = this.searchInput$.pipe(
+      debounceTime(250),
+      distinctUntilChanged(),
+      tap((term) => {
+        this.isSearching = term.length >= 2;
+        this.showSearchPanel = term.length >= 2;
+      }),
+      switchMap((term) => term.length >= 2
+        ? this.profileApi.search(term).pipe(catchError(() => of({ results: [], total: 0 })))
+        : of({ results: [], total: 0 }))
+    ).subscribe((response) => {
+      this.searchResults = response.results || [];
+      this.isSearching = false;
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.searchSubscription.unsubscribe();
   }
 
   get notificationBadge(): string {
@@ -458,11 +521,53 @@ export class AppComponent {
     this.router.navigate(['/login']);
   }
 
+  inputValue(event: Event): string {
+    return (event.target as HTMLInputElement).value;
+  }
+
+  onSearchInput(value: string): void {
+    this.searchTerm = value;
+    if (value.length < 2) {
+      this.searchResults = [];
+      this.isSearching = false;
+    }
+    this.searchInput$.next(value);
+  }
+
+  closeSearch(): void {
+    this.searchTerm = '';
+    this.searchResults = [];
+    this.showSearchPanel = false;
+    this.isSearching = false;
+  }
+
+  openSearchResult(result?: SearchResult): void {
+    if (!result?.url) return;
+    this.router.navigateByUrl(result.url);
+    this.closeSearch();
+  }
+
+  searchIcon(type: string): string {
+    if (type === 'CAPA') return 'assignment_turned_in';
+    if (type === 'DEVIATION') return 'report_problem';
+    if (type === 'CHANGE_CONTROL') return 'swap_horiz';
+    if (type === 'DOCUMENT') return 'description';
+    return 'task_alt';
+  }
+
+  formatStatus(status: string): string {
+    return status.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+
   notificationIcon(notification: NotificationItem): string {
-    if (notification.priority === 'HIGH' || notification.priority === 'CRITICAL') return 'warning';
-    if (notification.notificationType === 'APPROVAL') return 'how_to_reg';
-    if (notification.notificationType === 'TASK') return 'assignment';
+    if (notification.priority === 'HIGH' || notification.priority === 'URGENT') return 'warning';
+    if (notification.notificationType === 'APPROVAL_REQUIRED') return 'how_to_reg';
+    if (notification.notificationType === 'TASK_ASSIGNED') return 'assignment';
     return notification.isRead ? 'notifications_none' : 'notifications';
+  }
+
+  openNotifications(): void {
+    this.router.navigate(['/notifications']);
   }
 
   private updateRouteState(url: string): void {
@@ -480,6 +585,8 @@ export class AppComponent {
     else if (url.startsWith('/training')) this.activeModuleLabel = 'Training Management';
     else if (url.startsWith('/admin')) this.activeModuleLabel = 'Administration';
     else if (url.startsWith('/tools')) this.activeModuleLabel = 'Tools';
+    else if (url.startsWith('/profile')) this.activeModuleLabel = 'My Account';
+    else if (url.startsWith('/notifications')) this.activeModuleLabel = 'Notifications';
     else this.activeModuleLabel = 'Overview';
   }
 

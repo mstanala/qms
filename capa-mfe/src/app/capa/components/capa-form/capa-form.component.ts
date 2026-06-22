@@ -37,7 +37,7 @@ import { CapaType, CapaSourceType, CapaPriority } from '../../models/capa.model'
     <div class="capa-form-container">
       <div class="page-header">
         <div class="header-left">
-          <button mat-icon-button routerLink="../list">
+          <button mat-icon-button type="button" (click)="backToList()">
             <mat-icon>arrow_back</mat-icon>
           </button>
           <div>
@@ -394,6 +394,10 @@ export class CapaFormComponent {
     return source.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
   }
 
+  backToList(): void {
+    this.router.navigate(['/capa/list']);
+  }
+
   submitCapa(): void {
     if (this.basicForm.valid && this.assignmentForm.valid) {
       const capaData = {
@@ -412,7 +416,7 @@ export class CapaFormComponent {
           'View',
           { duration: 5000 }
         );
-        this.router.navigate(['../list'], { relativeTo: undefined });
+        this.router.navigate(['/capa/list']);
       });
     }
   }

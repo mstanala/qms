@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -33,7 +33,7 @@ import { Capa, CapaStatus } from '../../models/capa.model';
     <div class="capa-detail" *ngIf="capa">
       <div class="page-header">
         <div class="header-left">
-          <button mat-icon-button routerLink="../list" matTooltip="Back to list">
+          <button mat-icon-button type="button" (click)="backToList()" matTooltip="Back to list">
             <mat-icon>arrow_back</mat-icon>
           </button>
           <div>
@@ -838,6 +838,7 @@ export class CapaDetailComponent implements OnInit {
 
   constructor(
     private route: ActivatedRoute,
+    private router: Router,
     private capaService: CapaService
   ) {}
 
@@ -848,6 +849,10 @@ export class CapaDetailComponent implements OnInit {
         this.capa = data || null;
       });
     }
+  }
+
+  backToList(): void {
+    this.router.navigate(['/capa/list']);
   }
 
   formatStatus(status: string): string {
