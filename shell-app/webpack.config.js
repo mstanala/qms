@@ -5,6 +5,7 @@ module.exports = withModuleFederationPlugin({
     capaMfe: 'http://localhost:4201/remoteEntry.js',
     deviationMfe: 'http://localhost:4202/remoteEntry.js',
     changeControlMfe: 'http://localhost:4203/remoteEntry.js',
+    qmsCoreMfe: 'http://localhost:4206/remoteEntry.js',
   },
 
   shared: {

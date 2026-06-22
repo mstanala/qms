@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://qmspharma.com/complaint"
+             id="complaintDefinitions">
+
+    <process id="complaintProcess" name="Complaint Management Process" isExecutable="true">
+        <startEvent id="start" name="Complaint Received"/>
+        <sequenceFlow id="flow-start-triage" sourceRef="start" targetRef="triage"/>
+
+        <userTask id="triage" name="Complaint Triage"
+                  flowable:candidateGroups="QA_REVIEWER,QA_APPROVER"
+                  flowable:formKey="complaint-triage"/>
+        <sequenceFlow id="flow-triage-investigation" sourceRef="triage" targetRef="investigation"/>
+
+        <userTask id="investigation" name="Complaint Investigation"
+                  flowable:candidateGroups="QA_REVIEWER"
+                  flowable:formKey="complaint-investigation"/>
+        <sequenceFlow id="flow-investigation-response" sourceRef="investigation" targetRef="response"/>
+
+        <userTask id="response" name="Customer Response"
+                  flowable:candidateGroups="QA_APPROVER"
+                  flowable:formKey="complaint-response"/>
+        <sequenceFlow id="flow-response-closure" sourceRef="response" targetRef="closure"/>
+
+        <userTask id="closure" name="Complaint Closure"
+                  flowable:candidateGroups="QA_APPROVER"
+                  flowable:formKey="complaint-closure"/>
+        <sequenceFlow id="flow-closure-end" sourceRef="closure" targetRef="end"/>
+        <endEvent id="end" name="Complaint Closed"/>
+    </process>
+</definitions>

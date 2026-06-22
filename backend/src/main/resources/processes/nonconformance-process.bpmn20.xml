@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://qmspharma.com/nonconformance"
+             id="nonconformanceDefinitions">
+
+    <process id="nonconformanceProcess" name="Nonconformance Management Process" isExecutable="true">
+        <startEvent id="start" name="Nonconformance Identified"/>
+        <sequenceFlow id="flow-start-review" sourceRef="start" targetRef="review"/>
+
+        <userTask id="review" name="NC Review"
+                  flowable:candidateGroups="QA_REVIEWER"
+                  flowable:formKey="nc-review"/>
+        <sequenceFlow id="flow-review-investigation" sourceRef="review" targetRef="investigation"/>
+
+        <userTask id="investigation" name="NC Investigation"
+                  flowable:candidateGroups="QA_REVIEWER,OWNER"
+                  flowable:formKey="nc-investigation"/>
+        <sequenceFlow id="flow-investigation-disposition" sourceRef="investigation" targetRef="disposition"/>
+
+        <userTask id="disposition" name="Disposition Approval"
+                  flowable:candidateGroups="QA_APPROVER"
+                  flowable:formKey="nc-disposition"/>
+        <sequenceFlow id="flow-disposition-closure" sourceRef="disposition" targetRef="closure"/>
+
+        <userTask id="closure" name="NC Closure"
+                  flowable:candidateGroups="QA_APPROVER"
+                  flowable:formKey="nc-closure"/>
+        <sequenceFlow id="flow-closure-end" sourceRef="closure" targetRef="end"/>
+        <endEvent id="end" name="Nonconformance Closed"/>
+    </process>
+</definitions>
