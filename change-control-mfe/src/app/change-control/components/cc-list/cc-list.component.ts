@@ -142,20 +142,20 @@ import { ChangeRequest, ChangeStatus, ChangeClassification, ChangeType, ChangePr
 
             <ng-container matColumnDef="actions">
               <th mat-header-cell *matHeaderCellDef></th>
-              <td mat-cell *matCellDef="let cr">
-                <button mat-icon-button [matMenuTriggerFor]="menu">
+              <td mat-cell *matCellDef="let cr" (click)="stopRowNavigation($event)">
+                <button mat-icon-button type="button" [matMenuTriggerFor]="menu" (click)="stopRowNavigation($event)">
                   <mat-icon>more_vert</mat-icon>
                 </button>
                 <mat-menu #menu="matMenu">
-                  <button mat-menu-item [routerLink]="['../detail', cr.id]">
+                  <button mat-menu-item [routerLink]="['../detail', cr.id]" (click)="stopRowNavigation($event)">
                     <mat-icon>visibility</mat-icon>
                     <span>View Details</span>
                   </button>
-                  <button mat-menu-item>
+                  <button mat-menu-item type="button" (click)="stopRowNavigation($event)">
                     <mat-icon>edit</mat-icon>
                     <span>Edit</span>
                   </button>
-                  <button mat-menu-item>
+                  <button mat-menu-item type="button" (click)="stopRowNavigation($event)">
                     <mat-icon>history</mat-icon>
                     <span>Audit Trail</span>
                   </button>
@@ -260,6 +260,10 @@ export class CcListComponent implements OnInit {
       this.changes = data;
       this.filteredChanges = data;
     });
+  }
+
+  stopRowNavigation(event: MouseEvent): void {
+    event.stopPropagation();
   }
 
   onFilterChange(): void {

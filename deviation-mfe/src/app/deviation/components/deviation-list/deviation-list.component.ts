@@ -147,20 +147,20 @@ import { Deviation, DeviationStatus, DeviationClassification, DeviationCategory 
 
             <ng-container matColumnDef="actions">
               <th mat-header-cell *matHeaderCellDef></th>
-              <td mat-cell *matCellDef="let dev">
-                <button mat-icon-button [matMenuTriggerFor]="menu">
+              <td mat-cell *matCellDef="let dev" (click)="stopRowNavigation($event)">
+                <button mat-icon-button type="button" [matMenuTriggerFor]="menu" (click)="stopRowNavigation($event)">
                   <mat-icon>more_vert</mat-icon>
                 </button>
                 <mat-menu #menu="matMenu">
-                  <button mat-menu-item [routerLink]="['../detail', dev.id]">
+                  <button mat-menu-item [routerLink]="['../detail', dev.id]" (click)="stopRowNavigation($event)">
                     <mat-icon>visibility</mat-icon>
                     <span>View Details</span>
                   </button>
-                  <button mat-menu-item>
+                  <button mat-menu-item type="button" (click)="stopRowNavigation($event)">
                     <mat-icon>edit</mat-icon>
                     <span>Edit</span>
                   </button>
-                  <button mat-menu-item>
+                  <button mat-menu-item type="button" (click)="stopRowNavigation($event)">
                     <mat-icon>history</mat-icon>
                     <span>Audit Trail</span>
                   </button>
@@ -261,6 +261,10 @@ export class DeviationListComponent implements OnInit {
       this.deviations = data;
       this.filteredDeviations = data;
     });
+  }
+
+  stopRowNavigation(event: MouseEvent): void {
+    event.stopPropagation();
   }
 
   onFilterChange(): void {

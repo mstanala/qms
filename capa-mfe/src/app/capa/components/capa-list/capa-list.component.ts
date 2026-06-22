@@ -138,20 +138,20 @@ import { Capa, CapaStatus, CapaPriority } from '../../models/capa.model';
 
             <ng-container matColumnDef="actions">
               <th mat-header-cell *matHeaderCellDef>Actions</th>
-              <td mat-cell *matCellDef="let capa">
-                <button mat-icon-button [matMenuTriggerFor]="menu" matTooltip="Actions">
+              <td mat-cell *matCellDef="let capa" (click)="stopRowNavigation($event)">
+                <button mat-icon-button type="button" [matMenuTriggerFor]="menu" matTooltip="Actions" (click)="stopRowNavigation($event)">
                   <mat-icon>more_vert</mat-icon>
                 </button>
                 <mat-menu #menu="matMenu">
-                  <button mat-menu-item [routerLink]="['../detail', capa.id]">
+                  <button mat-menu-item [routerLink]="['../detail', capa.id]" (click)="stopRowNavigation($event)">
                     <mat-icon>visibility</mat-icon>
                     <span>View Details</span>
                   </button>
-                  <button mat-menu-item [routerLink]="['../rca', capa.id]">
+                  <button mat-menu-item [routerLink]="['../rca', capa.id]" (click)="stopRowNavigation($event)">
                     <mat-icon>psychology</mat-icon>
                     <span>Root Cause Analysis</span>
                   </button>
-                  <button mat-menu-item>
+                  <button mat-menu-item type="button" (click)="stopRowNavigation($event)">
                     <mat-icon>history</mat-icon>
                     <span>Audit Trail</span>
                   </button>
@@ -338,6 +338,10 @@ export class CapaListComponent implements OnInit {
       this.capas = data;
       this.filteredCapas = data;
     });
+  }
+
+  stopRowNavigation(event: MouseEvent): void {
+    event.stopPropagation();
   }
 
   onFilterChange(): void {
