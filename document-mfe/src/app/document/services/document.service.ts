@@ -20,6 +20,7 @@ function daysFromNow(days: number): Date {
 @Injectable({ providedIn: 'root' })
 export class DocumentService {
   private readonly apiUrl = `${API_BASE_URL}/documents`;
+  private readonly attachmentApiUrl = `${API_BASE_URL}/attachments`;
 
   constructor(private http: HttpClient) {}
 
@@ -59,6 +60,17 @@ export class DocumentService {
     return this.http
       .post<any>(this.apiUrl, payload, { headers: this.authHeaders() })
       .pipe(map(item => this.toDocument(item)));
+  }
+
+  uploadAttachment(file: File, recordType: string, recordId: string, category = 'OTHER', description?: string): Observable<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('recordType', recordType);
+    formData.append('recordId', recordId);
+    formData.append('category', category);
+    if (description) formData.append('description', description);
+
+    return this.http.post<any>(this.attachmentApiUrl, formData, { headers: this.authHeaders() });
   }
 
   getDashboardMetrics(): Observable<DocumentDashboardMetrics> {
