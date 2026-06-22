@@ -3,5 +3,6 @@
   "deviationMfe": "http://localhost:4202/remoteEntry.js",
   "changeControlMfe": "http://localhost:4203/remoteEntry.js",
   "documentMfe": "http://localhost:4204/remoteEntry.js",
-  "trainingMfe": "http://localhost:4205/remoteEntry.js"
+  "trainingMfe": "http://localhost:4205/remoteEntry.js",
+  "qmsCoreMfe": "http://localhost:4206/remoteEntry.js"
 }

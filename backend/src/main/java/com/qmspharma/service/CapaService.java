@@ -27,8 +27,6 @@ public class CapaService {
 
     private final CapaRepository capaRepository;
     private final CapaRootCauseAnalysisRepository rcaRepository;
-    private final CapaFiveWhyEntryRepository fiveWhyRepository;
-    private final CapaFishboneCategoryRepository fishboneRepository;
     private final CapaRiskAssessmentRepository riskAssessmentRepository;
     private final CapaActionRepository actionRepository;
     private final CapaEffectivenessCheckRepository effectivenessCheckRepository;
@@ -194,25 +192,25 @@ public class CapaService {
         rca = rcaRepository.save(rca);
 
         if (request.getFiveWhyEntries() != null) {
-            fiveWhyRepository.deleteAll(rca.getFiveWhyEntries());
+            rca.getFiveWhyEntries().clear();
             for (var entry : request.getFiveWhyEntries()) {
                 CapaFiveWhyEntry fwe = new CapaFiveWhyEntry();
                 fwe.setRca(rca);
                 fwe.setLevel(entry.getLevel());
                 fwe.setQuestion(entry.getQuestion());
                 fwe.setAnswer(entry.getAnswer());
-                fiveWhyRepository.save(fwe);
+                rca.getFiveWhyEntries().add(fwe);
             }
         }
 
         if (request.getFishboneCategories() != null) {
-            fishboneRepository.deleteAll(rca.getFishboneCategories());
+            rca.getFishboneCategories().clear();
             for (var cat : request.getFishboneCategories()) {
                 CapaFishboneCategory fc = new CapaFishboneCategory();
                 fc.setRca(rca);
                 fc.setCategoryName(cat.getCategoryName());
                 fc.setCauses(cat.getCauses());
-                fishboneRepository.save(fc);
+                rca.getFishboneCategories().add(fc);
             }
         }
 

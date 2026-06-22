@@ -1,0 +1,16 @@
+@import '@angular/material/prebuilt-themes/indigo-pink.css';
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: Roboto, "Helvetica Neue", sans-serif;
+}
+
+a {
+  color: #1976d2;
+  text-decoration: none;
+}
+
+.mat-mdc-card {
+  border-radius: 8px !important;
+}

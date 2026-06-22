@@ -203,3 +203,115 @@ Create a new Angular app on a new port (e.g., 4202)
 Configure webpack to expose its routes
 Add the remote entry to shell-app/src/assets/mf.manifest.json
 Add a route in shell-app/src/app/app.routes.ts.
+----------------
+
+Flowable Testing
+----------------
+Flowable is integrated as a backend workflow engine for CAPA, Deviations, and Change Control. The UI/business APIs still drive the process, but each major business action also starts or
+advances a Flowable process.
+
+How It Works
+On app startup, Flowable auto-deploys these BPMN files:
+
+- capaProcess: backend/src/main/resources/processes/capa-process.bpmn20.xml:6
+- deviationProcess: backend/src/main/resources/processes/deviation-process.bpmn20.xml:7
+- changeControlProcess: backend/src/main/resources/processes/change-control-process.bpmn20.xml:6
+
+When a record is created, backend starts a Flowable process using WorkflowService.startProcess(...).
+
+Examples:
+
+- CAPA create starts capaProcess
+- Deviation create starts deviationProcess
+- Change Request create starts changeControlProcess
+
+Then when you perform business actions, backend completes the matching Flowable task:
+
+- CAPA QA review completes qaReview
+- CAPA Root Cause Analysis completes investigation
+- CAPA Risk Assessment completes riskAssessment
+- Deviation classification completes qaReview
+- Deviation investigation completes investigation
+- Change Control status transitions complete tasks like submitChange, impactAssessment, qaReview, etc.
+
+The app also writes its own simplified workflow history into workflow_history, so there are two layers:
+
+- Flowable tables: active engine state and tasks
+- workflow_history: app-facing history displayed by APIs like /workflow-history
+
+How To Test
+
+1. Confirm BPMN processes deployed in DB:
+
+select key_, name_, version_
+from act_re_procdef
+order by key_, version_;
+
+Expected keys:
+
+capaProcess
+deviationProcess
+changeControlProcess
+
+2. Create a new CAPA, Deviation, or Change Control record from UI/API.
+
+Then check active Flowable tasks:
+
+select id_, name_, task_def_key_, proc_inst_id_, assignee_
+from act_ru_task
+order by create_time_ desc;
+
+For a newly created CAPA, expect an active task like:
+
+QA Review / qaReview
+
+For a newly created Deviation:
+
+QA Review & Classification / qaReview
+
+For a newly created Change Control:
+
+Complete & Submit Change Request / submitChange
+
+3. Test through backend task inbox API:
+
+curl -H "Authorization: Bearer <TOKEN>" \
+"http://localhost:8082/api/v1/tasks/by-record-type/CAPA"
+
+Also:
+
+curl -H "Authorization: Bearer <TOKEN>" \
+"http://localhost:8082/api/v1/tasks/inbox?candidateGroups=QA_REVIEWER&candidateGroups=QA_APPROVER"
+
+4. Advance the record through the normal business API/UI action.
+
+Example: approve/review CAPA status, then submit RCA. After each step, check:
+
+select id_, name_, task_def_key_, proc_inst_id_, assignee_
+from act_ru_task
+order by create_time_ desc;
+
+The active task should move forward, for example:
+
+qaReview -> investigation -> riskAssessment -> actionPlanning
+
+5. Verify app workflow history:
+
+curl -H "Authorization: Bearer <TOKEN>" \
+"http://localhost:8082/api/v1/capas/<CAPA_ID>/workflow-history"
+
+Similar endpoints:
+
+GET /api/v1/deviations/{id}/workflow-history
+GET /api/v1/change-requests/{id}/workflow-history
+
+Important Caveat
+Current backend WorkflowService logs Flowable failures but does not always fail the business transaction. So if Flowable breaks, the record may still save, but workflow tasks may not be created or
+advanced. The strongest indicators that Flowable is working are:
+
+- records appear in ACT_RU_TASK
+- process definitions exist in ACT_RE_PROCDEF
+- task inbox API returns active tasks
+- tasks move to the next BPMN step after business actions
+- backend logs show messages like Started process... and Completed task...
+-----------

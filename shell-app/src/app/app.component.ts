@@ -213,6 +213,30 @@ interface NotificationItem {
           <mat-icon>school</mat-icon>
           <span>Training</span>
         </a>
+        <a class="mod-tab" routerLink="/risk" routerLinkActive="active">
+          <mat-icon>warning_amber</mat-icon>
+          <span>Risk</span>
+        </a>
+        <a class="mod-tab" routerLink="/audit" routerLinkActive="active">
+          <mat-icon>fact_check</mat-icon>
+          <span>Audit</span>
+        </a>
+        <a class="mod-tab" routerLink="/supplier" routerLinkActive="active">
+          <mat-icon>local_shipping</mat-icon>
+          <span>Supplier</span>
+        </a>
+        <a class="mod-tab" routerLink="/complaint" routerLinkActive="active">
+          <mat-icon>feedback</mat-icon>
+          <span>Complaints</span>
+        </a>
+        <a class="mod-tab" routerLink="/nonconformance" routerLinkActive="active">
+          <mat-icon>block</mat-icon>
+          <span>NC</span>
+        </a>
+        <a class="mod-tab" routerLink="/equipment" routerLinkActive="active">
+          <mat-icon>precision_manufacturing</mat-icon>
+          <span>Equipment</span>
+        </a>
         <div class="tab-spacer"></div>
         <div class="tab-actions">
           <button class="quick-action-btn" [matMenuTriggerFor]="quickCreate" matTooltip="Quick Create">
@@ -583,6 +607,12 @@ export class AppComponent implements OnDestroy {
     else if (url.startsWith('/change-control')) this.activeModuleLabel = 'Change Control';
     else if (url.startsWith('/documents')) this.activeModuleLabel = 'Document Control';
     else if (url.startsWith('/training')) this.activeModuleLabel = 'Training Management';
+    else if (url.startsWith('/risk')) this.activeModuleLabel = 'Risk Management';
+    else if (url.startsWith('/audit')) this.activeModuleLabel = 'Audit Management';
+    else if (url.startsWith('/supplier')) this.activeModuleLabel = 'Supplier Quality';
+    else if (url.startsWith('/complaint')) this.activeModuleLabel = 'Complaint Management';
+    else if (url.startsWith('/nonconformance')) this.activeModuleLabel = 'Nonconformance';
+    else if (url.startsWith('/equipment')) this.activeModuleLabel = 'Equipment & Calibration';
     else if (url.startsWith('/admin')) this.activeModuleLabel = 'Administration';
     else if (url.startsWith('/tools')) this.activeModuleLabel = 'Tools';
     else if (url.startsWith('/profile')) this.activeModuleLabel = 'My Account';

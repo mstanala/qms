@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -135,18 +136,31 @@ export class ToolsAuditTrailComponent implements OnInit {
 
   constructor(
     private fb: FormBuilder,
+    private route: ActivatedRoute,
     private api: ToolsApiService,
     private snackBar: MatSnackBar
   ) {}
 
   ngOnInit(): void {
-    this.loadRecords('CAPA');
+    this.route.queryParamMap.subscribe((params) => {
+      const recordType = this.normalizeRecordType(params.get('recordType')) || 'CAPA';
+      const recordId = params.get('recordId') || '';
+
+      this.filterForm.patchValue({ recordType, recordId });
+      this.loadRecords(recordType, Boolean(recordId));
+
+      if (recordId) {
+        this.loadAuditTrail();
+      }
+    });
   }
 
-  loadRecords(recordType: 'CAPA' | 'DEVIATION' | 'CHANGE_CONTROL'): void {
+  loadRecords(recordType: 'CAPA' | 'DEVIATION' | 'CHANGE_CONTROL', preserveSelection = false): void {
     this.records = [];
-    this.entries = [];
-    this.filterForm.patchValue({ recordId: '' });
+    if (!preserveSelection) {
+      this.entries = [];
+      this.filterForm.patchValue({ recordId: '' });
+    }
     this.api.getRecords(recordType, 50).subscribe({
       next: (page) => this.records = this.api.toRecordSummaries(recordType, page),
       error: () => this.snackBar.open('Unable to load recent records', 'Dismiss', { duration: 3500 }),
@@ -175,5 +189,10 @@ export class ToolsAuditTrailComponent implements OnInit {
 
   trackById(_index: number, item: { id: string }): string {
     return item.id;
+  }
+
+  private normalizeRecordType(value: string | null): 'CAPA' | 'DEVIATION' | 'CHANGE_CONTROL' | null {
+    if (value === 'CAPA' || value === 'DEVIATION' || value === 'CHANGE_CONTROL') return value;
+    return null;
   }
 }

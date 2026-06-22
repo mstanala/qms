@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { of, switchMap, map } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -165,16 +166,28 @@ export class DocFormComponent {
   }
 
   saveDraft(): void {
-    this.docService.createDocument(this.doc).subscribe({
+    this.createDocumentWithAttachment().subscribe({
       next: (created) => this.router.navigate(['/documents/detail', created.id]),
       error: () => alert('Draft saved (mock mode)'),
     });
   }
 
   submitForReview(): void {
-    this.docService.createDocument(this.doc).subscribe({
+    this.createDocumentWithAttachment().subscribe({
       next: () => this.router.navigate(['/documents/list']),
       error: () => alert('Submitted for review (mock mode)'),
     });
+  }
+
+  private createDocumentWithAttachment() {
+    return this.docService.createDocument(this.doc).pipe(
+      switchMap((created) => {
+        if (!this.selectedFile) return of(created);
+
+        return this.docService
+          .uploadAttachment(this.selectedFile, 'DOCUMENT', created.id, 'OTHER', 'Initial document upload')
+          .pipe(map(() => created));
+      })
+    );
   }
 }

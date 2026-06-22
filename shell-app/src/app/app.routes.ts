@@ -83,6 +83,66 @@ export const routes: Routes = [
       }).then((m) => m.TRAINING_ROUTES),
   },
   {
+    path: 'risk',
+    canActivate: [authGuard],
+    loadChildren: () =>
+      loadRemoteModule({
+        type: 'manifest',
+        remoteName: 'qmsCoreMfe',
+        exposedModule: './RiskModule',
+      }).then((m) => m.RISK_ROUTES),
+  },
+  {
+    path: 'audit',
+    canActivate: [authGuard],
+    loadChildren: () =>
+      loadRemoteModule({
+        type: 'manifest',
+        remoteName: 'qmsCoreMfe',
+        exposedModule: './AuditModule',
+      }).then((m) => m.AUDIT_ROUTES),
+  },
+  {
+    path: 'supplier',
+    canActivate: [authGuard],
+    loadChildren: () =>
+      loadRemoteModule({
+        type: 'manifest',
+        remoteName: 'qmsCoreMfe',
+        exposedModule: './SupplierModule',
+      }).then((m) => m.SUPPLIER_ROUTES),
+  },
+  {
+    path: 'complaint',
+    canActivate: [authGuard],
+    loadChildren: () =>
+      loadRemoteModule({
+        type: 'manifest',
+        remoteName: 'qmsCoreMfe',
+        exposedModule: './ComplaintModule',
+      }).then((m) => m.COMPLAINT_ROUTES),
+  },
+  {
+    path: 'nonconformance',
+    canActivate: [authGuard],
+    loadChildren: () =>
+      loadRemoteModule({
+        type: 'manifest',
+        remoteName: 'qmsCoreMfe',
+        exposedModule: './NonconformanceModule',
+      }).then((m) => m.NONCONFORMANCE_ROUTES),
+  },
+  {
+    path: 'equipment',
+    canActivate: [authGuard],
+    loadChildren: () =>
+      loadRemoteModule({
+        type: 'manifest',
+        remoteName: 'qmsCoreMfe',
+        exposedModule: './EquipmentModule',
+      }).then((m) => m.EQUIPMENT_ROUTES),
+  },
+  {
     path: 'admin',
     canActivate: [authGuard, adminGuard],
     children: [
