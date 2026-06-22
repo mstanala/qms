@@ -39,7 +39,7 @@ import { ChangeType, ChangeCategory, ChangeClassification, ChangePriority, Impac
     <div class="cc-form-container">
       <div class="page-header">
         <div class="header-left">
-          <button mat-icon-button routerLink="../list">
+          <button mat-icon-button type="button" (click)="backToList()">
             <mat-icon>arrow_back</mat-icon>
           </button>
           <div>
@@ -315,6 +315,10 @@ export class CcFormComponent {
   formatEnum(value: string): string {
     if (!value) return '';
     return value.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+  }
+
+  backToList(): void {
+    this.router.navigate(['/change-control/list']);
   }
 
   saveDraft(): void {

@@ -12,6 +12,10 @@ import { ToolsReportsComponent } from './tools/tools-reports.component';
 import { ToolsAnalyticsComponent } from './tools/tools-analytics.component';
 import { ToolsAuditTrailComponent } from './tools/tools-audit-trail.component';
 import { ToolsImportExportComponent } from './tools/tools-import-export.component';
+import { MyProfileComponent } from './profile/my-profile.component';
+import { PreferencesComponent } from './profile/preferences.component';
+import { ActivityLogComponent } from './profile/activity-log.component';
+import { NotificationsComponent } from './notifications/notifications.component';
 
 export const routes: Routes = [
   {
@@ -99,6 +103,21 @@ export const routes: Routes = [
       { path: 'audit-trail', component: ToolsAuditTrailComponent },
       { path: 'import-export', component: ToolsImportExportComponent },
     ],
+  },
+  {
+    path: 'profile',
+    canActivate: [authGuard],
+    children: [
+      { path: '', redirectTo: 'me', pathMatch: 'full' },
+      { path: 'me', component: MyProfileComponent },
+      { path: 'preferences', component: PreferencesComponent },
+      { path: 'activity', component: ActivityLogComponent },
+    ],
+  },
+  {
+    path: 'notifications',
+    component: NotificationsComponent,
+    canActivate: [authGuard],
   },
   {
     path: '**',

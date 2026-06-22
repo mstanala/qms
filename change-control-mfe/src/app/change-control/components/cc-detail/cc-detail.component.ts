@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -31,7 +31,7 @@ import { ChangeRequest, ChangeStatus } from '../../models/change-control.model';
     <div class="cc-detail" *ngIf="cr">
       <div class="page-header">
         <div class="header-left">
-          <button mat-icon-button routerLink="../list" matTooltip="Back to register">
+          <button mat-icon-button type="button" (click)="backToList()" matTooltip="Back to register">
             <mat-icon>arrow_back</mat-icon>
           </button>
           <div>
@@ -537,6 +537,7 @@ export class CcDetailComponent implements OnInit {
 
   constructor(
     private route: ActivatedRoute,
+    private router: Router,
     private ccService: ChangeControlService
   ) {}
 
@@ -547,6 +548,10 @@ export class CcDetailComponent implements OnInit {
         this.cr = data || null;
       });
     }
+  }
+
+  backToList(): void {
+    this.router.navigate(['/change-control/list']);
   }
 
   formatStatus(status: string): string {

@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -16,7 +16,7 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
       <!-- Record Header -->
       <div class="record-header">
         <div class="record-breadcrumb">
-          <a routerLink="../list" class="breadcrumb-link">Deviations</a>
+          <button type="button" class="breadcrumb-link breadcrumb-button" (click)="backToList()">Deviations</button>
         </div>
         <div class="record-title-row">
           <div class="record-id-group">
@@ -25,7 +25,9 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
           </div>
           <div class="record-actions">
             <span class="record-meta">{{ deviation.type }} | {{ deviation.classification }}</span>
-            <button mat-icon-button matTooltip="Attachments"><mat-icon>attach_file</mat-icon></button>
+            <button mat-icon-button type="button" matTooltip="Attachments" (click)="showSection('attachments')">
+              <mat-icon>attach_file</mat-icon>
+            </button>
             <button mat-icon-button matTooltip="Copy"><mat-icon>content_copy</mat-icon></button>
             <button mat-icon-button matTooltip="More"><mat-icon>more_horiz</mat-icon></button>
           </div>
@@ -48,24 +50,24 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
         <div class="vault-sidebar">
           <div class="sidebar-section">
             <div class="sidebar-section-title">General Information</div>
-            <a class="sidebar-item" [ngClass]="{'active': activeSection === 'general'}" (click)="activeSection = 'general'">General Details</a>
-            <a class="sidebar-item" [ngClass]="{'active': activeSection === 'timeline'}" (click)="activeSection = 'timeline'">Timeline & Assignment</a>
-            <a class="sidebar-item" [ngClass]="{'active': activeSection === 'product'}" (click)="activeSection = 'product'">Product & Batch Info</a>
+            <button type="button" class="sidebar-item" [ngClass]="{'active': activeSection === 'general'}" (click)="showSection('general')">General Details</button>
+            <button type="button" class="sidebar-item" [ngClass]="{'active': activeSection === 'timeline'}" (click)="showSection('timeline')">Timeline & Assignment</button>
+            <button type="button" class="sidebar-item" [ngClass]="{'active': activeSection === 'product'}" (click)="showSection('product')">Product & Batch Info</button>
           </div>
           <div class="sidebar-section">
             <div class="sidebar-section-title">Investigations & Root Causes</div>
-            <a class="sidebar-item" [ngClass]="{'active': activeSection === 'investigation'}" (click)="activeSection = 'investigation'">Investigation ({{ deviation.investigation ? 1 : 0 }})</a>
-            <a class="sidebar-item" [ngClass]="{'active': activeSection === 'rootcause'}" (click)="activeSection = 'rootcause'">Root Cause Analysis ({{ deviation.investigation ? 1 : 0 }})</a>
+            <button type="button" class="sidebar-item" [ngClass]="{'active': activeSection === 'investigation'}" (click)="showSection('investigation')">Investigation ({{ deviation.investigation ? 1 : 0 }})</button>
+            <button type="button" class="sidebar-item" [ngClass]="{'active': activeSection === 'rootcause'}" (click)="showSection('rootcause')">Root Cause Analysis ({{ deviation.investigation ? 1 : 0 }})</button>
           </div>
           <div class="sidebar-section">
             <div class="sidebar-section-title">Assessment & Disposition</div>
-            <a class="sidebar-item" [ngClass]="{'active': activeSection === 'impact'}" (click)="activeSection = 'impact'">Impact Assessment</a>
-            <a class="sidebar-item" [ngClass]="{'active': activeSection === 'disposition'}" (click)="activeSection = 'disposition'">Disposition</a>
+            <button type="button" class="sidebar-item" [ngClass]="{'active': activeSection === 'impact'}" (click)="showSection('impact')">Impact Assessment</button>
+            <button type="button" class="sidebar-item" [ngClass]="{'active': activeSection === 'disposition'}" (click)="showSection('disposition')">Disposition</button>
           </div>
           <div class="sidebar-section">
             <div class="sidebar-section-title">Related Records</div>
-            <a class="sidebar-item" [ngClass]="{'active': activeSection === 'attachments'}" (click)="activeSection = 'attachments'">Attachments ({{ deviation.attachments.length }})</a>
-            <a class="sidebar-item" [ngClass]="{'active': activeSection === 'audit'}" (click)="activeSection = 'audit'">Audit Trail ({{ deviation.auditTrail.length }})</a>
+            <button type="button" class="sidebar-item" [ngClass]="{'active': activeSection === 'attachments'}" (click)="showSection('attachments')">Attachments ({{ deviation.attachments.length }})</button>
+            <button type="button" class="sidebar-item" [ngClass]="{'active': activeSection === 'audit'}" (click)="showSection('audit')">Audit Trail ({{ deviation.auditTrail.length }})</button>
           </div>
         </div>
 
@@ -380,7 +382,7 @@ import { Deviation, DeviationStatus } from '../../models/deviation.model';
     .vault-sidebar { width: 220px; min-width: 220px; background: #fff; border-right: 1px solid #e0e0e0; padding: 16px 0; }
     .sidebar-section { margin-bottom: 8px; }
     .sidebar-section-title { padding: 8px 16px 4px; font-size: 11px; font-weight: 700; color: #2C5F7C; text-transform: uppercase; letter-spacing: 0.3px; }
-    .sidebar-item { display: block; padding: 6px 16px 6px 24px; font-size: 13px; color: #333; cursor: pointer; text-decoration: none; border-left: 3px solid transparent; }
+    .sidebar-item { display: block; width: 100%; padding: 6px 16px 6px 24px; font-size: 13px; color: #333; cursor: pointer; text-align: left; text-decoration: none; border: 0; border-left: 3px solid transparent; background: transparent; font-family: inherit; }
     .sidebar-item:hover { background: #f5f5f5; }
     .sidebar-item.active { border-left-color: #ED8B00; background: #FFF8E1; color: #2C5F7C; font-weight: 500; }
 
@@ -472,6 +474,7 @@ export class DeviationDetailComponent implements OnInit {
 
   constructor(
     private route: ActivatedRoute,
+    private router: Router,
     private deviationService: DeviationService
   ) {}
 
@@ -486,6 +489,19 @@ export class DeviationDetailComponent implements OnInit {
 
   toggleSection(section: string): void {
     this.expandedSections[section] = !this.expandedSections[section];
+  }
+
+  showSection(section: string): void {
+    this.activeSection = section;
+
+    const expandableSection = `${section}Info`;
+    if (expandableSection in this.expandedSections) {
+      this.expandedSections[expandableSection] = true;
+    }
+  }
+
+  backToList(): void {
+    this.router.navigate(['/deviations/list']);
   }
 
   formatStatus(status: string): string {
