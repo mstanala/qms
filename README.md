@@ -315,3 +315,201 @@ advanced. The strongest indicators that Flowable is working are:
 - tasks move to the next BPMN step after business actions
 - backend logs show messages like Started process... and Completed task...
 -----------
+SOP stands for Standard Operating Procedure.
+
+In Pharma QMS, an SOP is a controlled document that describes the approved step-by-step process for performing a specific activity consistently and in compliance with regulatory requirements.
+
+Example SOPs in a Pharmaceutical Company
+SOP Number
+
+SOP Title
+
+SOP-001
+
+Deviation Management Procedure
+
+SOP-002
+
+CAPA Management Procedure
+
+SOP-003
+
+Change Control Procedure
+
+SOP-004
+
+Equipment Calibration Procedure
+
+SOP-005
+
+Document Control Procedure
+
+SOP-006
+
+Training Management Procedure
+
+SOP-007
+
+Audit Management Procedure
+
+SOP-008
+
+Complaint Handling Procedure
+
+SOP-009
+
+Risk Management Procedure
+
+SOP-010
+
+Supplier Qualification Procedure
+Typical SOP Structure
+
+1. Purpose
+
+Why the procedure exists.
+
+Example:
+
+To establish a process for identifying, investigating, documenting, and closing deviations.
+
+2. Scope
+
+Who and what the SOP applies to.
+
+Example:
+
+Applicable to all manufacturing, quality control, and quality assurance personnel.
+
+3. Responsibilities
+
+Defines user roles.
+ole
+
+Responsibility
+
+Operator
+
+Report deviations
+
+QA Reviewer
+
+Review investigations
+
+QA Manager
+
+Approve closure
+4. Procedure
+
+Step-by-step instructions.
+
+Example:
+1. Identify deviation.
+2. Create deviation record.
+3. Assign investigator.
+4. Perform root cause analysis.
+5. Complete risk assessment.
+6. Create CAPA if required.
+7. Verify effectiveness.
+8. Close deviation.
+5. References
+
+Examples:
+
+* 21 CFR Part 11
+* EU Annex 11
+* ICH Q9
+* Internal Policies
+
+6. Forms and Attachments
+
+Examples:
+
+* Deviation Form
+* CAPA Form
+* Risk Assessment Form
+
+⸻
+
+SOP Lifecycle in Your QMS
+
+Since you already implemented Document Management + Training Management + Flowable, the SOP workflow usually looks like:
+Draft SOP
+↓
+Review
+↓
+QA Approval
+↓
+Effective
+↓
+Training Assignment
+↓
+Periodic Review
+↓
+Revision
+↓
+Obsolete
+Example
+
+A CAPA identifies that operators are not following cleaning procedures.
+
+CAPA Action:
+
+* Revise Cleaning SOP
+
+Document Workflow:
+Change Control
+↓
+Update SOP
+↓
+Review
+↓
+Approval
+↓
+Release Version 2.0
+↓
+Assign Training
+↓
+Track Completion
+How SOPs Connect to Other QMS Modules
+Deviation
+↓
+CAPA
+↓
+Change Control
+↓
+SOP Revision
+↓
+Training Assignment
+↓
+Effectiveness Check
+This is one of the most common end-to-end pharmaceutical quality workflows and should definitely be included in your UAT and validation test scenarios.
+
+Example UAT Scenario
+
+Test ID: UAT-SOP-001
+
+Business Need: SOP revision after CAPA implementation.
+
+Steps:
+
+1. Create Deviation.
+2. Complete investigation.
+3. Create CAPA.
+4. Create Change Control.
+5. Revise SOP.
+6. Approve SOP.
+7. Release new version.
+8. Assign training automatically.
+9. Complete training.
+10. Verify effectiveness.
+
+Expected Result:
+
+* SOP version updated.
+* Previous version archived.
+* Training assigned.
+* Audit trail generated.
+* Electronic signatures captured.
+* CAPA closure permitted only after training completion.
+* 
