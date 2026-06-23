@@ -135,8 +135,12 @@ public class ChangeRequestService {
         if (request.getCategory() != null) cr.setCategory(ChangeCategory.valueOf(request.getCategory()));
         if (request.getClassification() != null) cr.setClassification(ChangeClassification.valueOf(request.getClassification()));
         if (request.getPriority() != null) cr.setPriority(ChangePriority.valueOf(request.getPriority()));
+        if (request.getChangeOwnerId() != null) cr.setChangeOwner(userRepository.findById(request.getChangeOwnerId())
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getChangeOwnerId())));
         if (request.getTargetImplementationDate() != null) cr.setTargetImplementationDate(request.getTargetImplementationDate());
         if (request.getAffectedAreas() != null) cr.setAffectedAreas(request.getAffectedAreas());
+        if (request.getValidationRequired() != null) cr.setValidationRequired(request.getValidationRequired());
+        if (request.getTrainingRequired() != null) cr.setTrainingRequired(request.getTrainingRequired());
         cr.setUpdatedBy(currentUserProvider.getCurrentUser());
         auditTrailService.logAction("CHANGE_CONTROL", cr.getId(), cr.getChangeNumber(), "UPDATED", null, null, null, null);
         return toResponse(changeRequestRepository.save(cr));

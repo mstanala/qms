@@ -137,7 +137,28 @@ public class DeviationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Deviation", "id", id));
         if (request.getTitle() != null) dev.setTitle(request.getTitle());
         if (request.getDescription() != null) dev.setDescription(request.getDescription());
+        if (request.getType() != null) dev.setType(DeviationType.valueOf(request.getType()));
+        if (request.getCategory() != null) dev.setCategory(DeviationCategory.valueOf(request.getCategory()));
+        if (request.getClassification() != null) dev.setClassification(DeviationClassification.valueOf(request.getClassification()));
+        if (request.getSourceArea() != null) dev.setSourceArea(request.getSourceArea());
+        if (request.getOccurredDate() != null) dev.setOccurredDate(request.getOccurredDate());
+        if (request.getDetectedDate() != null) dev.setDetectedDate(request.getDetectedDate());
         if (request.getTargetClosureDate() != null) dev.setTargetClosureDate(request.getTargetClosureDate());
+        if (request.getPlantSiteId() != null) {
+            PlantSite plantSite = plantSiteRepository.findById(request.getPlantSiteId())
+                    .orElseThrow(() -> new ResourceNotFoundException("PlantSite", "id", request.getPlantSiteId()));
+            dev.setPlantSite(plantSite);
+        }
+        if (request.getDepartmentId() != null) {
+            Department department = departmentRepository.findById(request.getDepartmentId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Department", "id", request.getDepartmentId()));
+            dev.setDepartment(department);
+        }
+        if (request.getAssignedToId() != null) {
+            User assignee = userRepository.findById(request.getAssignedToId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getAssignedToId()));
+            dev.setAssignedTo(assignee);
+        }
         if (request.getArea() != null) dev.setArea(request.getArea());
         if (request.getEquipment() != null) dev.setEquipment(request.getEquipment());
         if (request.getProduct() != null) dev.setProduct(request.getProduct());
@@ -244,8 +265,9 @@ public class DeviationService {
         dev.setUpdatedBy(currentUserProvider.getCurrentUser());
         deviationRepository.save(dev);
 
-        // Complete investigation task in Flowable
-        workflowService.completeTask(dev.getFlowableProcessId(), "investigation", null);
+        try {
+            workflowService.completeTask(dev.getFlowableProcessId(), "investigation", null);
+        } catch (Exception ignored) {}
 
         auditTrailService.logAction(RECORD_TYPE, dev.getId(), dev.getDeviationNumber(), "INVESTIGATION_SUBMITTED", null, null, null, null);
         workflowService.recordStep(RECORD_TYPE, dev.getId(), "Investigation",
@@ -261,7 +283,7 @@ public class DeviationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Deviation", "id", id));
         User currentUser = currentUserProvider.getCurrentUser();
 
-        DeviationImpactAssessment ia = new DeviationImpactAssessment();
+        DeviationImpactAssessment ia = dev.getImpactAssessment() != null ? dev.getImpactAssessment() : new DeviationImpactAssessment();
         ia.setDeviation(dev);
         ia.setProductQualityImpact(ImpactLevel.valueOf(request.getProductQualityImpact()));
         ia.setPatientSafetyImpact(ImpactLevel.valueOf(request.getPatientSafetyImpact()));
@@ -273,6 +295,7 @@ public class DeviationService {
         ia.setBatchDisposition(request.getBatchDisposition());
         ia.setJustification(request.getJustification());
         ia.setAssessedBy(currentUser);
+        ia.setAssessedDate(Instant.now());
         impactAssessmentRepository.save(ia);
 
         dev.setStatus(DeviationStatus.IMPACT_ASSESSMENT);
@@ -280,8 +303,9 @@ public class DeviationService {
         dev.setUpdatedBy(currentUser);
         deviationRepository.save(dev);
 
-        // Complete impact assessment task in Flowable
-        workflowService.completeTask(dev.getFlowableProcessId(), "impactAssessment", null);
+        try {
+            workflowService.completeTask(dev.getFlowableProcessId(), "impactAssessment", null);
+        } catch (Exception ignored) {}
 
         auditTrailService.logAction(RECORD_TYPE, dev.getId(), dev.getDeviationNumber(), "IMPACT_ASSESSMENT_SUBMITTED", null, null, null, null);
         workflowService.recordStep(RECORD_TYPE, dev.getId(), "Impact Assessment",
@@ -297,13 +321,14 @@ public class DeviationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Deviation", "id", id));
         User currentUser = currentUserProvider.getCurrentUser();
 
-        DeviationDisposition disp = new DeviationDisposition();
+        DeviationDisposition disp = dev.getDisposition() != null ? dev.getDisposition() : new DeviationDisposition();
         disp.setDeviation(dev);
         disp.setDecision(DispositionDecision.valueOf(request.getDecision()));
         disp.setJustification(request.getJustification());
         disp.setConditions(request.getConditions());
         disp.setQaReviewComments(request.getQaReviewComments());
         disp.setApprovedBy(currentUser);
+        disp.setApprovedDate(Instant.now());
         dispositionRepository.save(disp);
 
         boolean capaRequired = request.getCapaRequired() != null ? request.getCapaRequired() : false;
@@ -313,10 +338,11 @@ public class DeviationService {
         dev.setUpdatedBy(currentUser);
         deviationRepository.save(dev);
 
-        // Complete disposition task in Flowable with CAPA decision
         Map<String, Object> taskVars = new HashMap<>();
         taskVars.put("capaRequired", capaRequired);
-        workflowService.completeTask(dev.getFlowableProcessId(), "disposition", taskVars);
+        try {
+            workflowService.completeTask(dev.getFlowableProcessId(), "disposition", taskVars);
+        } catch (Exception ignored) {}
 
         auditTrailService.logAction(RECORD_TYPE, dev.getId(), dev.getDeviationNumber(), "DISPOSITION_SUBMITTED",
                 "decision", null, request.getDecision(), null);

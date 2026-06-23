@@ -28,6 +28,13 @@ export const CAPA_ROUTES: Routes = [
       ),
   },
   {
+    path: 'edit/:id',
+    loadComponent: () =>
+      import('./components/capa-form/capa-form.component').then(
+        (m) => m.CapaFormComponent
+      ),
+  },
+  {
     path: 'detail/:id',
     loadComponent: () =>
       import('./components/capa-detail/capa-detail.component').then(

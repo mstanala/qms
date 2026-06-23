@@ -1,5 +1,6 @@
 package com.qmspharma.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -18,6 +19,7 @@ public class Department {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "plant_site_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "organization"})
     private PlantSite plantSite;
 
     @Column(nullable = false)
@@ -30,6 +32,7 @@ public class Department {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_department_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "parentDepartment", "plantSite"})
     private Department parentDepartment;
 
     @Column(name = "is_active", nullable = false)

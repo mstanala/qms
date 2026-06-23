@@ -867,6 +867,7 @@ export class CapaDetailComponent implements OnInit {
     const typeMap: Record<string, string> = {
       'CORRECTIVE': 'Corrective',
       'PREVENTIVE': 'Preventive',
+      'BOTH': 'Corrective & Preventive',
       'CORRECTIVE_AND_PREVENTIVE': 'Corrective & Preventive',
     };
     return typeMap[type] || type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());

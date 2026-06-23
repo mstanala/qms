@@ -1,5 +1,7 @@
 package com.qmspharma.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -18,6 +20,7 @@ public class AuditFinding {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "audit_id", nullable = false)
+    @JsonIgnore
     private Audit audit;
 
     @Column(name = "finding_number", nullable = false, unique = true, length = 50)
@@ -55,10 +58,12 @@ public class AuditFinding {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "capa_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Capa capa;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "verified_by_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "password", "roles", "permissions"})
     private User verifiedBy;
 
     @Column(name = "verified_date")

@@ -147,6 +147,10 @@ import { Capa, CapaStatus, CapaPriority } from '../../models/capa.model';
                     <mat-icon>visibility</mat-icon>
                     <span>View Details</span>
                   </button>
+                  <button mat-menu-item [routerLink]="['../edit', capa.id]" (click)="stopRowNavigation($event)">
+                    <mat-icon>edit</mat-icon>
+                    <span>Edit</span>
+                  </button>
                   <button mat-menu-item [routerLink]="['../rca', capa.id]" (click)="stopRowNavigation($event)">
                     <mat-icon>psychology</mat-icon>
                     <span>Root Cause Analysis</span>

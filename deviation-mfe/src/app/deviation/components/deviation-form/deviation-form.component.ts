@@ -1,6 +1,6 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -14,7 +14,7 @@ import { MatStepperModule } from '@angular/material/stepper';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { DeviationService } from '../../services/deviation.service';
-import { DeviationType, DeviationCategory, DeviationClassification } from '../../models/deviation.model';
+import { Deviation, DeviationType, DeviationCategory, DeviationClassification } from '../../models/deviation.model';
 
 @Component({
   selector: 'dev-form',
@@ -43,8 +43,8 @@ import { DeviationType, DeviationCategory, DeviationClassification } from '../..
             <mat-icon>arrow_back</mat-icon>
           </button>
           <div>
-            <h1>Report Deviation</h1>
-            <p class="subtitle">Create a new deviation record for tracking and investigation</p>
+            <h1>{{ isEditMode ? 'Edit Deviation' : 'Report Deviation' }}</h1>
+            <p class="subtitle">{{ isEditMode ? 'Update deviation record details' : 'Create a new deviation record for tracking and investigation' }}</p>
           </div>
         </div>
       </div>
@@ -234,7 +234,7 @@ import { DeviationType, DeviationCategory, DeviationClassification } from '../..
             <div class="step-actions">
               <button mat-stroked-button matStepperPrevious><mat-icon>arrow_back</mat-icon> Back</button>
               <button mat-raised-button color="primary" (click)="submitDeviation()" style="background:#ED8B00;color:#fff">
-                <mat-icon>send</mat-icon> Submit Deviation Report
+                <mat-icon>{{ isEditMode ? 'save' : 'send' }}</mat-icon> {{ isEditMode ? 'Save Changes' : 'Submit Deviation Report' }}
               </button>
             </div>
           </mat-card>
@@ -266,10 +266,12 @@ import { DeviationType, DeviationCategory, DeviationClassification } from '../..
     h3 { font-size: 16px; font-weight: 600; margin: 0 0 16px; color: #333; }
   `],
 })
-export class DeviationFormComponent {
+export class DeviationFormComponent implements OnInit {
   deviationTypes = DeviationType;
   classifications = DeviationClassification;
   categoryOptions = Object.values(DeviationCategory);
+  isEditMode = false;
+  deviationId: string | null = null;
 
   eventForm: FormGroup;
   locationForm: FormGroup;
@@ -277,6 +279,7 @@ export class DeviationFormComponent {
   constructor(
     private fb: FormBuilder,
     private deviationService: DeviationService,
+    private route: ActivatedRoute,
     private router: Router,
     private snackBar: MatSnackBar
   ) {
@@ -306,12 +309,28 @@ export class DeviationFormComponent {
     });
   }
 
+  ngOnInit(): void {
+    this.deviationId = this.route.snapshot.paramMap.get('id');
+    this.isEditMode = !!this.deviationId;
+
+    if (this.deviationId) {
+      this.deviationService.getDeviationById(this.deviationId).subscribe((deviation) => {
+        if (!deviation) return;
+        this.populateForms(deviation);
+      });
+    }
+  }
+
   formatCategory(category: string): string {
     if (!category) return '';
     return category.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
   }
 
   backToList(): void {
+    if (this.isEditMode && this.deviationId) {
+      this.router.navigate(['/deviations/detail', this.deviationId]);
+      return;
+    }
     this.router.navigate(['/deviations/list']);
   }
 
@@ -326,14 +345,45 @@ export class DeviationFormComponent {
         assignedToId: 'USR-002',
       };
 
+      if (this.isEditMode && this.deviationId) {
+        this.deviationService.updateDeviation(this.deviationId, deviationData).subscribe((updated) => {
+          this.snackBar.open(`Deviation ${updated.deviationNumber} updated successfully`, 'Close', { duration: 4000 });
+          this.router.navigate(['/deviations/detail', updated.id]);
+        });
+        return;
+      }
+
       this.deviationService.createDeviation(deviationData).subscribe((created) => {
-        this.snackBar.open(
-          `Deviation ${created.deviationNumber} reported successfully`,
-          'View',
-          { duration: 5000 }
-        );
+        this.snackBar.open(`Deviation ${created.deviationNumber} reported successfully`, 'View', { duration: 5000 });
         this.router.navigate(['/deviations/list']);
       });
     }
+  }
+
+  private populateForms(deviation: Deviation): void {
+    this.eventForm.patchValue({
+      title: deviation.title,
+      description: deviation.description,
+      type: deviation.type,
+      category: deviation.category,
+      classification: deviation.classification,
+      occurredDate: deviation.occurredDate,
+      detectedDate: deviation.detectedDate,
+      sourceArea: deviation.sourceArea,
+    });
+
+    this.locationForm.patchValue({
+      plantSite: deviation.plantSite,
+      department: deviation.department,
+      area: deviation.area,
+      equipment: deviation.equipment || '',
+      product: deviation.product || '',
+      batchNumber: deviation.batchNumber || '',
+      assignedToName: deviation.assignedToName,
+      targetClosureDate: deviation.targetClosureDate,
+      gmpImpact: deviation.gmpImpact,
+      patientSafetyImpact: deviation.patientSafetyImpact,
+      regulatoryImpact: deviation.regulatoryImpact,
+    });
   }
 }

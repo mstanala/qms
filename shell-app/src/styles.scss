@@ -110,3 +110,65 @@ a {
 .mat-mdc-select-panel .mat-mdc-option.mdc-list-item--disabled {
   opacity: 0.55;
 }
+
+/* ── Dropdown Menus (global) ── */
+.mat-mdc-menu-panel {
+  border-radius: 6px !important;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.12), 0 1px 4px rgba(15, 23, 42, 0.06) !important;
+  border: 1px solid #e5e7eb;
+  min-width: 190px;
+  margin-top: 2px;
+}
+
+.mat-mdc-menu-panel .mat-mdc-menu-content {
+  padding: 4px 5px !important;
+}
+
+.mat-mdc-menu-panel .mat-mdc-menu-item {
+  min-height: 32px !important;
+  height: 32px;
+  border-radius: 4px;
+  margin: 1px 0;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  color: #4b5563;
+  padding: 0 10px;
+  transition: background-color 100ms ease, color 100ms ease;
+}
+
+.mat-mdc-menu-panel .mat-mdc-menu-item:hover {
+  background: #f1f5f9 !important;
+  color: #1e293b;
+}
+
+.mat-mdc-menu-panel .mat-mdc-menu-item .mat-icon {
+  color: #9ca3af;
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+}
+
+.mat-mdc-menu-panel .mat-mdc-menu-item:hover .mat-icon {
+  color: #2C5F7C;
+}
+
+.mat-mdc-menu-panel .mat-mdc-menu-item span {
+  font-weight: 400;
+}
+
+.mat-mdc-menu-panel .mat-mdc-menu-item .mdc-list-item__primary-text {
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  color: #4b5563;
+}
+
+.mat-mdc-menu-panel .mat-mdc-menu-item:hover .mdc-list-item__primary-text {
+  color: #1e293b;
+}
+
+.mat-mdc-menu-panel .mat-divider {
+  margin: 4px 6px !important;
+  border-color: #f0f0f0;
+}

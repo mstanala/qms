@@ -28,6 +28,13 @@ export const DEVIATION_ROUTES: Routes = [
       ),
   },
   {
+    path: 'edit/:id',
+    loadComponent: () =>
+      import('./components/deviation-form/deviation-form.component').then(
+        (m) => m.DeviationFormComponent
+      ),
+  },
+  {
     path: 'detail/:id',
     loadComponent: () =>
       import('./components/deviation-detail/deviation-detail.component').then(

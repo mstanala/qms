@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
-import { Observable, map } from 'rxjs';
+import { Observable, catchError, map, of, switchMap } from 'rxjs';
 import {
   ChangeRequest,
   ChangeStatus,
@@ -10,6 +10,7 @@ import {
   ChangePriority,
   ImpactRating,
   FilingType,
+  ChangeWorkflowStep,
   ChangeControlDashboardMetrics,
   ChangeControlListFilter,
 } from '../models/change-control.model';
@@ -21,6 +22,20 @@ type ApiPage<T> = {
 };
 
 type ApiChangeRequest = any;
+type ApiWorkflowHistory = any;
+
+const CHANGE_WORKFLOW_TEMPLATE = [
+  'Draft',
+  'Submit Change',
+  'Impact Assessment',
+  'QA Review',
+  'RA Review',
+  'Pending Approval',
+  'Implementation',
+  'Verification',
+  'Effectiveness Check',
+  'Closed',
+];
 
 /** Helper: returns a Date offset from today by the given number of days */
 function daysAgo(days: number): Date {
@@ -65,7 +80,40 @@ export class ChangeControlService {
   getChangeRequestById(id: string): Observable<ChangeRequest | undefined> {
     return this.http
       .get<ApiChangeRequest>(`${this.apiUrl}/${id}`, { headers: this.authHeaders() })
-      .pipe(map((item) => this.toChangeRequest(item)));
+      .pipe(
+        map((item) => this.toChangeRequest(item)),
+        switchMap((changeRequest) =>
+          this.getWorkflowHistory(id).pipe(
+            map((history) => ({
+              ...changeRequest,
+              workflowHistory: this.toWorkflowSteps(history, CHANGE_WORKFLOW_TEMPLATE, changeRequest.currentWorkflowStep),
+            })),
+            catchError(() => of({
+              ...changeRequest,
+              workflowHistory: this.toWorkflowSteps([], CHANGE_WORKFLOW_TEMPLATE, changeRequest.currentWorkflowStep),
+            }))
+          )
+        ),
+        switchMap((changeRequest) =>
+          this.getAuditTrail(id).pipe(
+            map((trail) => ({
+              ...changeRequest,
+              auditTrail: (trail || []).map((item: any) => ({
+                id: item.id,
+                action: item.action,
+                timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
+                userId: item.userId || '',
+                userName: item.userName || '',
+                field: item.fieldName,
+                oldValue: item.oldValue,
+                newValue: item.newValue,
+                comments: item.comments || item.reasonForChange,
+              })),
+            })),
+            catchError(() => of({ ...changeRequest, auditTrail: [] }))
+          )
+        )
+      );
   }
 
   createChangeRequest(changeRequest: Partial<ChangeRequest>): Observable<ChangeRequest> {
@@ -93,6 +141,33 @@ export class ChangeControlService {
       .pipe(map((item) => this.toChangeRequest(item)));
   }
 
+  updateChangeRequest(id: string, changeRequest: Partial<ChangeRequest>): Observable<ChangeRequest> {
+    const payload = {
+      title: changeRequest.title,
+      description: changeRequest.description,
+      justification: changeRequest.justification,
+      type: changeRequest.type,
+      category: changeRequest.category,
+      classification: changeRequest.classification,
+      priority: changeRequest.priority,
+      changeOwnerId: this.resolveUserId((changeRequest as any).changeOwnerName),
+      targetImplementationDate: this.toIso(changeRequest.targetImplementationDate),
+      affectedAreas: changeRequest.affectedAreas || [],
+      validationRequired: changeRequest.validationRequired ?? false,
+      trainingRequired: changeRequest.trainingRequired ?? false,
+    };
+
+    return this.http
+      .put<ApiChangeRequest>(`${this.apiUrl}/${id}`, payload, { headers: this.authHeaders() })
+      .pipe(
+        switchMap(() => this.getChangeRequestById(id)),
+        map((item) => {
+          if (!item) throw new Error('Change request was updated but could not be reloaded');
+          return item;
+        })
+      );
+  }
+
   updateStatus(id: string, status: ChangeStatus): Observable<ChangeRequest> {
     return this.http
       .patch<ApiChangeRequest>(
@@ -100,6 +175,20 @@ export class ChangeControlService {
         { status, comments: `Status changed to ${status}` },
         { headers: this.authHeaders() }
       )
+      .pipe(map((item) => this.toChangeRequest(item)));
+  }
+
+  getWorkflowHistory(id: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/${id}/workflow-history`, { headers: this.authHeaders() });
+  }
+
+  getAuditTrail(id: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/${id}/audit-trail`, { headers: this.authHeaders() });
+  }
+
+  transitionStatus(id: string, status: string, comments?: string): Observable<ChangeRequest> {
+    return this.http
+      .patch<any>(`${this.apiUrl}/${id}/status`, { status, comments: comments || `Status changed to ${status}` }, { headers: this.authHeaders() })
       .pipe(map((item) => this.toChangeRequest(item)));
   }
 
@@ -255,6 +344,37 @@ export class ChangeControlService {
     };
   }
 
+  private toWorkflowSteps(history: ApiWorkflowHistory[], template: string[], currentStep?: string): ChangeWorkflowStep[] {
+    const byName = new Map((history || []).map((step) => [this.normalizeStepName(step.stepName), step]));
+    const known = template.map((stepName) => {
+      const match = byName.get(this.normalizeStepName(stepName));
+      return this.toWorkflowStep(match, stepName, currentStep);
+    });
+
+    const extras = (history || [])
+      .filter((step) => !template.some((name) => this.normalizeStepName(name) === this.normalizeStepName(step.stepName)))
+      .sort((a, b) => (a.stepOrder || 0) - (b.stepOrder || 0))
+      .map((step) => this.toWorkflowStep(step, step.stepName, currentStep));
+
+    return [...known, ...extras];
+  }
+
+  private toWorkflowStep(step: ApiWorkflowHistory | undefined, fallbackName: string, currentStep?: string): ChangeWorkflowStep {
+    const status = (step?.status || (this.normalizeStepName(fallbackName) === this.normalizeStepName(currentStep || '') ? 'CURRENT' : 'PENDING')) as ChangeWorkflowStep['status'];
+    return {
+      stepName: step?.stepName || fallbackName,
+      status,
+      assignedTo: step?.assignedTo?.displayName,
+      startedAt: step?.startedAt ? this.toDate(step.startedAt) : undefined,
+      completedAt: step?.completedAt ? this.toDate(step.completedAt) : undefined,
+      comments: step?.comments,
+    };
+  }
+
+  private normalizeStepName(value: string): string {
+    return (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
   private emptyImpactAssessment() {
     return {
       productQuality: ImpactRating.NO_IMPACT,
@@ -336,9 +456,14 @@ export class ChangeControlService {
       'Suresh Reddy': 'd0000000-0000-0000-0000-000000000004',
       'Anitha Rao': 'd0000000-0000-0000-0000-000000000005',
       'Lakshmi Devi': 'd0000000-0000-0000-0000-000000000006',
+      'Venkat Naidu': 'd0000000-0000-0000-0000-000000000007',
       'Venkat Rao': 'd0000000-0000-0000-0000-000000000007',
       'Mohammad Ali': 'd0000000-0000-0000-0000-000000000008',
+      'Kavitha Krishnan': 'd0000000-0000-0000-0000-000000000009',
       'Kavitha Reddy': 'd0000000-0000-0000-0000-000000000009',
+      'Ravi Teja': 'd0000000-0000-0000-0000-000000000010',
+      'Deepa Menon': 'd0000000-0000-0000-0000-000000000011',
+      'Ramesh Gupta': 'd0000000-0000-0000-0000-000000000012',
       'Suresh Menon': 'd0000000-0000-0000-0000-000000000002',
     };
     return users[name || ''] || users['Priya Sharma'];

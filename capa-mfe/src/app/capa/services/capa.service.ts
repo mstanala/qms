@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
-import { Observable, map } from 'rxjs';
+import { Observable, catchError, map, of, switchMap } from 'rxjs';
 import {
   Capa,
   CapaStatus,
@@ -13,6 +13,7 @@ import {
   CapaListFilter,
   RcaMethod,
   RootCauseAnalysis,
+  WorkflowStep,
 } from '../models/capa.model';
 
 const API_BASE_URL = 'http://localhost:8082/api/v1';
@@ -22,6 +23,19 @@ type ApiPage<T> = {
 };
 
 type ApiCapa = any;
+type ApiWorkflowHistory = any;
+
+const CAPA_WORKFLOW_TEMPLATE = [
+  'Initiation',
+  'QA Review',
+  'Root Cause Analysis',
+  'Risk Assessment',
+  'Action Planning',
+  'Action Execution',
+  'Effectiveness Check',
+  'QA Approval',
+  'Closure',
+];
 
 /** Helper: returns a Date offset from today by the given number of days */
 function daysAgo(days: number): Date {
@@ -65,7 +79,40 @@ export class CapaService {
   getCapaById(id: string): Observable<Capa | undefined> {
     return this.http
       .get<ApiCapa>(`${this.apiUrl}/${id}`, { headers: this.authHeaders() })
-      .pipe(map((item) => this.toCapa(item)));
+      .pipe(
+        map((item) => this.toCapa(item)),
+        switchMap((capa) =>
+          this.getWorkflowHistory(id).pipe(
+            map((history) => ({
+              ...capa,
+              workflowHistory: this.toWorkflowSteps(history, CAPA_WORKFLOW_TEMPLATE, capa.currentWorkflowStep),
+            })),
+            catchError(() => of({
+              ...capa,
+              workflowHistory: this.toWorkflowSteps([], CAPA_WORKFLOW_TEMPLATE, capa.currentWorkflowStep),
+            }))
+          )
+        ),
+        switchMap((capa) =>
+          this.getAuditTrail(id).pipe(
+            map((trail) => ({
+              ...capa,
+              auditTrail: (trail || []).map((item: any) => ({
+                id: item.id,
+                action: item.action,
+                timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
+                userId: item.userId || '',
+                userName: item.userName || '',
+                field: item.fieldName,
+                oldValue: item.oldValue,
+                newValue: item.newValue,
+                comments: item.comments || item.reasonForChange,
+              })),
+            })),
+            catchError(() => of({ ...capa, auditTrail: [] }))
+          )
+        )
+      );
   }
 
   createCapa(capa: Partial<Capa>): Observable<Capa> {
@@ -89,6 +136,33 @@ export class CapaService {
       .pipe(map((item) => this.toCapa(item)));
   }
 
+  updateCapa(id: string, capa: Partial<Capa>): Observable<Capa> {
+    const payload = {
+      title: capa.title,
+      description: capa.description,
+      type: capa.type,
+      priority: capa.priority,
+      sourceType: capa.sourceType,
+      sourceReference: capa.sourceReference,
+      targetCompletionDate: this.toIso(capa.targetCompletionDate || capa.dueDate),
+      ownerId: this.resolveUserId((capa as any).ownerName),
+      departmentId: this.resolveDepartmentId((capa as any).department || capa.assignedDepartment),
+      plantSiteId: this.resolvePlantSiteId((capa as any).plantSite),
+      product: capa.product,
+      batchNumber: capa.batchNumber,
+    };
+
+    return this.http
+      .put<ApiCapa>(`${this.apiUrl}/${id}`, payload, { headers: this.authHeaders() })
+      .pipe(
+        switchMap(() => this.getCapaById(id)),
+        map((item) => {
+          if (!item) throw new Error('CAPA was updated but could not be reloaded');
+          return item;
+        })
+      );
+  }
+
   updateCapaStatus(id: string, status: CapaStatus): Observable<Capa> {
     return this.http
       .patch<ApiCapa>(
@@ -97,6 +171,14 @@ export class CapaService {
         { headers: this.authHeaders() }
       )
       .pipe(map((item) => this.toCapa(item)));
+  }
+
+  getWorkflowHistory(id: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/${id}/workflow-history`, { headers: this.authHeaders() });
+  }
+
+  getAuditTrail(id: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/${id}/audit-trail`, { headers: this.authHeaders() });
   }
 
   getDashboardMetrics(): Observable<CapaDashboardMetrics> {
@@ -209,6 +291,37 @@ export class CapaService {
     };
   }
 
+  private toWorkflowSteps(history: ApiWorkflowHistory[], template: string[], currentStep?: string): WorkflowStep[] {
+    const byName = new Map((history || []).map((step) => [this.normalizeStepName(step.stepName), step]));
+    const known = template.map((stepName) => {
+      const match = byName.get(this.normalizeStepName(stepName));
+      return this.toWorkflowStep(match, stepName, currentStep);
+    });
+
+    const extras = (history || [])
+      .filter((step) => !template.some((name) => this.normalizeStepName(name) === this.normalizeStepName(step.stepName)))
+      .sort((a, b) => (a.stepOrder || 0) - (b.stepOrder || 0))
+      .map((step) => this.toWorkflowStep(step, step.stepName, currentStep));
+
+    return [...known, ...extras];
+  }
+
+  private toWorkflowStep(step: ApiWorkflowHistory | undefined, fallbackName: string, currentStep?: string): WorkflowStep {
+    const status = (step?.status || (this.normalizeStepName(fallbackName) === this.normalizeStepName(currentStep || '') ? 'CURRENT' : 'PENDING')) as WorkflowStep['status'];
+    return {
+      stepName: step?.stepName || fallbackName,
+      status,
+      assignedTo: step?.assignedTo?.displayName,
+      startedAt: step?.startedAt ? this.toDate(step.startedAt) : undefined,
+      completedAt: step?.completedAt ? this.toDate(step.completedAt) : undefined,
+      comments: step?.comments,
+    };
+  }
+
+  private normalizeStepName(value: string): string {
+    return (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
   private toAction(action: any): CapaAction {
     return {
       id: action.id,
@@ -282,13 +395,19 @@ export class CapaService {
   private resolveUserId(name?: string): string {
     const users: Record<string, string> = {
       'Rajesh Kumar': 'd0000000-0000-0000-0000-000000000001',
+      'Srinivas Rao': 'd0000000-0000-0000-0000-000000000002',
       'Priya Sharma': 'd0000000-0000-0000-0000-000000000003',
       'Suresh Reddy': 'd0000000-0000-0000-0000-000000000004',
       'Anitha Rao': 'd0000000-0000-0000-0000-000000000005',
       'Lakshmi Devi': 'd0000000-0000-0000-0000-000000000006',
+      'Venkat Naidu': 'd0000000-0000-0000-0000-000000000007',
       'Venkat Rao': 'd0000000-0000-0000-0000-000000000007',
       'Mohammad Ali': 'd0000000-0000-0000-0000-000000000008',
+      'Kavitha Krishnan': 'd0000000-0000-0000-0000-000000000009',
       'Kavitha Reddy': 'd0000000-0000-0000-0000-000000000009',
+      'Ravi Teja': 'd0000000-0000-0000-0000-000000000010',
+      'Deepa Menon': 'd0000000-0000-0000-0000-000000000011',
+      'Ramesh Gupta': 'd0000000-0000-0000-0000-000000000012',
     };
     return users[name || ''] || users['Anitha Rao'];
   }

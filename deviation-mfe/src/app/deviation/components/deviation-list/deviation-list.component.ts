@@ -156,6 +156,10 @@ import { Deviation, DeviationStatus, DeviationClassification, DeviationCategory 
                     <mat-icon>visibility</mat-icon>
                     <span>View Details</span>
                   </button>
+                  <button mat-menu-item [routerLink]="['../edit', dev.id]" (click)="stopRowNavigation($event)">
+                    <mat-icon>edit</mat-icon>
+                    <span>Edit</span>
+                  </button>
                   <button mat-menu-item [routerLink]="['/tools/audit-trail']" [queryParams]="{recordType: 'DEVIATION', recordId: dev.id}" (click)="stopRowNavigation($event)">
                     <mat-icon>history</mat-icon>
                     <span>Audit Trail</span>
