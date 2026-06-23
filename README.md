@@ -513,4 +513,228 @@ Expected Result:
 * Audit trail generated.
 * Electronic signatures captured.
 * CAPA closure permitted only after training completion.
-* 
+
+------------------Flowable Workflow------------------------- 
+------------------------------------------------------------
+Flowable Workflow Task Assignment — End-to-End Flow Explained
+
+Your codebase uses 3 separate Flowable BPMN processes that chain together to handle the full pharma QMS lifecycle. Each process assigns tasks to the next role using two Flowable mechanisms:       
+flowable:assignee (direct assignment) and flowable:candidateGroups (role-based pool).
+
+How Task Assignment Works in Flowable
+
+Flowable has two assignment models in your BPMN definitions:
+
+┌────────────────────────────────────────┬────────────────────────────────────────────────────────────────────────────┬───────────────────────────────────────────────┐
+│               Mechanism                │                                How it works                                │                    Example                    │
+├────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────┤
+│ flowable:assignee="${variableId}"      │ Directly assigns task to a specific user (resolved from process variable)  │ assignee="${assignedToId}" → the investigator │
+├────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────┤
+│ flowable:candidateGroups="ROLE1,ROLE2" │ Task appears in the inbox of all users in those roles; anyone can claim it │ candidateGroups="QA_APPROVER"                 │
+└────────────────────────────────────────┴────────────────────────────────────────────────────────────────────────────┴───────────────────────────────────────────────┘
+
+The TaskInboxService (TaskInboxService.java:26-39) queries both:
+query.or()
+.taskAssignee(userId)           // tasks directly assigned to me
+.taskCandidateGroupIn(groups)   // tasks available to my role groups
+.endOr();
+
+  ---
+The Complete Flow — Step by Step
+
+PHASE 1: Deviation Process (deviation-process.bpmn20.xml)
+
+START → qaReview → notifyInvestigator → investigation → impactAssessment → disposition → [CAPA Gateway] → capaInitiation → pendingClosure → END
+
+Step 1: Operator Creates Deviation
+- DeviationService.create() (line 74) starts the Flowable process:
+  workflowService.startProcess("deviationProcess", dev.getId().toString(), vars);
+- Process variables set: reportedById, assignedToId, deviationNumber, capaRequired=false
+- Flowable immediately creates the first userTask: qaReview
+
+Step 2: QA Reviewer/Approver classifies → Task: qaReview
+- BPMN (deviation-process.bpmn20.xml:19-23):
+  <userTask id="qaReview" flowable:candidateGroups="QA_REVIEWER,QA_APPROVER"/>
+- Task appears in inbox of anyone with QA_REVIEWER or QA_APPROVER role
+- A QA person claims the task via TaskInboxService.claimTask()
+- When DeviationService.classify() is called (line 175), it:
+  a. Sets classification and assignedToId as task variables
+  b. Calls workflowService.completeTask(processId, "qaReview", taskVars) (line 190)
+  c. Flowable automatically advances to notifyInvestigator (service task) → then to investigation (user task)
+
+Step 3: QA Investigator investigates → Task: investigation
+- BPMN (deviation-process.bpmn20.xml:41-46):
+  <userTask id="investigation" flowable:assignee="${assignedToId}" flowable:dueDate="${targetClosureDate}"/>
+- Directly assigned to ${assignedToId} — the investigator set during classification
+- The notifyInvestigator service task fires NotificationDelegate to send a notification
+- Boundary timer: if not completed in 25 days → escalationDelegate fires
+- DeviationService.submitInvestigation() (line 234) completes this task → Flowable advances to impactAssessment
+
+Step 4: QA Reviewer reviews impact → Task: impactAssessment
+- BPMN (deviation-process.bpmn20.xml:51-55):
+  <userTask id="impactAssessment" flowable:candidateGroups="QA_REVIEWER,QA_APPROVER"/>
+- Back to the QA pool — any QA_REVIEWER or QA_APPROVER can claim
+- DeviationService.submitImpactAssessment() (line 281) completes → advances to disposition
+
+Step 5: QA Manager approves disposition → Task: disposition
+- BPMN (deviation-process.bpmn20.xml:60-64):
+  <userTask id="disposition" flowable:candidateGroups="QA_APPROVER"/>
+- Only QA_APPROVER role (QA Manager level)
+- DeviationService.submitDisposition() (line 319) sets capaRequired variable and completes the task
+- Flowable hits the exclusive gateway capaGateway:
+
+Step 6: Gateway Decision — CAPA Required?
+- BPMN (deviation-process.bpmn20.xml:69-77):
+  <exclusiveGateway id="capaGateway"/>
+  <sequenceFlow> ${capaRequired == true}  → capaInitiation </sequenceFlow>
+  <sequenceFlow> ${capaRequired == false} → pendingClosure </sequenceFlow>
+- If capaRequired == true → Flowable creates capaInitiation task (assigned to QA_REVIEWER,OWNER)
+- If capaRequired == false → skips straight to pendingClosure
+
+Step 7: CAPA Initiation & Closure → Tasks: capaInitiation, pendingClosure
+- After CAPA is initiated, transitionStatus() (line 376-378) completes capaInitiation
+- Final task pendingClosure goes to QA_APPROVER for final sign-off
+- On closure, notifyClosed service task sends notification to the original reporter
+
+  ---
+PHASE 2: CAPA Process (capa-process.bpmn20.xml)
+
+START → qaReview → [Approved?] → investigation → riskAssessment → actionPlanning → actionExecution → effectivenessCheck → [Effective?] → qaApproval → END
+→ [Rejected?] → END
+
+The CAPA is created as a separate Flowable process via CapaService.create() (line 75):
+
+Step 8: QA Reviews CAPA → Task: qaReview
+- candidateGroups="QA_REVIEWER" — QA pool reviews
+- Gateway: reviewDecision == 'APPROVED' → continues; 'REJECTED' → ends
+
+Step 9: CAPA Owner does Root Cause Analysis → Task: investigation
+- assignee="${ownerId}" — directly assigned to the CAPA owner
+- CapaService.submitRca() (line 186) completes → advances to riskAssessment
+
+Step 10: CAPA Owner does Risk Assessment → Task: riskAssessment
+- assignee="${ownerId}" — same owner continues
+
+Step 11: CAPA Owner plans actions → Task: actionPlanning
+- assignee="${ownerId}" — owner defines corrective/preventive actions
+- CapaService.startActionExecution() (line 333) validates at least 1 action exists, then completes
+
+Step 12: CAPA Owner executes actions → Task: actionExecution
+- assignee="${ownerId}" — owner monitors action completion
+- Individual actions assigned to different users via CapaService.addAction() (notifications sent)
+- Boundary timer: repeats every 7 days for 3 cycles (R3/P7D) → reminderDelegate fires
+- CapaService.completeActionExecution() (line 356) validates all actions verified before completing
+
+Step 13: Effectiveness Verification → Task: effectivenessCheck
+- candidateGroups="QA_REVIEWER,QA_APPROVER" — QA pool verifies
+- Gateway: effectivenessResult == 'EFFECTIVE' → proceed to closure
+- NOT effective → loops back to actionPlanning (line 90-92 in BPMN) — this is a re-plan cycle
+
+Step 14: QA Approval for Closure → Task: qaApproval
+- candidateGroups="QA_APPROVER" — QA Manager final sign-off
+- notifyClosed service task notifies the initiator
+
+  ---
+PHASE 3: Change Control Process (change-control-process.bpmn20.xml)
+
+START → submitChange → impactAssessment → qaReview → [RA needed?] → raReview → pendingApproval → [Approved?] → implementation → verification → effectivenessCheck → END
+
+Initiated when a CAPA action requires SOP revision:
+
+Step 15: Change Owner submits → Task: submitChange
+- assignee="${changeOwnerId}" — directly assigned
+
+Step 16: Impact Assessment → Task: impactAssessment
+- assignee="${changeOwnerId}" — same owner assesses 8 impact dimensions
+
+Step 17: QA Review → Task: qaReview
+- assignee="${qaReviewerId}" — specific QA reviewer assigned at creation
+- Gateway: regulatoryFilingRequired == true → route to RA Review; false → skip to Approval
+
+Step 18: RA Review (conditional) → Task: raReview
+- candidateGroups="QA_REVIEWER" — regulatory pool
+
+Step 19: Approval → Task: pendingApproval
+- candidateGroups="QA_APPROVER,APPROVER" — approval committee
+- Gateway: APPROVED → implementation; REJECTED → end
+
+Step 20: Implementation (SOP revision happens here) → Task: implementation
+- assignee="${changeOwnerId}" with dueDate="${targetImplementationDate}"
+- Boundary timer: 30 days → escalation
+- This is where the Document Controller revises the SOP (via the document-process)
+
+Step 21: Verification → Task: verification
+- candidateGroups="QA_REVIEWER" — QA verifies all tasks, docs, training complete
+
+Step 22: Effectiveness Check → Task: effectivenessCheck
+- candidateGroups="QA_APPROVER" — final effectiveness evaluation
+
+  ---
+PHASE 4: Document & Training Processes
+
+Document Process (document-process.bpmn20.xml):
+draftReview (DOC_REVIEWER,QA_REVIEWER) → [Approved?] → qaApproval (QA_APPROVER) → training (TRAINING_COORDINATOR,QA_REVIEWER) → makeEffective (auto)
+- Revision loop: if REVISION_REQUIRED → back to authorRevision (assigned to ${authorId})
+
+Training Process (training-process.bpmn20.xml):
+notifyTrainee (auto) → trainingCompletion (assignee=${traineeId}) → [Assessment?] → trainingAssessment (${traineeId}) → trainerVerification (${trainerId}) → [Effective?] → recordCompletion (auto)
+- If training not effective → loops back to trainingCompletion
+- 7-day overdue timer with escalation
+
+  ---
+Summary: Role-to-Task Mapping Across the Full Flow
+
+┌──────┬────────────────────────────┬───────────────────────────┬─────────────────────────────────────┐
+│ Step │            Task            │        Assigned To        │              Mechanism              │
+├──────┼────────────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ 1    │ Deviation Created          │ Operator                  │ API call (no Flowable task)         │
+├──────┼────────────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ 2    │ QA Review & Classification │ QA_REVIEWER, QA_APPROVER  │ candidateGroups (claim from pool)   │
+├──────┼────────────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ 3    │ Investigation              │ Specific investigator     │ assignee="${assignedToId}" (direct) │
+├──────┼────────────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ 4    │ Impact Assessment          │ QA_REVIEWER, QA_APPROVER  │ candidateGroups                     │
+├──────┼────────────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ 5    │ Disposition                │ QA_APPROVER only          │ candidateGroups                     │
+├──────┼────────────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ 6    │ CAPA Initiation            │ QA_REVIEWER, OWNER        │ candidateGroups                     │
+├──────┼────────────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ 7    │ CAPA QA Review             │ QA_REVIEWER               │ candidateGroups                     │
+├──────┼────────────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ 8    │ Root Cause Analysis        │ CAPA Owner                │ assignee="${ownerId}"               │
+├──────┼────────────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ 9    │ Risk Assessment            │ CAPA Owner                │ assignee="${ownerId}"               │
+├──────┼────────────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ 10   │ Action Planning            │ CAPA Owner                │ assignee="${ownerId}"               │
+├──────┼────────────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ 11   │ Action Execution           │ CAPA Owner                │ assignee="${ownerId}"               │
+├──────┼────────────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ 12   │ Effectiveness Check        │ QA_REVIEWER, QA_APPROVER  │ candidateGroups                     │
+├──────┼────────────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ 13   │ QA Closure Approval        │ QA_APPROVER               │ candidateGroups                     │
+├──────┼────────────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ 14   │ Change Control Submit      │ Change Owner              │ assignee="${changeOwnerId}"         │
+├──────┼────────────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ 15   │ SOP Draft Review           │ DOC_REVIEWER, QA_REVIEWER │ candidateGroups                     │
+├──────┼────────────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ 16   │ SOP QA Approval            │ QA_APPROVER               │ candidateGroups                     │
+├──────┼────────────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ 17   │ Training Assignment        │ TRAINING_COORDINATOR      │ candidateGroups                     │
+├──────┼────────────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ 18   │ Training Completion        │ Specific trainee          │ assignee="${traineeId}"             │
+├──────┼────────────────────────────┼───────────────────────────┼─────────────────────────────────────┤
+│ 19   │ Trainer Verification       │ Specific trainer          │ assignee="${trainerId}"             │
+└──────┴────────────────────────────┴───────────────────────────┴─────────────────────────────────────┘
+
+Key Design Patterns
+
+1. Process chaining, not nesting: Deviation → CAPA → Change Control are separate Flowable processes linked by record IDs. The Java service code creates the next process when needed (e.g., CAPA
+   created from deviation, Change Control created from CAPA action).
+2. Two assignment strategies:
+   - Direct assignment (assignee) for tasks with a known responsible person (investigator, CAPA owner, trainee)
+   - Candidate groups for tasks that go to a role pool where anyone qualified can claim
+3. Gateways drive branching: Exclusive gateways at key decision points (capaRequired, regulatoryFilingRequired, effectivenessResult, reviewDecision) determine the next path based on variables set
+   when completing the previous task.
+4. Automatic notifications: NotificationDelegate service tasks fire between user tasks to notify the next person.
+5. Escalation timers: Boundary timer events trigger EscalationDelegate when tasks go overdue (25 days for investigation, 7 days for training, 30 days for implementation).
+--------------------------------------------

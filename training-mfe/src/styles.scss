@@ -121,6 +121,7 @@ table.data-table tbody tr:focus-within,
   background-color: var(--qms-table-hover-row) !important;
 }
 
+/* ── Compact Form Fields ── */
 .mat-mdc-form-field {
   --mdc-outlined-text-field-container-shape: 6px;
   --mdc-outlined-text-field-outline-color: var(--qms-select-border);
@@ -128,6 +129,11 @@ table.data-table tbody tr:focus-within,
   --mdc-outlined-text-field-focus-outline-color: var(--qms-select-focus);
   --mdc-outlined-text-field-label-text-color: var(--qms-select-muted);
   --mdc-outlined-text-field-focus-label-text-color: var(--qms-select-focus);
+  --mat-form-field-container-height: 40px;
+  --mat-form-field-container-vertical-padding: 8px;
+  --mdc-outlined-text-field-label-text-size: 13px;
+  --mdc-outlined-text-field-input-text-size: 13px;
+  font-size: 13px;
 }
 
 .mat-mdc-form-field .mdc-text-field--outlined {
@@ -136,12 +142,28 @@ table.data-table tbody tr:focus-within,
   transition: box-shadow 160ms ease, background-color 160ms ease;
 }
 
+.mat-mdc-form-field .mdc-text-field--outlined .mdc-text-field__input {
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--qms-select-text);
+}
+
+.mat-mdc-form-field .mdc-text-field--outlined .mdc-floating-label {
+  font-size: 13px;
+}
+
 .mat-mdc-form-field.mat-focused .mdc-text-field--outlined {
   box-shadow: 0 0 0 3px rgba(44, 95, 124, 0.12);
 }
 
+.mat-mdc-form-field textarea.mdc-text-field__input {
+  font-size: 13px;
+  font-weight: 400;
+}
+
 .mat-mdc-select-trigger {
-  min-height: 24px;
+  min-height: 20px;
 }
 
 .mat-mdc-select-value,
@@ -152,11 +174,12 @@ table.data-table tbody tr:focus-within,
 
 .mat-mdc-select-value {
   color: var(--qms-select-text);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .mat-mdc-select-placeholder {
   color: #98a2b3;
+  font-weight: 400;
 }
 
 .mat-mdc-select-arrow {
@@ -172,7 +195,7 @@ table.data-table tbody tr:focus-within,
 }
 
 .mat-mdc-select-panel .mat-mdc-option {
-  min-height: 40px !important;
+  min-height: 36px !important;
   border-radius: 6px;
   margin: 2px 0;
   transition: background-color 140ms ease, color 140ms ease;
@@ -195,7 +218,7 @@ table.data-table tbody tr:focus-within,
 
 .mat-mdc-select-panel .mat-mdc-option.mdc-list-item--selected .mdc-list-item__primary-text {
   color: #1B3A4B;
-  font-weight: 650;
+  font-weight: 500;
 }
 
 .mat-mdc-select-panel .mat-mdc-option.mdc-list-item--disabled {
