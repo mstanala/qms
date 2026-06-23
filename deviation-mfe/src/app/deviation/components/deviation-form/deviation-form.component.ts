@@ -224,7 +224,7 @@ import { Deviation, DeviationType, DeviationCategory, DeviationClassification } 
               <button mat-stroked-button (click)="saveDraft()" *ngIf="!isEditMode" [disabled]="eventForm.invalid">
                 <mat-icon>save</mat-icon> Save as Draft
               </button>
-              <button mat-raised-button color="primary" (click)="submitDeviation()" style="background:#ED8B00;color:#fff">
+              <button mat-raised-button color="primary" (click)="submitDeviation()">
                 <mat-icon>{{ isEditMode ? 'save' : 'send' }}</mat-icon> {{ isEditMode ? 'Save Changes' : 'Submit Deviation Report' }}
               </button>
             </div>

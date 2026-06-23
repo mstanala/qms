@@ -231,7 +231,7 @@ import { Capa, CapaType, CapaSourceType, CapaPriority } from '../../models/capa.
                 <mat-icon>arrow_back</mat-icon>
                 Back
               </button>
-              <button mat-raised-button color="primary" (click)="submitCapa()" style="background:#ED8B00;color:#fff">
+              <button mat-raised-button color="primary" (click)="submitCapa()">
                 <mat-icon>{{ isEditMode ? 'save' : 'send' }}</mat-icon>
                 {{ isEditMode ? 'Save Changes' : 'Submit CAPA' }}
               </button>

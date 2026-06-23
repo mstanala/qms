@@ -24,6 +24,84 @@ body {
   --qms-select-selected-bg: #fff4e5;
   --qms-select-text: #1f2937;
   --qms-select-muted: #667085;
+  --qms-button-primary: #2C5F7C;
+  --qms-button-primary-hover: #1B3A4B;
+  --qms-button-primary-disabled: #cbd5e1;
+  --qms-button-primary-disabled-text: #64748b;
+}
+
+.mat-mdc-raised-button.mat-primary,
+.mat-mdc-unelevated-button.mat-primary,
+.mat-mdc-fab.mat-primary,
+.mat-mdc-mini-fab.mat-primary {
+  --mdc-protected-button-container-color: var(--qms-button-primary);
+  --mdc-protected-button-label-text-color: #fff;
+  --mdc-filled-button-container-color: var(--qms-button-primary);
+  --mdc-filled-button-label-text-color: #fff;
+  --mdc-fab-container-color: var(--qms-button-primary);
+  --mdc-fab-icon-color: #fff;
+  background-color: var(--qms-button-primary) !important;
+  color: #fff !important;
+}
+
+.mat-mdc-button.mat-primary,
+.mat-mdc-outlined-button.mat-primary,
+.mat-mdc-icon-button.mat-primary {
+  --mdc-text-button-label-text-color: var(--qms-button-primary);
+  --mdc-outlined-button-label-text-color: var(--qms-button-primary);
+  --mdc-outlined-button-outline-color: var(--qms-button-primary);
+  --mdc-icon-button-icon-color: var(--qms-button-primary);
+  color: var(--qms-button-primary) !important;
+}
+
+.mat-mdc-raised-button.mat-primary:hover:not(:disabled),
+.mat-mdc-unelevated-button.mat-primary:hover:not(:disabled),
+.mat-mdc-fab.mat-primary:hover:not(:disabled),
+.mat-mdc-mini-fab.mat-primary:hover:not(:disabled),
+.vault-create-btn:hover:not(:disabled),
+.create-btn:hover:not(:disabled),
+.btn-primary:hover:not(:disabled),
+.action-btn.primary:hover:not(:disabled),
+.quick-action-btn:hover:not(:disabled),
+.qa-btn:hover:not(:disabled),
+.login-btn:hover:not(:disabled),
+.wf-btn-primary:hover:not(:disabled),
+.vault-btn-primary:hover:not(:disabled),
+.complete-btn:hover:not(:disabled) {
+  background-color: var(--qms-button-primary-hover) !important;
+  border-color: var(--qms-button-primary-hover) !important;
+  color: #fff !important;
+}
+
+.vault-create-btn,
+.create-btn,
+.btn-primary,
+.action-btn.primary,
+.quick-action-btn,
+.qa-btn,
+.login-btn,
+.wf-btn-primary,
+.vault-btn-primary,
+.complete-btn {
+  background-color: var(--qms-button-primary) !important;
+  border-color: var(--qms-button-primary) !important;
+  color: #fff !important;
+}
+
+.vault-create-btn:disabled,
+.create-btn:disabled,
+.btn-primary:disabled,
+.action-btn.primary:disabled,
+.quick-action-btn:disabled,
+.qa-btn:disabled,
+.login-btn:disabled,
+.wf-btn-primary:disabled,
+.vault-btn-primary:disabled,
+.complete-btn:disabled {
+  background-color: var(--qms-button-primary-disabled) !important;
+  border-color: var(--qms-button-primary-disabled) !important;
+  color: var(--qms-button-primary-disabled-text) !important;
+  cursor: default !important;
 }
 
 .mat-mdc-form-field {

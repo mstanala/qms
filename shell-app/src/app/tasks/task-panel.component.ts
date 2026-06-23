@@ -21,10 +21,10 @@ import { AuthService } from '../auth/auth.service';
     <div class="task-panel" [class.collapsed]="collapsed">
       <div class="panel-toggle" (click)="collapsed = !collapsed"
            [matTooltip]="collapsed ? 'Show My Tasks' : 'Hide Task Panel'">
-        <mat-icon [matBadge]="tasks.length || ''" matBadgeSize="small"
-                  matBadgeColor="warn" [matBadgeHidden]="tasks.length === 0">
+        <mat-icon class="toggle-icon">
           {{ collapsed ? 'chevron_right' : 'chevron_left' }}
         </mat-icon>
+        <span class="toggle-badge" *ngIf="tasks.length">{{ tasks.length }}</span>
       </div>
 
       <div class="panel-content" *ngIf="!collapsed">
@@ -34,9 +34,6 @@ import { AuthService } from '../auth/auth.service';
             <span>My Tasks</span>
             <span class="task-count" *ngIf="tasks.length">{{ tasks.length }}</span>
           </div>
-          <button class="refresh-btn" (click)="loadTasks()" matTooltip="Refresh">
-            <mat-icon [class.spinning]="loading">refresh</mat-icon>
-          </button>
         </div>
 
         <div class="sidebar-sections" *ngIf="!loading">
@@ -189,19 +186,50 @@ import { AuthService } from '../auth/auth.service';
 
     .panel-toggle {
       position: absolute;
-      top: 6px;
-      right: 2px;
-      z-index: 2;
+      top: 14px;
+      right: 8px;
+      z-index: 15;
       cursor: pointer;
-      padding: 2px;
+      width: 24px;
+      height: 24px;
+      padding: 0;
       border-radius: 4px;
       display: flex;
       align-items: center;
       justify-content: center;
     }
     .panel-toggle:hover { background: #f1f5f9; }
-    .panel-toggle mat-icon { font-size: 16px; width: 16px; height: 16px; color: #64748b; }
-    .collapsed .panel-toggle { right: 1px; transform: none; top: 25px; }
+    .panel-toggle .toggle-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      width: 20px;
+      height: 20px;
+      line-height: 20px;
+      color: #64748b;
+    }
+    .toggle-badge {
+      position: absolute;
+      top: -7px;
+      right: -8px;
+      min-width: 16px;
+      height: 16px;
+      line-height: 16px;
+      padding: 0 4px;
+      border-radius: 999px;
+      background: #ef4444;
+      color: #fff;
+      font-size: 9px;
+      font-weight: 700;
+      text-align: center;
+      pointer-events: none;
+      box-sizing: border-box;
+    }
+    .collapsed .panel-toggle { right: 6px; top: 7px; }
+    .collapsed .toggle-badge {
+      right: -5px;
+    }
 
     .panel-content {
       display: flex;
@@ -237,20 +265,6 @@ import { AuthService } from '../auth/auth.service';
       min-width: 16px;
       text-align: center;
     }
-    .refresh-btn {
-      border: none;
-      background: none;
-      cursor: pointer;
-      padding: 2px;
-      border-radius: 4px;
-      display: flex;
-      color: #94a3b8;
-    }
-    .refresh-btn:hover { background: #f1f5f9; color: #475569; }
-    .refresh-btn mat-icon { font-size: 14px; width: 14px; height: 14px; }
-    .spinning { animation: spin 1s linear infinite; }
-    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
     /* ── Sidebar Sections (matches Deviation detail sidebar) ── */
     .sidebar-sections {
       flex: 1;
