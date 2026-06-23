@@ -13,6 +13,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { DeviationService } from '../../services/deviation.service';
 import { Deviation, DeviationStatus, DeviationClassification, DeviationCategory } from '../../models/deviation.model';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'dev-list',
@@ -38,7 +39,7 @@ import { Deviation, DeviationStatus, DeviationClassification, DeviationCategory 
           <h1>Deviations</h1>
           <span class="record-count-badge">{{ filteredDeviations.length }} records</span>
         </div>
-        <button class="vault-create-btn" routerLink="../create">
+        <button class="vault-create-btn" routerLink="../create" [disabled]="!canCreateDeviation">
           + Create
         </button>
       </div>
@@ -156,7 +157,7 @@ import { Deviation, DeviationStatus, DeviationClassification, DeviationCategory 
                     <mat-icon>visibility</mat-icon>
                     <span>View Details</span>
                   </button>
-                  <button mat-menu-item [routerLink]="['../edit', dev.id]" (click)="stopRowNavigation($event)">
+                  <button mat-menu-item [routerLink]="['../edit', dev.id]" [disabled]="!canUpdateDeviation" (click)="stopRowNavigation($event)">
                     <mat-icon>edit</mat-icon>
                     <span>Edit</span>
                   </button>
@@ -189,6 +190,7 @@ import { Deviation, DeviationStatus, DeviationClassification, DeviationCategory 
     .record-count-badge { font-size: 12px; color: #888; }
     .vault-create-btn { background: #ED8B00; color: #fff; border: none; padding: 8px 18px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; }
     .vault-create-btn:hover { background: #D4760A; }
+    .vault-create-btn:disabled { background: #cbd5e1; color: #64748b; cursor: default; }
 
     .filter-card { margin-bottom: 12px; padding: 12px 16px; border: 1px solid #e0e0e0; border-radius: 4px; }
     .filters-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
@@ -243,6 +245,8 @@ export class DeviationListComponent implements OnInit {
   selectedStatuses: DeviationStatus[] = [];
   selectedClassifications: DeviationClassification[] = [];
   selectedCategories: DeviationCategory[] = [];
+  canCreateDeviation = hasStoredPermission('DEVIATION', 'CREATE', 'deviation_record');
+  canUpdateDeviation = hasStoredPermission('DEVIATION', 'UPDATE', 'deviation_record');
 
   displayedColumns = ['deviationNumber', 'title', 'type', 'classification', 'status', 'category', 'department', 'reportedDate', 'dueDate', 'actions'];
 

@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +25,7 @@ public class AuthService {
     private final UserLoginAuditRepository loginAuditRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
+    private final UserService userService;
 
     @Transactional
     public AuthResponse login(LoginRequest request, HttpServletRequest httpRequest) {
@@ -65,18 +65,10 @@ public class AuthService {
 
         logLoginAttempt(user, request.getUsername(), LoginStatus.SUCCESS, null, httpRequest);
 
-        var roles = user.getUserRoles().stream()
-                .filter(ur -> ur.getIsActive())
-                .map(ur -> ur.getRole().getCode())
-                .collect(Collectors.toList());
-
         return AuthResponse.builder()
                 .accessToken(accessToken).refreshToken(refreshToken)
                 .expiresIn(jwtTokenProvider.getAccessTokenExpiration() / 1000)
-                .user(AuthResponse.UserSummary.builder()
-                        .id(user.getId().toString())
-                        .displayName(user.getDisplayName())
-                        .roles(roles).build())
+                .user(userService.getUser(user.getId()))
                 .build();
     }
 
@@ -90,17 +82,10 @@ public class AuthService {
                 .orElseThrow(() -> new UnauthorizedException("User not found"));
         String newAccessToken = jwtTokenProvider.generateAccessToken(user.getId(), user.getUsername());
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(user.getId());
-        var roles = user.getUserRoles().stream()
-                .filter(ur -> ur.getIsActive())
-                .map(ur -> ur.getRole().getCode())
-                .collect(Collectors.toList());
         return AuthResponse.builder()
                 .accessToken(newAccessToken).refreshToken(newRefreshToken)
                 .expiresIn(jwtTokenProvider.getAccessTokenExpiration() / 1000)
-                .user(AuthResponse.UserSummary.builder()
-                        .id(user.getId().toString())
-                        .displayName(user.getDisplayName())
-                        .roles(roles).build())
+                .user(userService.getUser(user.getId()))
                 .build();
     }
 

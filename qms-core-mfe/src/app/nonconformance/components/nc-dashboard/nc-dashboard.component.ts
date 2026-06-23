@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { NonconformanceService } from '../../services/nonconformance.service';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'qms-nc-dashboard',
@@ -15,7 +16,7 @@ import { NonconformanceService } from '../../services/nonconformance.service';
       <div class="dashboard-header">
         <h1>Nonconformance Dashboard</h1>
         <div class="header-actions">
-          <button mat-raised-button color="primary" routerLink="../create"><mat-icon>add</mat-icon> New NC</button>
+          <button mat-raised-button color="primary" routerLink="../create" [disabled]="!canCreateNonconformance"><mat-icon>add</mat-icon> New NC</button>
           <button mat-stroked-button routerLink="../list"><mat-icon>list</mat-icon> All NCs</button>
         </div>
       </div>
@@ -31,6 +32,7 @@ import { NonconformanceService } from '../../services/nonconformance.service';
 })
 export class NcDashboardComponent implements OnInit {
   metrics: Record<string, unknown> = {};
+  canCreateNonconformance = hasStoredPermission('NONCONFORMANCE', 'CREATE', 'nonconformance');
   constructor(private ncService: NonconformanceService) {}
   ngOnInit(): void { this.ncService.getDashboard().subscribe((metrics) => this.metrics = metrics); }
   metric(key: string): number { return Number(this.metrics[key] ?? 0); }

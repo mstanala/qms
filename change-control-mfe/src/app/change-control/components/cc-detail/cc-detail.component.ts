@@ -9,8 +9,28 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { ChangeControlService } from '../../services/change-control.service';
 import { ChangeRequest, ChangeStatus } from '../../models/change-control.model';
+import { ESignatureDialogComponent } from '../e-signature-dialog/e-signature-dialog.component';
+
+function getUserRoleCodes(): string[] {
+  const raw = localStorage.getItem('auth') || sessionStorage.getItem('auth');
+  if (!raw) return [];
+  try {
+    const roles = JSON.parse(raw)?.user?.roles || [];
+    return roles.map((r: any) => typeof r === 'string' ? r : r.code).filter(Boolean);
+  } catch { return []; }
+}
+
+interface WorkflowAction {
+  label: string;
+  targetStatus: ChangeStatus;
+  type: 'primary' | 'danger' | 'secondary';
+  requiresESign?: boolean;
+  requiresComment?: boolean;
+  requiredRoles?: string[];
+}
 
 @Component({
   selector: 'cc-detail',
@@ -26,6 +46,7 @@ import { ChangeRequest, ChangeStatus } from '../../models/change-control.model';
     MatChipsModule,
     MatTooltipModule,
     MatProgressBarModule,
+    MatDialogModule,
   ],
   template: `
     <div class="cc-detail" *ngIf="cr">
@@ -43,8 +64,18 @@ import { ChangeRequest, ChangeStatus } from '../../models/change-control.model';
           <span class="type-badge">{{ formatType(cr.type) }}</span>
           <span class="classification-badge" [ngClass]="cr.classification.toLowerCase()">{{ cr.classification }}</span>
           <span class="priority-badge" [ngClass]="cr.priority.toLowerCase()">{{ cr.priority }}</span>
-          <span class="status-chip" [ngClass]="getStatusClass(cr.status)">{{ formatStatus(cr.status) }}</span>
+          <span class="status-pill" [ngClass]="getStatusClass(cr.status)">{{ formatStatus(cr.status) }}</span>
         </div>
+      </div>
+
+      <!-- Workflow Action Bar -->
+      <div class="workflow-actions-bar" *ngIf="getAvailableActions().length">
+        <button *ngFor="let action of getAvailableActions()"
+                [ngClass]="{'wf-btn': true, 'wf-btn-primary': action.type === 'primary', 'wf-btn-danger': action.type === 'danger', 'wf-btn-secondary': action.type === 'secondary'}"
+                (click)="executeWorkflowAction(action)"
+                [disabled]="actionInProgress">
+          {{ action.label }}
+        </button>
       </div>
 
       <!-- Workflow Progress -->
@@ -374,22 +405,37 @@ import { ChangeRequest, ChangeStatus } from '../../models/change-control.model';
     .priority-badge.high { background: #fff3e0; color: #e65100; }
     .priority-badge.medium { background: #fff8e1; color: #f57f17; }
     .priority-badge.low { background: #e8f5e9; color: #2e7d32; }
-    .status-chip { padding: 6px 12px; border-radius: 16px; font-size: 12px; font-weight: 500; }
-    .status-chip.implementation { background: #ED8B00; color: #fff; }
-    .status-chip.pending-approval { background: #D4760A; color: #fff; }
-    .status-chip.approved { background: #388E3C; color: #fff; }
-    .status-chip.qa-review { background: #2C5F7C; color: #fff; }
-    .status-chip.closed { background: #666; color: #fff; }
-    .status-chip.submitted { background: #ED8B00; color: #fff; }
-    .status-chip.draft { background: #f5f5f5; color: #616161; }
-    .status-chip.rejected { background: #c62828; color: #fff; }
-    .status-chip.verification { background: #2C5F7C; color: #fff; }
+    .status-pill { padding: 6px 14px; border-radius: 16px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .status-pill.draft { background: #f5f5f5; color: #616161; }
+    .status-pill.submitted { background: #fff3e0; color: #e65100; }
+    .status-pill.impact-assessment { background: #e3f2fd; color: #1565c0; }
+    .status-pill.qa-review { background: #2C5F7C; color: #fff; }
+    .status-pill.ra-review { background: #f3e5f5; color: #6a1b9a; }
+    .status-pill.pending-approval { background: #D4760A; color: #fff; }
+    .status-pill.approved { background: #388E3C; color: #fff; }
+    .status-pill.implementation { background: #ED8B00; color: #fff; }
+    .status-pill.verification { background: #2C5F7C; color: #fff; }
+    .status-pill.effectiveness-check { background: #1565c0; color: #fff; }
+    .status-pill.closed { background: #666; color: #fff; }
+    .status-pill.rejected { background: #c62828; color: #fff; }
+    .status-pill.withdrawn { background: #9e9e9e; color: #fff; }
+
+    .workflow-actions-bar { display: flex; gap: 8px; margin-bottom: 20px; padding: 12px 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }
+    .wf-btn { padding: 8px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; }
+    .wf-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .wf-btn-primary { background: #2C5F7C; color: #fff; }
+    .wf-btn-primary:hover:not(:disabled) { background: #1e4a61; }
+    .wf-btn-danger { background: #fff; color: #c62828; border-color: #c62828; }
+    .wf-btn-danger:hover:not(:disabled) { background: #ffebee; }
+    .wf-btn-secondary { background: #fff; color: #2C5F7C; border-color: #2C5F7C; }
+    .wf-btn-secondary:hover:not(:disabled) { background: #e8f4f8; }
 
     .workflow-card { margin-bottom: 20px; }
     .workflow-stepper { display: flex; gap: 4px; overflow-x: auto; padding: 16px 0; }
     .workflow-step { display: flex; flex-direction: column; align-items: center; min-width: 80px; padding: 6px; }
     .workflow-step.completed .step-indicator { color: #2C5F7C; }
-    .workflow-step.current .step-indicator { color: #ED8B00; }
+    .workflow-step.current .step-indicator { color: #ED8B00; animation: pulse-step 1.5s ease-in-out infinite; }
+    @keyframes pulse-step { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     .workflow-step.pending .step-indicator { color: #bdbdbd; }
     .step-indicator mat-icon { font-size: 20px; }
     .step-content { text-align: center; margin-top: 4px; }
@@ -534,11 +580,13 @@ import { ChangeRequest, ChangeStatus } from '../../models/change-control.model';
 })
 export class CcDetailComponent implements OnInit {
   cr: ChangeRequest | null = null;
+  actionInProgress = false;
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private ccService: ChangeControlService
+    private ccService: ChangeControlService,
+    private dialog: MatDialog
   ) {}
 
   ngOnInit(): void {
@@ -601,5 +649,111 @@ export class CcDetailComponent implements OnInit {
       { label: 'Supplier Qualification', value: ia.supplierQualification },
       { label: 'Stability', value: ia.stability },
     ];
+  }
+
+  getAvailableActions(): WorkflowAction[] {
+    if (!this.cr) return [];
+    const roles = getUserRoleCodes();
+    const allActions: Record<string, WorkflowAction[]> = {
+      [ChangeStatus.DRAFT]: [
+        { label: 'Submit Change Request', targetStatus: ChangeStatus.SUBMITTED, type: 'primary',
+          requiredRoles: ['OWNER', 'END_USER', 'QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+      ],
+      [ChangeStatus.SUBMITTED]: [
+        { label: 'Start Impact Assessment', targetStatus: ChangeStatus.IMPACT_ASSESSMENT, type: 'primary',
+          requiredRoles: ['OWNER', 'QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+        { label: 'Reject', targetStatus: ChangeStatus.REJECTED, type: 'danger', requiresComment: true,
+          requiredRoles: ['QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+      ],
+      [ChangeStatus.IMPACT_ASSESSMENT]: [
+        { label: 'Submit for QA Review', targetStatus: ChangeStatus.QA_REVIEW, type: 'primary',
+          requiredRoles: ['OWNER', 'QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+      ],
+      [ChangeStatus.QA_REVIEW]: [
+        { label: 'Approve QA Review', targetStatus: this.cr.regulatoryFiling?.filingRequired ? ChangeStatus.RA_REVIEW : ChangeStatus.PENDING_APPROVAL, type: 'primary',
+          requiredRoles: ['QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+        { label: 'Reject', targetStatus: ChangeStatus.REJECTED, type: 'danger', requiresComment: true,
+          requiredRoles: ['QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+      ],
+      [ChangeStatus.RA_REVIEW]: [
+        { label: 'Approve RA Review', targetStatus: ChangeStatus.PENDING_APPROVAL, type: 'primary',
+          requiredRoles: ['REVIEWER', 'QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+        { label: 'Reject', targetStatus: ChangeStatus.REJECTED, type: 'danger', requiresComment: true,
+          requiredRoles: ['REVIEWER', 'QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+      ],
+      [ChangeStatus.PENDING_APPROVAL]: [
+        { label: 'Approve Change', targetStatus: ChangeStatus.APPROVED, type: 'primary', requiresESign: true,
+          requiredRoles: ['QA_APPROVER', 'APPROVER', 'VAULT_ADMIN'] },
+        { label: 'Reject', targetStatus: ChangeStatus.REJECTED, type: 'danger', requiresComment: true,
+          requiredRoles: ['QA_APPROVER', 'APPROVER', 'VAULT_ADMIN'] },
+      ],
+      [ChangeStatus.APPROVED]: [
+        { label: 'Start Implementation', targetStatus: ChangeStatus.IMPLEMENTATION, type: 'primary',
+          requiredRoles: ['OWNER', 'QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+      ],
+      [ChangeStatus.IMPLEMENTATION]: [
+        { label: 'Complete Implementation', targetStatus: ChangeStatus.VERIFICATION, type: 'primary',
+          requiredRoles: ['OWNER', 'QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+      ],
+      [ChangeStatus.VERIFICATION]: [
+        { label: 'Verify & Start Effectiveness', targetStatus: ChangeStatus.EFFECTIVENESS_CHECK, type: 'primary', requiresESign: true,
+          requiredRoles: ['QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+      ],
+      [ChangeStatus.EFFECTIVENESS_CHECK]: [
+        { label: 'Close Change Request', targetStatus: ChangeStatus.CLOSED, type: 'primary', requiresESign: true,
+          requiredRoles: ['QA_APPROVER', 'VAULT_ADMIN'] },
+        { label: 'Reopen Implementation', targetStatus: ChangeStatus.IMPLEMENTATION, type: 'danger', requiresComment: true,
+          requiredRoles: ['QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+      ],
+    };
+    const actions = allActions[this.cr.status] || [];
+    return actions.filter(a => !a.requiredRoles || a.requiredRoles.some(r => roles.includes(r)));
+  }
+
+  executeWorkflowAction(action: WorkflowAction): void {
+    if (!this.cr) return;
+
+    if (action.requiresESign) {
+      const dialogRef = this.dialog.open(ESignatureDialogComponent, {
+        width: '480px',
+        disableClose: true,
+        data: {
+          recordNumber: this.cr.changeNumber,
+          action: action.label,
+          meaning: `I confirm the ${action.label.toLowerCase()} for ${this.cr.changeNumber}`,
+        },
+      });
+
+      dialogRef.afterClosed().subscribe((result) => {
+        if (result?.signed) {
+          this.performStatusChange(action.targetStatus, `E-Signed: ${result.meaning}`);
+        }
+      });
+    } else if (action.requiresComment) {
+      const comment = prompt(`Please provide a reason for: ${action.label}`);
+      if (comment !== null && comment.trim()) {
+        this.performStatusChange(action.targetStatus, comment);
+      }
+    } else {
+      this.performStatusChange(action.targetStatus);
+    }
+  }
+
+  private performStatusChange(targetStatus: ChangeStatus, comments?: string): void {
+    if (!this.cr) return;
+    this.actionInProgress = true;
+    this.ccService.updateStatus(this.cr.id, targetStatus, comments).subscribe({
+      next: () => {
+        this.actionInProgress = false;
+        this.ccService.getChangeRequestById(this.cr!.id).subscribe((full) => {
+          if (full) this.cr = full;
+        });
+      },
+      error: (err) => {
+        this.actionInProgress = false;
+        console.error('Status change failed:', err);
+        alert('Failed to update status. Please try again.');
+      },
+    });
   }
 }

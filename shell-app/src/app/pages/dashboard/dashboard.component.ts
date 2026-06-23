@@ -5,6 +5,7 @@ import { RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { AuthService } from '../../auth/auth.service';
 
 const API_BASE_URL = 'http://localhost:8082/api/v1';
 
@@ -39,7 +40,7 @@ interface StatusRow {
       </div>
 
       <div class="kpi-strip">
-        <div class="kpi" routerLink="/capa">
+        <div class="kpi" [routerLink]="canReadCapa ? '/capa' : null" [class.disabled]="!canReadCapa">
           <div class="kpi-val">{{ dashboard?.openCapas ?? 0 }}</div>
           <div class="kpi-lbl">Open CAPAs</div>
           <div class="kpi-bar capa"></div>
@@ -49,12 +50,12 @@ interface StatusRow {
           <div class="kpi-lbl">Overdue</div>
           <div class="kpi-bar overdue"></div>
         </div>
-        <div class="kpi" routerLink="/deviations">
+        <div class="kpi" [routerLink]="canReadDeviation ? '/deviations' : null" [class.disabled]="!canReadDeviation">
           <div class="kpi-val">{{ dashboard?.openDeviations ?? 0 }}</div>
           <div class="kpi-lbl">Open Deviations</div>
           <div class="kpi-bar dev"></div>
         </div>
-        <div class="kpi" routerLink="/change-control">
+        <div class="kpi" [routerLink]="canReadChange ? '/change-control' : null" [class.disabled]="!canReadChange">
           <div class="kpi-val">{{ dashboard?.openChangeRequests ?? 0 }}</div>
           <div class="kpi-lbl">Active Changes</div>
           <div class="kpi-bar cc"></div>
@@ -78,7 +79,7 @@ interface StatusRow {
             <span>Quality Modules</span>
           </div>
           <div class="module-list">
-            <a class="mod-item" routerLink="/capa">
+            <a class="mod-item" routerLink="/capa" [class.disabled]="!canReadCapa" [attr.aria-disabled]="!canReadCapa" (click)="guardNav($event, canReadCapa)">
               <div class="mod-icon capa"><mat-icon>assignment_turned_in</mat-icon></div>
               <div class="mod-info">
                 <span class="mod-name">CAPA Management</span>
@@ -87,7 +88,7 @@ interface StatusRow {
               <div class="mod-count">{{ dashboard?.openCapas ?? 0 }} open</div>
               <mat-icon class="mod-arrow">chevron_right</mat-icon>
             </a>
-            <a class="mod-item" routerLink="/deviations">
+            <a class="mod-item" routerLink="/deviations" [class.disabled]="!canReadDeviation" [attr.aria-disabled]="!canReadDeviation" (click)="guardNav($event, canReadDeviation)">
               <div class="mod-icon dev"><mat-icon>report_problem</mat-icon></div>
               <div class="mod-info">
                 <span class="mod-name">Deviation Management</span>
@@ -96,7 +97,7 @@ interface StatusRow {
               <div class="mod-count">{{ dashboard?.openDeviations ?? 0 }} open</div>
               <mat-icon class="mod-arrow">chevron_right</mat-icon>
             </a>
-            <a class="mod-item" routerLink="/change-control">
+            <a class="mod-item" routerLink="/change-control" [class.disabled]="!canReadChange" [attr.aria-disabled]="!canReadChange" (click)="guardNav($event, canReadChange)">
               <div class="mod-icon cc"><mat-icon>swap_horiz</mat-icon></div>
               <div class="mod-info">
                 <span class="mod-name">Change Control</span>
@@ -105,7 +106,7 @@ interface StatusRow {
               <div class="mod-count">{{ dashboard?.openChangeRequests ?? 0 }} active</div>
               <mat-icon class="mod-arrow">chevron_right</mat-icon>
             </a>
-            <a class="mod-item" routerLink="/documents">
+            <a class="mod-item" routerLink="/documents" [class.disabled]="!canReadDocument" [attr.aria-disabled]="!canReadDocument" (click)="guardNav($event, canReadDocument)">
               <div class="mod-icon doc"><mat-icon>description</mat-icon></div>
               <div class="mod-info">
                 <span class="mod-name">Document Control</span>
@@ -114,7 +115,7 @@ interface StatusRow {
               <div class="mod-count">Manage</div>
               <mat-icon class="mod-arrow">chevron_right</mat-icon>
             </a>
-            <a class="mod-item" routerLink="/training">
+            <a class="mod-item" routerLink="/training" [class.disabled]="!canReadTraining" [attr.aria-disabled]="!canReadTraining" (click)="guardNav($event, canReadTraining)">
               <div class="mod-icon trn"><mat-icon>school</mat-icon></div>
               <div class="mod-info">
                 <span class="mod-name">Training Management</span>
@@ -133,21 +134,21 @@ interface StatusRow {
             <span class="head-badge">{{ totalOverdue }}</span>
           </div>
           <div class="task-list">
-            <a class="task-row" routerLink="/capa/list">
+            <a class="task-row" routerLink="/capa/list" [class.disabled]="!canReadCapa" [attr.aria-disabled]="!canReadCapa" (click)="guardNav($event, canReadCapa)">
               <mat-icon class="task-icon urgent">assignment_late</mat-icon>
               <div class="task-info">
                 <span class="task-title">{{ dashboard?.overdueCapas ?? 0 }} overdue CAPAs</span>
                 <span class="task-meta">From backend CAPA due-date metrics</span>
               </div>
             </a>
-            <a class="task-row" routerLink="/deviations/list">
+            <a class="task-row" routerLink="/deviations/list" [class.disabled]="!canReadDeviation" [attr.aria-disabled]="!canReadDeviation" (click)="guardNav($event, canReadDeviation)">
               <mat-icon class="task-icon pending">report_problem</mat-icon>
               <div class="task-info">
                 <span class="task-title">{{ dashboard?.overdueDeviations ?? 0 }} overdue deviations</span>
                 <span class="task-meta">From backend deviation closure metrics</span>
               </div>
             </a>
-            <a class="task-row" routerLink="/change-control/list">
+            <a class="task-row" routerLink="/change-control/list" [class.disabled]="!canReadChange" [attr.aria-disabled]="!canReadChange" (click)="guardNav($event, canReadChange)">
               <mat-icon class="task-icon info">swap_horiz</mat-icon>
               <div class="task-info">
                 <span class="task-title">{{ dashboard?.overdueChangeRequests ?? 0 }} overdue change requests</span>
@@ -178,27 +179,27 @@ interface StatusRow {
             <span>Quick Actions</span>
           </div>
           <div class="quick-grid">
-            <button class="qa-btn" routerLink="/capa/create">
+            <button class="qa-btn" routerLink="/capa/create" [disabled]="!canCreateCapa">
               <mat-icon>add_circle</mat-icon>
               <span>New CAPA</span>
             </button>
-            <button class="qa-btn" routerLink="/deviations/create">
+            <button class="qa-btn" routerLink="/deviations/create" [disabled]="!canCreateDeviation">
               <mat-icon>add_circle</mat-icon>
               <span>New Deviation</span>
             </button>
-            <button class="qa-btn" routerLink="/change-control/create">
+            <button class="qa-btn" routerLink="/change-control/create" [disabled]="!canCreateChange">
               <mat-icon>add_circle</mat-icon>
               <span>New Change Request</span>
             </button>
-            <button class="qa-btn" routerLink="/capa/list">
+            <button class="qa-btn" routerLink="/capa/list" [disabled]="!canReadCapa">
               <mat-icon>assignment_turned_in</mat-icon>
               <span>CAPA Register</span>
             </button>
-            <button class="qa-btn" routerLink="/deviations/list">
+            <button class="qa-btn" routerLink="/deviations/list" [disabled]="!canReadDeviation">
               <mat-icon>report_problem</mat-icon>
               <span>Deviation Register</span>
             </button>
-            <button class="qa-btn" routerLink="/change-control/list">
+            <button class="qa-btn" routerLink="/change-control/list" [disabled]="!canReadChange">
               <mat-icon>swap_horiz</mat-icon>
               <span>Change Register</span>
             </button>
@@ -221,6 +222,8 @@ interface StatusRow {
       padding: 12px 14px; cursor: pointer; position: relative; overflow: hidden;
     }
     .kpi:hover { border-color: #2C5F7C; }
+    .kpi.disabled { opacity: 0.45; cursor: default; }
+    .kpi.disabled:hover { border-color: #e5e7eb; }
     .kpi-val { font-size: 26px; font-weight: 700; color: #1B3A4B; }
     .kpi-val.warn { color: #c62828; }
     .kpi-val.ok { color: #2e7d32; }
@@ -253,8 +256,9 @@ interface StatusRow {
       border-bottom: 1px solid #f5f5f5; cursor: pointer; text-decoration: none; color: inherit;
     }
     .mod-item:last-child, .task-row:last-child { border-bottom: none; }
-    .mod-item:not(.disabled):hover, .task-row:hover { background: #f8f9fb; }
+    .mod-item:not(.disabled):hover, .task-row:not(.disabled):hover { background: #f8f9fb; }
     .mod-item.disabled { opacity: 0.45; cursor: default; }
+    .task-row.disabled { opacity: 0.45; cursor: default; }
     .mod-icon {
       width: 32px; height: 32px; border-radius: 6px; display: flex;
       align-items: center; justify-content: center;
@@ -297,6 +301,8 @@ interface StatusRow {
     .qa-btn mat-icon { font-size: 20px; width: 20px; height: 20px; }
     .qa-btn span { font-size: 11px; font-weight: 500; }
     .qa-btn:hover { background: #ED8B00; color: #fff; border-color: #ED8B00; }
+    .qa-btn:disabled { opacity: 0.45; cursor: default; }
+    .qa-btn:disabled:hover { background: #f8f9fb; color: #2C5F7C; border-color: #e5e7eb; }
     @media (max-width: 900px) {
       .kpi-strip { grid-template-columns: repeat(3, 1fr); }
       .panels { grid-template-columns: 1fr; }
@@ -308,10 +314,19 @@ export class DashboardComponent implements OnInit {
   statusRows: StatusRow[] = [];
   isLoading = false;
   loadError = '';
+  canReadCapa = false;
+  canCreateCapa = false;
+  canReadDeviation = false;
+  canCreateDeviation = false;
+  canReadChange = false;
+  canCreateChange = false;
+  canReadDocument = false;
+  canReadTraining = false;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private authService: AuthService) {}
 
   ngOnInit(): void {
+    this.refreshPermissions();
     this.loadDashboard();
   }
 
@@ -335,6 +350,23 @@ export class DashboardComponent implements OnInit {
     if (module === 'capa') return 'CAPA';
     if (module === 'dev') return 'DEV';
     return 'CC';
+  }
+
+  guardNav(event: Event, allowed: boolean): void {
+    if (allowed) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  private refreshPermissions(): void {
+    this.canReadCapa = this.authService.hasPermission('CAPA', 'READ', 'capa_record');
+    this.canCreateCapa = this.authService.hasPermission('CAPA', 'CREATE', 'capa_record');
+    this.canReadDeviation = this.authService.hasPermission('DEVIATION', 'READ', 'deviation_record');
+    this.canCreateDeviation = this.authService.hasPermission('DEVIATION', 'CREATE', 'deviation_record');
+    this.canReadChange = this.authService.hasPermission('CHANGE_CONTROL', 'READ', 'change_request');
+    this.canCreateChange = this.authService.hasPermission('CHANGE_CONTROL', 'CREATE', 'change_request');
+    this.canReadDocument = this.authService.hasPermission('DOCUMENT', 'READ', 'document');
+    this.canReadTraining = this.authService.hasPermission('TRAINING', 'READ', 'training_record');
   }
 
   private loadDashboard(): void {

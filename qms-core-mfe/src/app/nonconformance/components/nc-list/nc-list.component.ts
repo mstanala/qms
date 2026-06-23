@@ -12,6 +12,7 @@ import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { Nonconformance, NonconformanceService } from '../../services/nonconformance.service';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'qms-nc-list',
@@ -23,7 +24,7 @@ import { Nonconformance, NonconformanceService } from '../../services/nonconform
       <div class="page-header">
         <h1>Nonconformances</h1>
         <div class="actions">
-          <button mat-raised-button color="primary" routerLink="../create"><mat-icon>add</mat-icon> New NC</button>
+          <button mat-raised-button color="primary" routerLink="../create" [disabled]="!canCreateNonconformance"><mat-icon>add</mat-icon> New NC</button>
           <button mat-stroked-button routerLink="../dashboard"><mat-icon>dashboard</mat-icon> Dashboard</button>
         </div>
       </div>
@@ -64,6 +65,7 @@ export class NcListComponent implements OnInit {
   holdFilter = '';
   statuses = ['IDENTIFIED', 'UNDER_REVIEW', 'INVESTIGATION', 'DISPOSITION_PENDING', 'DISPOSITION_APPROVED', 'CLOSED'];
   types = ['PRODUCT', 'PROCESS', 'MATERIAL', 'EQUIPMENT', 'DOCUMENTATION', 'SUPPLIER'];
+  canCreateNonconformance = hasStoredPermission('NONCONFORMANCE', 'CREATE', 'nonconformance');
 
   constructor(private ncService: NonconformanceService) {}
 

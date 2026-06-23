@@ -11,6 +11,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { FormsModule } from '@angular/forms';
 import { RiskService, RiskRegister } from '../../services/risk.service';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'qms-risk-register-list',
@@ -24,7 +25,7 @@ import { RiskService, RiskRegister } from '../../services/risk.service';
     <div class="list-container">
       <div class="list-header">
         <h1>Risk Registers</h1>
-        <button mat-raised-button color="primary" routerLink="../registers/create">
+        <button mat-raised-button color="primary" routerLink="../registers/create" [disabled]="!canCreateRisk">
           <mat-icon>add</mat-icon> New Register
         </button>
       </div>
@@ -134,6 +135,7 @@ export class RiskRegisterListComponent implements OnInit {
   searchTerm = '';
   filterStatus = '';
   filterRiskType = '';
+  canCreateRisk = hasStoredPermission('RISK', 'CREATE', 'risk_register');
 
   constructor(private riskService: RiskService) {}
 

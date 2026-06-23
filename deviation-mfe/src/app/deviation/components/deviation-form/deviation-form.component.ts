@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -130,23 +131,15 @@ import { Deviation, DeviationType, DeviationCategory, DeviationClassification } 
               <div class="form-grid">
                 <mat-form-field appearance="outline">
                   <mat-label>Plant Site</mat-label>
-                  <mat-select formControlName="plantSite">
-                    <mat-option value="Hyderabad Unit-1">Hyderabad Unit-1</mat-option>
-                    <mat-option value="Hyderabad Unit-2">Hyderabad Unit-2</mat-option>
-                    <mat-option value="Vizag Unit-1">Vizag Unit-1</mat-option>
+                  <mat-select formControlName="plantSite" (selectionChange)="onPlantSiteChange($event.value)">
+                    <mat-option *ngFor="let site of plantSites" [value]="site.id">{{ site.name }}</mat-option>
                   </mat-select>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
                   <mat-label>Department</mat-label>
                   <mat-select formControlName="department">
-                    <mat-option value="Production">Production</mat-option>
-                    <mat-option value="Quality Control">Quality Control</mat-option>
-                    <mat-option value="Quality Assurance">Quality Assurance</mat-option>
-                    <mat-option value="Warehouse">Warehouse</mat-option>
-                    <mat-option value="Engineering">Engineering</mat-option>
-                    <mat-option value="Packaging">Packaging</mat-option>
-                    <mat-option value="R&D">R&D</mat-option>
+                    <mat-option *ngFor="let dept of departments" [value]="dept.id">{{ dept.name }}</mat-option>
                   </mat-select>
                 </mat-form-field>
 
@@ -172,13 +165,8 @@ import { Deviation, DeviationType, DeviationCategory, DeviationClassification } 
 
                 <mat-form-field appearance="outline">
                   <mat-label>Assigned To</mat-label>
-                  <mat-select formControlName="assignedToName">
-                    <mat-option value="Rajesh Kumar">Rajesh Kumar</mat-option>
-                    <mat-option value="Priya Sharma">Priya Sharma</mat-option>
-                    <mat-option value="Lakshmi Devi">Lakshmi Devi</mat-option>
-                    <mat-option value="Kavitha Reddy">Kavitha Reddy</mat-option>
-                    <mat-option value="Deepak Joshi">Deepak Joshi</mat-option>
-                    <mat-option value="Mahesh Patil">Mahesh Patil</mat-option>
+                  <mat-select formControlName="assignedToId">
+                    <mat-option *ngFor="let user of users" [value]="user.id">{{ user.displayName }}</mat-option>
                   </mat-select>
                 </mat-form-field>
 
@@ -219,10 +207,10 @@ import { Deviation, DeviationType, DeviationCategory, DeviationClassification } 
               <div class="review-item"><span class="review-label">Type</span><span class="review-value">{{ eventForm.get('type')?.value }}</span></div>
               <div class="review-item"><span class="review-label">Category</span><span class="review-value">{{ formatCategory(eventForm.get('category')?.value) }}</span></div>
               <div class="review-item"><span class="review-label">Classification</span><span class="review-value">{{ eventForm.get('classification')?.value }}</span></div>
-              <div class="review-item"><span class="review-label">Plant Site</span><span class="review-value">{{ locationForm.get('plantSite')?.value }}</span></div>
-              <div class="review-item"><span class="review-label">Department</span><span class="review-value">{{ locationForm.get('department')?.value }}</span></div>
+              <div class="review-item"><span class="review-label">Plant Site</span><span class="review-value">{{ getPlantSiteName(locationForm.get('plantSite')?.value) }}</span></div>
+              <div class="review-item"><span class="review-label">Department</span><span class="review-value">{{ getDepartmentName(locationForm.get('department')?.value) }}</span></div>
               <div class="review-item"><span class="review-label">Area</span><span class="review-value">{{ locationForm.get('area')?.value }}</span></div>
-              <div class="review-item"><span class="review-label">Assigned To</span><span class="review-value">{{ locationForm.get('assignedToName')?.value }}</span></div>
+              <div class="review-item"><span class="review-label">Assigned To</span><span class="review-value">{{ getUserName(locationForm.get('assignedToId')?.value) }}</span></div>
               <div class="review-item full-width"><span class="review-label">Description</span><span class="review-value">{{ eventForm.get('description')?.value }}</span></div>
             </div>
 
@@ -233,7 +221,10 @@ import { Deviation, DeviationType, DeviationCategory, DeviationClassification } 
 
             <div class="step-actions">
               <button mat-stroked-button matStepperPrevious><mat-icon>arrow_back</mat-icon> Back</button>
-              <button mat-raised-button color="primary" (click)="submitDeviation()" style="background:#ED8B00;color:#fff">
+              <button mat-stroked-button (click)="saveDraft()" *ngIf="!isEditMode" [disabled]="eventForm.invalid">
+                <mat-icon>save</mat-icon> Save as Draft
+              </button>
+              <button mat-raised-button color="primary" (click)="submitDeviation()">
                 <mat-icon>{{ isEditMode ? 'save' : 'send' }}</mat-icon> {{ isEditMode ? 'Save Changes' : 'Submit Deviation Report' }}
               </button>
             </div>
@@ -272,16 +263,22 @@ export class DeviationFormComponent implements OnInit {
   categoryOptions = Object.values(DeviationCategory);
   isEditMode = false;
   deviationId: string | null = null;
+  plantSites: { id: string; name: string }[] = [];
+  departments: { id: string; name: string }[] = [];
+  users: { id: string; displayName: string }[] = [];
 
   eventForm: FormGroup;
   locationForm: FormGroup;
+
+  private readonly apiBase = 'http://localhost:8082/api/v1';
 
   constructor(
     private fb: FormBuilder,
     private deviationService: DeviationService,
     private route: ActivatedRoute,
     private router: Router,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private http: HttpClient
   ) {
     this.eventForm = this.fb.group({
       title: ['', Validators.required],
@@ -301,7 +298,7 @@ export class DeviationFormComponent implements OnInit {
       equipment: [''],
       product: [''],
       batchNumber: [''],
-      assignedToName: ['', Validators.required],
+      assignedToId: ['', Validators.required],
       targetClosureDate: ['', Validators.required],
       gmpImpact: [false],
       patientSafetyImpact: [false],
@@ -310,6 +307,7 @@ export class DeviationFormComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.loadReferenceData();
     this.deviationId = this.route.snapshot.paramMap.get('id');
     this.isEditMode = !!this.deviationId;
 
@@ -319,6 +317,59 @@ export class DeviationFormComponent implements OnInit {
         this.populateForms(deviation);
       });
     }
+  }
+
+  private loadReferenceData(): void {
+    const headers = this.authHeaders();
+    this.http.get<any[]>(`${this.apiBase}/admin/plant-sites`, { headers }).subscribe({
+      next: (sites) => this.plantSites = (sites || []).map((s: any) => ({ id: s.id, name: s.name })),
+      error: () => this.plantSites = [
+        { id: 'b0000000-0000-0000-0000-000000000001', name: 'Genome Valley Manufacturing Unit' },
+        { id: 'b0000000-0000-0000-0000-000000000002', name: 'Kukatpally QC Laboratory' },
+        { id: 'b0000000-0000-0000-0000-000000000003', name: 'Medchal Central Warehouse' },
+      ],
+    });
+    this.http.get<any[]>(`${this.apiBase}/admin/departments`, { headers }).subscribe({
+      next: (depts) => this.departments = (depts || []).map((d: any) => ({ id: d.id, name: d.name })),
+      error: () => this.departments = [
+        { id: 'c0000000-0000-0000-0000-000000000001', name: 'Production' },
+        { id: 'c0000000-0000-0000-0000-000000000002', name: 'Quality Assurance' },
+        { id: 'c0000000-0000-0000-0000-000000000003', name: 'Quality Control' },
+        { id: 'c0000000-0000-0000-0000-000000000004', name: 'Engineering & Maintenance' },
+        { id: 'c0000000-0000-0000-0000-000000000005', name: 'Warehouse & Stores' },
+      ],
+    });
+    this.http.get<any>(`${this.apiBase}/users`, { headers, params: new HttpParams().set('size', '100') }).subscribe({
+      next: (page) => this.users = ((page?.content || page || []) as any[]).map((u: any) => ({
+        id: u.id,
+        displayName: u.displayName || `${u.firstName} ${u.lastName}`,
+      })),
+      error: () => this.users = [],
+    });
+  }
+
+  onPlantSiteChange(siteId: string): void {
+    const headers = this.authHeaders();
+    this.http.get<any[]>(`${this.apiBase}/admin/departments`, { headers, params: new HttpParams().set('plantSiteId', siteId) }).subscribe({
+      next: (depts) => this.departments = (depts || []).map((d: any) => ({ id: d.id, name: d.name })),
+    });
+  }
+
+  getPlantSiteName(id: string): string {
+    return this.plantSites.find(s => s.id === id)?.name || id || '';
+  }
+
+  getDepartmentName(id: string): string {
+    return this.departments.find(d => d.id === id)?.name || id || '';
+  }
+
+  getUserName(id: string): string {
+    return this.users.find(u => u.id === id)?.displayName || id || '';
+  }
+
+  private authHeaders(): HttpHeaders {
+    const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken') || '';
+    return token ? new HttpHeaders({ Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}` }) : new HttpHeaders();
   }
 
   formatCategory(category: string): string {
@@ -334,15 +385,31 @@ export class DeviationFormComponent implements OnInit {
     this.router.navigate(['/deviations/list']);
   }
 
+  saveDraft(): void {
+    if (this.eventForm.valid) {
+      const formValues = { ...this.eventForm.value, ...this.locationForm.value };
+      const deviationData = {
+        ...formValues,
+        plantSiteId: formValues.plantSite,
+        departmentId: formValues.department,
+        reportedDate: new Date(),
+      };
+
+      this.deviationService.createDeviation(deviationData).subscribe((created) => {
+        this.snackBar.open(`Draft deviation ${created.deviationNumber} saved`, 'View', { duration: 5000 });
+        this.router.navigate(['/deviations/detail', created.id]);
+      });
+    }
+  }
+
   submitDeviation(): void {
     if (this.eventForm.valid && this.locationForm.valid) {
+      const formValues = { ...this.eventForm.value, ...this.locationForm.value };
       const deviationData = {
-        ...this.eventForm.value,
-        ...this.locationForm.value,
+        ...formValues,
+        plantSiteId: formValues.plantSite,
+        departmentId: formValues.department,
         reportedDate: new Date(),
-        reportedById: 'USR-001',
-        reportedByName: 'Current User',
-        assignedToId: 'USR-002',
       };
 
       if (this.isEditMode && this.deviationId) {
@@ -379,7 +446,7 @@ export class DeviationFormComponent implements OnInit {
       equipment: deviation.equipment || '',
       product: deviation.product || '',
       batchNumber: deviation.batchNumber || '',
-      assignedToName: deviation.assignedToName,
+      assignedToId: deviation.assignedToId,
       targetClosureDate: deviation.targetClosureDate,
       gmpImpact: deviation.gmpImpact,
       patientSafetyImpact: deviation.patientSafetyImpact,

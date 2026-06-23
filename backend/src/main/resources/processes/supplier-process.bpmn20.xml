@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://qmspharma.com/supplier"
+             id="supplierDefinitions">
+
+    <process id="supplierQualificationProcess" name="Supplier Qualification Process" isExecutable="true">
+
+        <!-- Process Variables:
+             recordId, supplierNumber, supplierName, qualificationOwnerId,
+             supplierType, riskLevel, departmentId -->
+
+        <startEvent id="start" name="Supplier Qualification Initiated"/>
+
+        <sequenceFlow id="flow-start-questionnaire" sourceRef="start" targetRef="supplierQuestionnaire"/>
+
+        <!-- Step 1: Supplier Questionnaire -->
+        <userTask id="supplierQuestionnaire" name="Supplier Questionnaire Review"
+                  flowable:assignee="${qualificationOwnerId}"
+                  flowable:formKey="supplier-questionnaire">
+            <documentation>Review supplier questionnaire responses, certificates, and documentation</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-questionnaire-risk" sourceRef="supplierQuestionnaire" targetRef="riskAssessment"/>
+
+        <!-- Step 2: Risk Assessment -->
+        <userTask id="riskAssessment" name="Supplier Risk Assessment"
+                  flowable:candidateGroups="QA_REVIEWER,SUPPLIER_QUALITY"
+                  flowable:formKey="supplier-risk">
+            <documentation>Assess supplier risk level based on material criticality and supplier history</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-risk-gateway" sourceRef="riskAssessment" targetRef="auditGateway"/>
+
+        <!-- Gateway: On-site Audit Required? -->
+        <exclusiveGateway id="auditGateway" name="On-site Audit Required?"/>
+
+        <sequenceFlow id="flow-audit-yes" sourceRef="auditGateway" targetRef="onSiteAudit">
+            <conditionExpression>${riskLevel == 'HIGH' || riskLevel == 'CRITICAL'}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow-audit-no" sourceRef="auditGateway" targetRef="qualificationApproval">
+            <conditionExpression>${riskLevel == 'LOW' || riskLevel == 'MEDIUM'}</conditionExpression>
+        </sequenceFlow>
+
+        <!-- Step 3a: On-site Audit -->
+        <userTask id="onSiteAudit" name="On-site Supplier Audit"
+                  flowable:assignee="${qualificationOwnerId}"
+                  flowable:formKey="supplier-audit">
+            <documentation>Conduct on-site GMP audit of supplier facility</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-audit-approval" sourceRef="onSiteAudit" targetRef="qualificationApproval"/>
+
+        <!-- Step 4: Qualification Approval -->
+        <userTask id="qualificationApproval" name="Supplier Qualification Approval"
+                  flowable:candidateGroups="QA_APPROVER"
+                  flowable:formKey="supplier-approve">
+            <documentation>Approve or reject supplier qualification based on assessment and audit results</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-approval-gateway" sourceRef="qualificationApproval" targetRef="approvalGateway"/>
+
+        <exclusiveGateway id="approvalGateway" name="Qualification Decision"/>
+
+        <sequenceFlow id="flow-approved" sourceRef="approvalGateway" targetRef="addToAsl">
+            <conditionExpression>${qualificationDecision == 'APPROVED'}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow-conditional" sourceRef="approvalGateway" targetRef="conditionalApproval">
+            <conditionExpression>${qualificationDecision == 'CONDITIONAL'}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow-rejected" sourceRef="approvalGateway" targetRef="notifyRejected">
+            <conditionExpression>${qualificationDecision == 'REJECTED'}</conditionExpression>
+        </sequenceFlow>
+
+        <!-- Conditional Approval -->
+        <userTask id="conditionalApproval" name="Conditional Approval Actions"
+                  flowable:assignee="${qualificationOwnerId}"
+                  flowable:formKey="supplier-conditional">
+            <documentation>Track corrective actions required for conditional supplier approval</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-conditional-asl" sourceRef="conditionalApproval" targetRef="addToAsl"/>
+
+        <!-- Add to Approved Supplier List -->
+        <serviceTask id="addToAsl" name="Add to Approved Supplier List"
+                     flowable:delegateExpression="${supplierApprovalDelegate}">
+            <extensionElements>
+                <flowable:field name="action" stringValue="ADD_TO_ASL"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-asl-notify" sourceRef="addToAsl" targetRef="notifyApproved"/>
+
+        <serviceTask id="notifyApproved" name="Notify Supplier Approved"
+                     flowable:delegateExpression="${notificationDelegate}">
+            <extensionElements>
+                <flowable:field name="notificationType" stringValue="STATUS_CHANGE"/>
+                <flowable:field name="titleTemplate" stringValue="Supplier Qualified: {supplierName}"/>
+                <flowable:field name="messageTemplate" stringValue="Supplier {supplierName} ({supplierNumber}) has been qualified and added to the ASL"/>
+                <flowable:field name="recipientVariable" stringValue="qualificationOwnerId"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-approved-end" sourceRef="notifyApproved" targetRef="end"/>
+
+        <!-- Rejected notification -->
+        <serviceTask id="notifyRejected" name="Notify Supplier Rejected"
+                     flowable:delegateExpression="${notificationDelegate}">
+            <extensionElements>
+                <flowable:field name="notificationType" stringValue="STATUS_CHANGE"/>
+                <flowable:field name="titleTemplate" stringValue="Supplier Rejected: {supplierName}"/>
+                <flowable:field name="messageTemplate" stringValue="Supplier {supplierName} ({supplierNumber}) qualification has been rejected"/>
+                <flowable:field name="recipientVariable" stringValue="qualificationOwnerId"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-rejected-end" sourceRef="notifyRejected" targetRef="end"/>
+
+        <endEvent id="end" name="Supplier Qualification Complete"/>
+
+    </process>
+</definitions>

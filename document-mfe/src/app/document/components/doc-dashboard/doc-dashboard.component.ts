@@ -6,6 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { DocumentService } from '../../services/document.service';
 import { QmsDocument, DocumentDashboardMetrics } from '../../models/document.model';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'doc-dashboard',
@@ -63,7 +64,7 @@ import { QmsDocument, DocumentDashboardMetrics } from '../../models/document.mod
         <div class="panel">
           <div class="panel-head"><mat-icon>bolt</mat-icon><span>Quick Actions</span></div>
           <div class="quick-grid">
-            <button class="qa-btn" routerLink="../create"><mat-icon>add_circle</mat-icon><span>New Document</span></button>
+            <button class="qa-btn" routerLink="../create" [disabled]="!canCreateDocument"><mat-icon>add_circle</mat-icon><span>New Document</span></button>
             <button class="qa-btn" routerLink="../list"><mat-icon>search</mat-icon><span>Search Documents</span></button>
             <button class="qa-btn" routerLink="../list" [queryParams]="{status:'UNDER_REVIEW'}"><mat-icon>rate_review</mat-icon><span>Pending Reviews</span></button>
             <button class="qa-btn" routerLink="../list" [queryParams]="{status:'DRAFT'}"><mat-icon>edit_note</mat-icon><span>My Drafts</span></button>
@@ -127,6 +128,8 @@ import { QmsDocument, DocumentDashboardMetrics } from '../../models/document.mod
     .qa-btn mat-icon { font-size: 20px; width: 20px; height: 20px; }
     .qa-btn span { font-size: 11px; font-weight: 500; }
     .qa-btn:hover { background: #5c6bc0; color: #fff; border-color: #5c6bc0; }
+    .qa-btn:disabled { opacity: 0.45; cursor: default; }
+    .qa-btn:disabled:hover { background: #f8f9fb; color: #5c6bc0; border-color: #e5e7eb; }
     @media (max-width: 900px) { .kpi-strip { grid-template-columns: repeat(3, 1fr); } .panels { grid-template-columns: 1fr; } }
   `],
 })
@@ -134,6 +137,7 @@ export class DocDashboardComponent implements OnInit {
   metrics: DocumentDashboardMetrics | null = null;
   recentDocs: QmsDocument[] = [];
   reviewDueDocs: QmsDocument[] = [];
+  canCreateDocument = hasStoredPermission('DOCUMENT', 'CREATE', 'document');
 
   constructor(private docService: DocumentService) {}
 

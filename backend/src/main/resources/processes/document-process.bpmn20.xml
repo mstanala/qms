@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://qmspharma.com/document"
+             id="documentDefinitions">
+
+    <process id="documentProcess" name="Document Control Process" isExecutable="true">
+
+        <!-- Process Variables:
+             recordId, documentNumber, documentType, authorId, reviewerId,
+             approverId, effectiveDate, version, departmentId -->
+
+        <startEvent id="start" name="Document Drafted"/>
+
+        <sequenceFlow id="flow-start-draft" sourceRef="start" targetRef="draftReview"/>
+
+        <!-- Step 1: Draft Review -->
+        <userTask id="draftReview" name="Document Draft Review"
+                  flowable:candidateGroups="DOC_REVIEWER,QA_REVIEWER"
+                  flowable:formKey="document-review">
+            <documentation>Review document draft for technical accuracy and compliance</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-review-gateway" sourceRef="draftReview" targetRef="reviewGateway"/>
+
+        <!-- Gateway: Review Decision -->
+        <exclusiveGateway id="reviewGateway" name="Review Decision"/>
+
+        <sequenceFlow id="flow-review-approved" sourceRef="reviewGateway" targetRef="qaApproval">
+            <conditionExpression>${reviewDecision == 'APPROVED'}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow-review-revision" sourceRef="reviewGateway" targetRef="authorRevision">
+            <conditionExpression>${reviewDecision == 'REVISION_REQUIRED'}</conditionExpression>
+        </sequenceFlow>
+
+        <!-- Revision loop -->
+        <userTask id="authorRevision" name="Author Revision"
+                  flowable:assignee="${authorId}"
+                  flowable:formKey="document-revise">
+            <documentation>Author revises document based on reviewer comments</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-revision-review" sourceRef="authorRevision" targetRef="draftReview"/>
+
+        <!-- Step 2: QA Approval -->
+        <userTask id="qaApproval" name="QA Approval"
+                  flowable:candidateGroups="QA_APPROVER"
+                  flowable:formKey="document-approve">
+            <documentation>QA Head approves the document for release</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-approval-gateway" sourceRef="qaApproval" targetRef="approvalGateway"/>
+
+        <exclusiveGateway id="approvalGateway" name="Approval Decision"/>
+
+        <sequenceFlow id="flow-approved" sourceRef="approvalGateway" targetRef="training">
+            <conditionExpression>${approvalDecision == 'APPROVED'}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow-rejected" sourceRef="approvalGateway" targetRef="authorRevision">
+            <conditionExpression>${approvalDecision == 'REJECTED'}</conditionExpression>
+        </sequenceFlow>
+
+        <!-- Step 3: Training Assignment -->
+        <userTask id="training" name="Training Assignment"
+                  flowable:candidateGroups="TRAINING_COORDINATOR,QA_REVIEWER"
+                  flowable:formKey="document-training">
+            <documentation>Assign training to affected personnel on the new/revised document</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-training-effective" sourceRef="training" targetRef="makeEffective"/>
+
+        <!-- Step 4: Make Effective -->
+        <serviceTask id="makeEffective" name="Make Document Effective"
+                     flowable:delegateExpression="${documentEffectiveDelegate}">
+            <extensionElements>
+                <flowable:field name="action" stringValue="MAKE_EFFECTIVE"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-effective-notify" sourceRef="makeEffective" targetRef="notifyEffective"/>
+
+        <serviceTask id="notifyEffective" name="Notify Document Effective"
+                     flowable:delegateExpression="${notificationDelegate}">
+            <extensionElements>
+                <flowable:field name="notificationType" stringValue="STATUS_CHANGE"/>
+                <flowable:field name="titleTemplate" stringValue="Document Effective: {documentNumber}"/>
+                <flowable:field name="messageTemplate" stringValue="Document {documentNumber} v{version} is now effective"/>
+                <flowable:field name="recipientVariable" stringValue="authorId"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-notify-end" sourceRef="notifyEffective" targetRef="end"/>
+
+        <endEvent id="end" name="Document Effective"/>
+
+        <!-- Periodic Review Timer -->
+        <boundaryEvent id="periodicReviewTimer" attachedToRef="makeEffective" cancelActivity="false">
+            <timerEventDefinition>
+                <timeDuration>P365D</timeDuration>
+            </timerEventDefinition>
+        </boundaryEvent>
+
+        <sequenceFlow id="flow-timer-review" sourceRef="periodicReviewTimer" targetRef="periodicReviewReminder"/>
+
+        <serviceTask id="periodicReviewReminder" name="Periodic Review Reminder"
+                     flowable:delegateExpression="${notificationDelegate}">
+            <extensionElements>
+                <flowable:field name="notificationType" stringValue="PERIODIC_REVIEW_DUE"/>
+                <flowable:field name="titleTemplate" stringValue="Periodic Review Due: {documentNumber}"/>
+                <flowable:field name="recipientVariable" stringValue="authorId"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-reminder-end" sourceRef="periodicReviewReminder" targetRef="reminderEnd"/>
+        <endEvent id="reminderEnd"/>
+
+    </process>
+</definitions>

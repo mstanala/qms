@@ -6,6 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { TrainingService } from '../../services/training.service';
 import { TrainingDashboardMetrics, TrainingAssignment, TrainingSession } from '../../models/training.model';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'trn-dashboard',
@@ -75,7 +76,7 @@ import { TrainingDashboardMetrics, TrainingAssignment, TrainingSession } from '.
         <div class="panel full-width">
           <div class="panel-head"><mat-icon>bolt</mat-icon><span>Quick Actions</span></div>
           <div class="quick-grid">
-            <button class="qa-btn" routerLink="../curricula/create"><mat-icon>add_circle</mat-icon><span>New Curriculum</span></button>
+            <button class="qa-btn" routerLink="../curricula/create" [disabled]="!canCreateTraining"><mat-icon>add_circle</mat-icon><span>New Curriculum</span></button>
             <button class="qa-btn" routerLink="../assignments"><mat-icon>assignment</mat-icon><span>View Assignments</span></button>
             <button class="qa-btn" routerLink="../matrix"><mat-icon>grid_on</mat-icon><span>Training Matrix</span></button>
             <button class="qa-btn" routerLink="../my-training"><mat-icon>school</mat-icon><span>My Training</span></button>
@@ -133,6 +134,8 @@ import { TrainingDashboardMetrics, TrainingAssignment, TrainingSession } from '.
     .qa-btn mat-icon { font-size: 20px; width: 20px; height: 20px; }
     .qa-btn span { font-size: 11px; font-weight: 500; }
     .qa-btn:hover { background: #00897b; color: #fff; border-color: #00897b; }
+    .qa-btn:disabled { opacity: 0.45; cursor: default; }
+    .qa-btn:disabled:hover { background: #f8f9fb; color: #00897b; border-color: #e5e7eb; }
     @media (max-width: 900px) { .kpi-strip { grid-template-columns: repeat(3, 1fr); } .panels { grid-template-columns: 1fr; } .quick-grid { grid-template-columns: repeat(2, 1fr); } }
   `],
 })
@@ -140,6 +143,7 @@ export class TrainingDashboardComponent implements OnInit {
   metrics: TrainingDashboardMetrics | null = null;
   overdueAssignments: TrainingAssignment[] = [];
   upcomingSessions: TrainingSession[] = [];
+  canCreateTraining = hasStoredPermission('TRAINING', 'CREATE', 'training_record');
 
   constructor(private trainingService: TrainingService) {}
 

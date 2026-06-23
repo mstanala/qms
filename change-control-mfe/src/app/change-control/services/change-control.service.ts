@@ -168,11 +168,11 @@ export class ChangeControlService {
       );
   }
 
-  updateStatus(id: string, status: ChangeStatus): Observable<ChangeRequest> {
+  updateStatus(id: string, status: ChangeStatus, comments?: string): Observable<ChangeRequest> {
     return this.http
       .patch<ApiChangeRequest>(
         `${this.apiUrl}/${id}/status`,
-        { status, comments: `Status changed to ${status}` },
+        { status, comments: comments || `Status changed to ${status}` },
         { headers: this.authHeaders() }
       )
       .pipe(map((item) => this.toChangeRequest(item)));

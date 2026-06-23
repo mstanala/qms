@@ -9,6 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { TrainingService } from '../../services/training.service';
 import { TrainingCurriculum, CurriculumStatus, TrainingCategory } from '../../models/training.model';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'trn-curriculum-list',
@@ -18,7 +19,7 @@ import { TrainingCurriculum, CurriculumStatus, TrainingCategory } from '../../mo
     <div class="list-page">
       <div class="list-header">
         <h2>Training Curricula</h2>
-        <button class="create-btn" routerLink="create"><mat-icon>add</mat-icon> New Curriculum</button>
+        <button class="create-btn" routerLink="create" [disabled]="!canCreateTraining"><mat-icon>add</mat-icon> New Curriculum</button>
       </div>
       <div class="filters-bar">
         <div class="search-wrap">
@@ -66,6 +67,7 @@ import { TrainingCurriculum, CurriculumStatus, TrainingCategory } from '../../mo
     .list-header h2 { font-size: 18px; font-weight: 700; color: #1B3A4B; }
     .create-btn { display: flex; align-items: center; gap: 4px; background: #00897b; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; }
     .create-btn:hover { background: #00695c; }
+    .create-btn:disabled { background: #cbd5e1; color: #64748b; cursor: default; }
     .create-btn mat-icon { font-size: 16px; width: 16px; height: 16px; }
     .filters-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
     .search-wrap { display: flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #d0d5dd; border-radius: 4px; padding: 0 10px; height: 40px; flex: 1; min-width: 200px; }
@@ -97,6 +99,7 @@ export class CurriculumListComponent implements OnInit {
   selectedCategories: string[] = [];
   statusOptions = Object.values(CurriculumStatus);
   categoryOptions = Object.values(TrainingCategory);
+  canCreateTraining = hasStoredPermission('TRAINING', 'CREATE', 'training_record');
 
   constructor(private trainingService: TrainingService) {}
 

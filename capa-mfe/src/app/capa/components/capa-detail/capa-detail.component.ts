@@ -10,8 +10,28 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatStepperModule } from '@angular/material/stepper';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { CapaService } from '../../services/capa.service';
 import { Capa, CapaStatus } from '../../models/capa.model';
+import { ESignatureDialogComponent } from '../e-signature-dialog/e-signature-dialog.component';
+
+function getUserRoleCodes(): string[] {
+  const raw = localStorage.getItem('auth') || sessionStorage.getItem('auth');
+  if (!raw) return [];
+  try {
+    const roles = JSON.parse(raw)?.user?.roles || [];
+    return roles.map((r: any) => typeof r === 'string' ? r : r.code).filter(Boolean);
+  } catch { return []; }
+}
+
+interface WorkflowAction {
+  label: string;
+  targetStatus: CapaStatus;
+  type: 'primary' | 'danger' | 'secondary';
+  requiresESign?: boolean;
+  requiresComment?: boolean;
+  requiredRoles?: string[];
+}
 
 @Component({
   selector: 'capa-detail',
@@ -28,6 +48,7 @@ import { Capa, CapaStatus } from '../../models/capa.model';
     MatStepperModule,
     MatTableModule,
     MatTooltipModule,
+    MatDialogModule,
   ],
   template: `
     <div class="capa-detail" *ngIf="capa">
@@ -42,13 +63,23 @@ import { Capa, CapaStatus } from '../../models/capa.model';
           </div>
         </div>
         <div class="header-actions">
-          <span class="status-chip" [ngClass]="getStatusClass(capa.status)">
+          <span class="status-pill" [ngClass]="getStatusClass(capa.status)">
             {{ formatStatus(capa.status) }}
           </span>
           <span class="priority-badge" [ngClass]="capa.priority.toLowerCase()">
             {{ capa.priority }}
           </span>
         </div>
+      </div>
+
+      <!-- Workflow Action Bar -->
+      <div class="workflow-actions-bar" *ngIf="getAvailableActions().length">
+        <button *ngFor="let action of getAvailableActions()"
+                [ngClass]="{'wf-btn': true, 'wf-btn-primary': action.type === 'primary', 'wf-btn-danger': action.type === 'danger', 'wf-btn-secondary': action.type === 'secondary'}"
+                (click)="executeWorkflowAction(action)"
+                [disabled]="actionInProgress">
+          {{ action.label }}
+        </button>
       </div>
 
       <!-- Workflow Progress -->
@@ -412,19 +443,53 @@ import { Capa, CapaStatus } from '../../models/capa.model';
       gap: 8px;
     }
 
-    .status-chip {
-      padding: 6px 12px;
+    .status-pill {
+      padding: 6px 14px;
       border-radius: 16px;
       font-size: 12px;
-      font-weight: 500;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
-    .status-chip.initiated { background: #ED8B00; color: #fff; }
-    .status-chip.investigation { background: #ED8B00; color: #fff; }
-    .status-chip.action-in-progress { background: #D4760A; color: #fff; }
-    .status-chip.effectiveness-check { background: #2C5F7C; color: #fff; }
-    .status-chip.pending-closure { background: #388E3C; color: #fff; }
-    .status-chip.closed { background: #666; color: #fff; }
+    .status-pill.initiated { background: #fff3e0; color: #e65100; }
+    .status-pill.under-review { background: #e3f2fd; color: #1565c0; }
+    .status-pill.investigation { background: #ED8B00; color: #fff; }
+    .status-pill.root-cause-identified { background: #f3e5f5; color: #6a1b9a; }
+    .status-pill.action-planning { background: #fff8e1; color: #f57f17; }
+    .status-pill.action-in-progress { background: #D4760A; color: #fff; }
+    .status-pill.effectiveness-check { background: #2C5F7C; color: #fff; }
+    .status-pill.pending-closure { background: #388E3C; color: #fff; }
+    .status-pill.closed { background: #666; color: #fff; }
+    .status-pill.rejected { background: #c62828; color: #fff; }
+
+    .workflow-actions-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      padding: 12px 16px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+    }
+
+    .wf-btn {
+      padding: 8px 18px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .wf-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .wf-btn-primary { background: #2C5F7C; color: #fff; }
+    .wf-btn-primary:hover:not(:disabled) { background: #1e4a61; }
+    .wf-btn-danger { background: #fff; color: #c62828; border-color: #c62828; }
+    .wf-btn-danger:hover:not(:disabled) { background: #ffebee; }
+    .wf-btn-secondary { background: #fff; color: #2C5F7C; border-color: #2C5F7C; }
+    .wf-btn-secondary:hover:not(:disabled) { background: #e8f4f8; }
 
     .priority-badge {
       padding: 4px 10px;
@@ -473,7 +538,8 @@ import { Capa, CapaStatus } from '../../models/capa.model';
     }
 
     .workflow-step.completed .step-indicator { color: #2C5F7C; }
-    .workflow-step.current .step-indicator { color: #ED8B00; }
+    .workflow-step.current .step-indicator { color: #ED8B00; animation: pulse-step 1.5s ease-in-out infinite; }
+    @keyframes pulse-step { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     .workflow-step.pending .step-indicator { color: #bdbdbd; }
 
     .step-indicator mat-icon {
@@ -835,11 +901,13 @@ import { Capa, CapaStatus } from '../../models/capa.model';
 })
 export class CapaDetailComponent implements OnInit {
   capa: Capa | null = null;
+  actionInProgress = false;
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private capaService: CapaService
+    private capaService: CapaService,
+    private dialog: MatDialog
   ) {}
 
   ngOnInit(): void {
@@ -887,5 +955,99 @@ export class CapaDetailComponent implements OnInit {
       this.capa.status !== CapaStatus.CLOSED &&
       new Date(this.capa.dueDate) < new Date()
     );
+  }
+
+  getAvailableActions(): WorkflowAction[] {
+    if (!this.capa) return [];
+    const roles = getUserRoleCodes();
+    const allActions: Record<string, WorkflowAction[]> = {
+      [CapaStatus.INITIATED]: [
+        { label: 'Submit for Review', targetStatus: CapaStatus.UNDER_REVIEW, type: 'primary',
+          requiredRoles: ['OWNER', 'END_USER', 'QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+      ],
+      [CapaStatus.UNDER_REVIEW]: [
+        { label: 'Approve & Start Investigation', targetStatus: CapaStatus.INVESTIGATION, type: 'primary',
+          requiredRoles: ['QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+        { label: 'Reject', targetStatus: CapaStatus.REJECTED, type: 'danger', requiresComment: true,
+          requiredRoles: ['QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+      ],
+      [CapaStatus.INVESTIGATION]: [
+        { label: 'Submit Root Cause', targetStatus: CapaStatus.ROOT_CAUSE_IDENTIFIED, type: 'primary',
+          requiredRoles: ['OWNER', 'REVIEWER', 'QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+        { label: 'Return for Rework', targetStatus: CapaStatus.INITIATED, type: 'danger', requiresComment: true,
+          requiredRoles: ['QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+      ],
+      [CapaStatus.ROOT_CAUSE_IDENTIFIED]: [
+        { label: 'Proceed to Action Planning', targetStatus: CapaStatus.ACTION_PLANNING, type: 'primary',
+          requiredRoles: ['OWNER', 'QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+      ],
+      [CapaStatus.ACTION_PLANNING]: [
+        { label: 'Start Action Execution', targetStatus: CapaStatus.ACTION_IN_PROGRESS, type: 'primary',
+          requiredRoles: ['OWNER', 'QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+      ],
+      [CapaStatus.ACTION_IN_PROGRESS]: [
+        { label: 'Complete Actions & Verify', targetStatus: CapaStatus.EFFECTIVENESS_CHECK, type: 'primary',
+          requiredRoles: ['OWNER', 'QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+      ],
+      [CapaStatus.EFFECTIVENESS_CHECK]: [
+        { label: 'Approve Effectiveness', targetStatus: CapaStatus.PENDING_CLOSURE, type: 'primary', requiresESign: true,
+          requiredRoles: ['QA_APPROVER', 'VAULT_ADMIN'] },
+        { label: 'Reopen Actions', targetStatus: CapaStatus.ACTION_IN_PROGRESS, type: 'danger', requiresComment: true,
+          requiredRoles: ['QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
+      ],
+      [CapaStatus.PENDING_CLOSURE]: [
+        { label: 'Close CAPA', targetStatus: CapaStatus.CLOSED, type: 'primary', requiresESign: true,
+          requiredRoles: ['QA_APPROVER', 'VAULT_ADMIN'] },
+      ],
+    };
+    const actions = allActions[this.capa.status] || [];
+    return actions.filter(a => !a.requiredRoles || a.requiredRoles.some(r => roles.includes(r)));
+  }
+
+  executeWorkflowAction(action: WorkflowAction): void {
+    if (!this.capa) return;
+
+    if (action.requiresESign) {
+      const dialogRef = this.dialog.open(ESignatureDialogComponent, {
+        width: '480px',
+        disableClose: true,
+        data: {
+          recordNumber: this.capa.capaNumber,
+          action: action.label,
+          meaning: `I confirm the ${action.label.toLowerCase()} for ${this.capa.capaNumber}`,
+        },
+      });
+
+      dialogRef.afterClosed().subscribe((result) => {
+        if (result?.signed) {
+          this.performStatusChange(action.targetStatus, `E-Signed: ${result.meaning}`);
+        }
+      });
+    } else if (action.requiresComment) {
+      const comment = prompt(`Please provide a reason for: ${action.label}`);
+      if (comment !== null && comment.trim()) {
+        this.performStatusChange(action.targetStatus, comment);
+      }
+    } else {
+      this.performStatusChange(action.targetStatus);
+    }
+  }
+
+  private performStatusChange(targetStatus: CapaStatus, comments?: string): void {
+    if (!this.capa) return;
+    this.actionInProgress = true;
+    this.capaService.updateCapaStatus(this.capa.id, targetStatus, comments).subscribe({
+      next: (updated) => {
+        this.actionInProgress = false;
+        this.capaService.getCapaById(this.capa!.id).subscribe((full) => {
+          if (full) this.capa = full;
+        });
+      },
+      error: (err) => {
+        this.actionInProgress = false;
+        console.error('Status change failed:', err);
+        alert('Failed to update status. Please try again.');
+      },
+    });
   }
 }

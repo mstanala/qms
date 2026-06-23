@@ -238,7 +238,7 @@ import { ChangeRequest, ChangeType, ChangeCategory, ChangeClassification, Change
               <button mat-stroked-button *ngIf="!isEditMode" (click)="saveDraft()">
                 <mat-icon>save</mat-icon> Save as Draft
               </button>
-              <button mat-raised-button color="primary" (click)="submitChange()" style="background:#ED8B00;color:#fff">
+              <button mat-raised-button color="primary" (click)="submitChange()">
                 <mat-icon>{{ isEditMode ? 'save' : 'send' }}</mat-icon> {{ isEditMode ? 'Save Changes' : 'Submit for Review' }}
               </button>
             </div>

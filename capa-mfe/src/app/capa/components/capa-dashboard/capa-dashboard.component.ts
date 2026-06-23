@@ -8,6 +8,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatChipsModule } from '@angular/material/chips';
 import { CapaService } from '../../services/capa.service';
 import { CapaDashboardMetrics } from '../../models/capa.model';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'capa-dashboard',
@@ -29,7 +30,7 @@ import { CapaDashboardMetrics } from '../../models/capa.model';
           <p class="subtitle">Corrective and Preventive Actions Dashboard</p>
         </div>
         <div class="header-actions">
-          <button class="vault-create-btn" routerLink="../create">
+          <button class="vault-create-btn" routerLink="../create" [disabled]="!canCreateCapa">
             + Create
           </button>
         </div>
@@ -46,7 +47,7 @@ import { CapaDashboardMetrics } from '../../models/capa.model';
                 <mat-icon>list</mat-icon>
                 View All CAPAs
               </button>
-              <button mat-stroked-button routerLink="../create" class="action-btn">
+              <button mat-stroked-button routerLink="../create" class="action-btn" [disabled]="!canCreateCapa">
                 <mat-icon>add</mat-icon>
                 New CAPA
               </button>
@@ -225,6 +226,7 @@ import { CapaDashboardMetrics } from '../../models/capa.model';
 
     .vault-create-btn { background: #ED8B00; color: #fff; border: none; padding: 8px 18px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; }
     .vault-create-btn:hover { background: #D4760A; }
+    .vault-create-btn:disabled { background: #cbd5e1; color: #64748b; cursor: default; }
 
     .subtitle {
       color: #666;
@@ -467,6 +469,7 @@ import { CapaDashboardMetrics } from '../../models/capa.model';
 })
 export class CapaDashboardComponent implements OnInit {
   metrics: CapaDashboardMetrics | null = null;
+  canCreateCapa = hasStoredPermission('CAPA', 'CREATE', 'capa_record');
 
   constructor(private capaService: CapaService) {}
 

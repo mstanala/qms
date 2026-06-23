@@ -131,7 +131,7 @@ import { AuthService } from '../../auth/auth.service';
     .error mat-icon { width: 18px; height: 18px; font-size: 18px; }
     .login-btn {
       height: 44px;
-      background: #ED8B00 !important;
+      background: #2C5F7C !important;
       color: #fff !important;
       border-radius: 6px;
       font-weight: 650;

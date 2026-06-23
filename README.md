@@ -506,6 +506,7 @@ Steps:
 
 Expected Result:
 
+
 * SOP version updated.
 * Previous version archived.
 * Training assigned.

@@ -7,6 +7,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { DeviationService } from '../../services/deviation.service';
 import { DeviationDashboardMetrics } from '../../models/deviation.model';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'dev-dashboard',
@@ -27,7 +28,7 @@ import { DeviationDashboardMetrics } from '../../models/deviation.model';
           <p class="subtitle">Track and investigate deviations from approved processes</p>
         </div>
         <div class="header-actions">
-          <button class="vault-create-btn" routerLink="../create">
+          <button class="vault-create-btn" routerLink="../create" [disabled]="!canCreateDeviation">
             + Create
           </button>
         </div>
@@ -44,7 +45,7 @@ import { DeviationDashboardMetrics } from '../../models/deviation.model';
                 <mat-icon>list</mat-icon>
                 View All Deviations
               </button>
-              <button mat-stroked-button routerLink="../create" class="action-btn">
+              <button mat-stroked-button routerLink="../create" class="action-btn" [disabled]="!canCreateDeviation">
                 <mat-icon>add</mat-icon>
                 Report Deviation
               </button>
@@ -431,6 +432,7 @@ import { DeviationDashboardMetrics } from '../../models/deviation.model';
     }
 
     .action-btn { display: flex; align-items: center; gap: 8px; }
+    .vault-create-btn:disabled { background: #cbd5e1; color: #64748b; cursor: default; }
 
     @media (max-width: 768px) {
       .dashboard-grid { grid-template-columns: 1fr; }
@@ -440,6 +442,7 @@ import { DeviationDashboardMetrics } from '../../models/deviation.model';
 })
 export class DeviationDashboardComponent implements OnInit {
   metrics: DeviationDashboardMetrics | null = null;
+  canCreateDeviation = hasStoredPermission('DEVIATION', 'CREATE', 'deviation_record');
 
   constructor(private deviationService: DeviationService) {}
 

@@ -13,6 +13,7 @@ import { Subject, Subscription, of } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, filter, switchMap, tap } from 'rxjs/operators';
 import { AuthService, AuthUser } from './auth/auth.service';
 import { ProfileApiService, SearchResult } from './profile/profile-api.service';
+import { TaskPanelComponent } from './tasks/task-panel.component';
 
 const API_BASE_URL = 'http://localhost:8082/api/v1';
 
@@ -46,6 +47,7 @@ interface NotificationItem {
     MatBadgeModule,
     MatTooltipModule,
     MatDividerModule,
+    TaskPanelComponent,
   ],
   template: `
     <router-outlet *ngIf="isLoginRoute"></router-outlet>
@@ -55,7 +57,7 @@ interface NotificationItem {
       <div class="title-bar">
         <div class="title-bar-left">
           <mat-icon class="app-logo">verified</mat-icon>
-          <span class="app-name">Mlabs Quality</span>
+          <span class="app-name">Mlabs QMS</span>
           <span class="app-divider">|</span>
           <span class="app-module">{{ activeModuleLabel }}</span>
         </div>
@@ -120,11 +122,11 @@ interface NotificationItem {
       <div class="menu-bar">
         <button class="menu-item" [matMenuTriggerFor]="fileMenu">File</button>
         <mat-menu #fileMenu="matMenu">
-          <button mat-menu-item routerLink="/capa/create"><mat-icon>note_add</mat-icon>New CAPA</button>
-          <button mat-menu-item routerLink="/deviations/create"><mat-icon>note_add</mat-icon>New Deviation</button>
-          <button mat-menu-item routerLink="/change-control/create"><mat-icon>note_add</mat-icon>New Change Request</button>
-          <button mat-menu-item routerLink="/documents/create"><mat-icon>note_add</mat-icon>New Document</button>
-          <button mat-menu-item routerLink="/training/curricula/create"><mat-icon>note_add</mat-icon>New Training Curriculum</button>
+          <button mat-menu-item routerLink="/capa/create" [disabled]="!canCreateCapa"><mat-icon>note_add</mat-icon>New CAPA</button>
+          <button mat-menu-item routerLink="/deviations/create" [disabled]="!canCreateDeviation"><mat-icon>note_add</mat-icon>New Deviation</button>
+          <button mat-menu-item routerLink="/change-control/create" [disabled]="!canCreateChange"><mat-icon>note_add</mat-icon>New Change Request</button>
+          <button mat-menu-item routerLink="/documents/create" [disabled]="!canCreateDocument"><mat-icon>note_add</mat-icon>New Document</button>
+          <button mat-menu-item routerLink="/training/curricula/create" [disabled]="!canCreateTraining"><mat-icon>note_add</mat-icon>New Training Curriculum</button>
           <mat-divider></mat-divider>
           <button mat-menu-item disabled><mat-icon>print</mat-icon>Print</button>
           <button mat-menu-item disabled><mat-icon>download</mat-icon>Export to PDF</button>
@@ -134,14 +136,14 @@ interface NotificationItem {
         <mat-menu #viewMenu="matMenu">
           <button mat-menu-item routerLink="/dashboard"><mat-icon>dashboard</mat-icon>Overview Dashboard</button>
           <mat-divider></mat-divider>
-          <button mat-menu-item routerLink="/capa/list"><mat-icon>list</mat-icon>All CAPAs</button>
-          <button mat-menu-item routerLink="/deviations/list"><mat-icon>list</mat-icon>All Deviations</button>
-          <button mat-menu-item routerLink="/change-control/list"><mat-icon>list</mat-icon>All Change Controls</button>
+          <button mat-menu-item routerLink="/capa/list" [disabled]="!canReadCapa"><mat-icon>list</mat-icon>All CAPAs</button>
+          <button mat-menu-item routerLink="/deviations/list" [disabled]="!canReadDeviation"><mat-icon>list</mat-icon>All Deviations</button>
+          <button mat-menu-item routerLink="/change-control/list" [disabled]="!canReadChange"><mat-icon>list</mat-icon>All Change Controls</button>
           <mat-divider></mat-divider>
-          <button mat-menu-item routerLink="/documents/list"><mat-icon>list</mat-icon>All Documents</button>
-          <button mat-menu-item routerLink="/training/curricula"><mat-icon>list</mat-icon>All Training Curricula</button>
-          <button mat-menu-item routerLink="/training/assignments"><mat-icon>list</mat-icon>Training Assignments</button>
-          <button mat-menu-item routerLink="/training/my-training"><mat-icon>list</mat-icon>My Training</button>
+          <button mat-menu-item routerLink="/documents/list" [disabled]="!canReadDocument"><mat-icon>list</mat-icon>All Documents</button>
+          <button mat-menu-item routerLink="/training/curricula" [disabled]="!canReadTraining"><mat-icon>list</mat-icon>All Training Curricula</button>
+          <button mat-menu-item routerLink="/training/assignments" [disabled]="!canReadTraining"><mat-icon>list</mat-icon>Training Assignments</button>
+          <button mat-menu-item routerLink="/training/my-training" [disabled]="!canReadTraining"><mat-icon>list</mat-icon>My Training</button>
         </mat-menu>
 
         <button class="menu-item" [matMenuTriggerFor]="toolsMenu" [disabled]="!canAccessTools">Tools</button>
@@ -182,7 +184,7 @@ interface NotificationItem {
           <button mat-menu-item disabled><mat-icon>menu_book</mat-icon>Documentation</button>
           <button mat-menu-item disabled><mat-icon>school</mat-icon>Training Materials</button>
           <mat-divider></mat-divider>
-          <button mat-menu-item disabled><mat-icon>info</mat-icon>About Vault Quality</button>
+          <button mat-menu-item disabled><mat-icon>info</mat-icon>About Mlabs QMS</button>
         </mat-menu>
       </div>
 
@@ -194,76 +196,92 @@ interface NotificationItem {
           <span>Dashboard</span>
         </a>
         <button class="mod-tab mod-tab-dropdown" [matMenuTriggerFor]="qualityEventsMenu"
-                [class.active]="isQualityEventsActive()">
+                [class.active]="isQualityEventsActive()"
+                [class.disabled-tab]="!canAccessQualityEvents"
+                [disabled]="!canAccessQualityEvents">
           <mat-icon>event_note</mat-icon>
           <span>Quality Events</span>
           <mat-icon class="dropdown-arrow">arrow_drop_down</mat-icon>
         </button>
         <mat-menu #qualityEventsMenu="matMenu" class="quality-events-dropdown">
-          <button mat-menu-item routerLink="/deviations">
+          <button mat-menu-item routerLink="/deviations" [disabled]="!canReadDeviation">
             <mat-icon>report_problem</mat-icon>
             <span>Deviations</span>
           </button>
-          <button mat-menu-item routerLink="/capa">
+          <button mat-menu-item routerLink="/capa" [disabled]="!canReadCapa">
             <mat-icon>assignment_turned_in</mat-icon>
             <span>CAPA</span>
           </button>
-          <button mat-menu-item routerLink="/change-control">
+          <button mat-menu-item routerLink="/change-control" [disabled]="!canReadChange">
             <mat-icon>swap_horiz</mat-icon>
             <span>Change Controls</span>
           </button>
-          <button mat-menu-item routerLink="/complaint">
+          <button mat-menu-item routerLink="/complaint" [disabled]="!canReadComplaint">
             <mat-icon>feedback</mat-icon>
             <span>Complaints</span>
           </button>
         </mat-menu>
-        <a class="mod-tab" routerLink="/documents" routerLinkActive="active">
+        <a class="mod-tab" routerLink="/documents" routerLinkActive="active"
+           [class.disabled-tab]="!canReadDocument"
+           [attr.aria-disabled]="!canReadDocument"
+           [tabIndex]="canReadDocument ? 0 : -1"
+           (click)="guardNav($event, canReadDocument)">
           <mat-icon>description</mat-icon>
           <span>Document Mgmt</span>
         </a>
-        <a class="mod-tab" routerLink="/training" routerLinkActive="active">
+        <a class="mod-tab" routerLink="/training" routerLinkActive="active"
+           [class.disabled-tab]="!canReadTraining"
+           [attr.aria-disabled]="!canReadTraining"
+           [tabIndex]="canReadTraining ? 0 : -1"
+           (click)="guardNav($event, canReadTraining)">
           <mat-icon>school</mat-icon>
           <span>Training Mgmt</span>
         </a>
-        <a class="mod-tab" routerLink="/risk" routerLinkActive="active">
+        <a class="mod-tab" routerLink="/risk" routerLinkActive="active"
+           [class.disabled-tab]="!canReadRisk"
+           [attr.aria-disabled]="!canReadRisk"
+           [tabIndex]="canReadRisk ? 0 : -1"
+           (click)="guardNav($event, canReadRisk)">
           <mat-icon>warning_amber</mat-icon>
           <span>Risk Mgmt</span>
         </a>
         <button class="mod-tab mod-tab-dropdown" [matMenuTriggerFor]="auditsActionsMenu"
-                [class.active]="isAuditsActionsActive()">
+                [class.active]="isAuditsActionsActive()"
+                [class.disabled-tab]="!canAccessAuditsActions"
+                [disabled]="!canAccessAuditsActions">
           <mat-icon>fact_check</mat-icon>
           <span>Audits & Actions</span>
           <mat-icon class="dropdown-arrow">arrow_drop_down</mat-icon>
         </button>
         <mat-menu #auditsActionsMenu="matMenu">
-          <button mat-menu-item routerLink="/audit">
+          <button mat-menu-item routerLink="/audit" [disabled]="!canReadAudit">
             <mat-icon>fact_check</mat-icon>
             <span>Audit Management</span>
           </button>
-          <button mat-menu-item routerLink="/supplier">
+          <button mat-menu-item routerLink="/supplier" [disabled]="!canReadSupplier">
             <mat-icon>local_shipping</mat-icon>
             <span>Suppliers</span>
           </button>
-          <button mat-menu-item routerLink="/nonconformance">
+          <button mat-menu-item routerLink="/nonconformance" [disabled]="!canReadNonconformance">
             <mat-icon>block</mat-icon>
             <span>Nonconformance</span>
           </button>
-          <button mat-menu-item routerLink="/equipment">
+          <button mat-menu-item routerLink="/equipment" [disabled]="!canReadEquipment">
             <mat-icon>precision_manufacturing</mat-icon>
             <span>Equipment</span>
           </button>
         </mat-menu>
         <div class="tab-spacer"></div>
         <div class="tab-actions">
-          <button class="quick-action-btn" [matMenuTriggerFor]="quickCreate" matTooltip="Quick Create">
+          <button class="quick-action-btn" [matMenuTriggerFor]="quickCreate" matTooltip="Quick Create" [disabled]="!canQuickCreate">
             <mat-icon>add</mat-icon> New
           </button>
           <mat-menu #quickCreate="matMenu">
-            <button mat-menu-item routerLink="/capa/create"><mat-icon>assignment_turned_in</mat-icon>New CAPA</button>
-            <button mat-menu-item routerLink="/deviations/create"><mat-icon>report_problem</mat-icon>New Deviation</button>
-            <button mat-menu-item routerLink="/change-control/create"><mat-icon>swap_horiz</mat-icon>New Change Request</button>
-            <button mat-menu-item routerLink="/documents/create"><mat-icon>description</mat-icon>New Document</button>
-            <button mat-menu-item routerLink="/training/curricula/create"><mat-icon>school</mat-icon>New Curriculum</button>
+            <button mat-menu-item routerLink="/capa/create" [disabled]="!canCreateCapa"><mat-icon>assignment_turned_in</mat-icon>New CAPA</button>
+            <button mat-menu-item routerLink="/deviations/create" [disabled]="!canCreateDeviation"><mat-icon>report_problem</mat-icon>New Deviation</button>
+            <button mat-menu-item routerLink="/change-control/create" [disabled]="!canCreateChange"><mat-icon>swap_horiz</mat-icon>New Change Request</button>
+            <button mat-menu-item routerLink="/documents/create" [disabled]="!canCreateDocument"><mat-icon>description</mat-icon>New Document</button>
+            <button mat-menu-item routerLink="/training/curricula/create" [disabled]="!canCreateTraining"><mat-icon>school</mat-icon>New Curriculum</button>
           </mat-menu>
         </div>
       </div>
@@ -287,9 +305,12 @@ interface NotificationItem {
         </div>
       </div>
 
-      <!-- ═══ MAIN CONTENT ═══ -->
-      <div class="content-area">
-        <router-outlet></router-outlet>
+      <!-- ═══ MAIN CONTENT WITH TASK PANEL ═══ -->
+      <div class="content-wrapper">
+        <qms-task-panel></qms-task-panel>
+        <div class="content-area">
+          <router-outlet></router-outlet>
+        </div>
       </div>
 
       <!-- ═══ STATUS BAR ═══ -->
@@ -305,7 +326,7 @@ interface NotificationItem {
           <span class="status-item">Session: {{ authService.isAuthenticated() ? 'Active' : 'Signed out' }}</span>
         </div>
         <div class="status-right">
-          <span class="status-item">Vault Quality v1.0.0</span>
+          <span class="status-item">Mlabs QMS v1.0.0</span>
           <span class="status-sep">|</span>
           <span class="status-item">{{ currentTime }}</span>
         </div>
@@ -429,7 +450,9 @@ interface NotificationItem {
     }
     .mod-tab.active mat-icon { color: #1B3A4B; }
     .mod-tab.disabled-tab { color: #bbb; cursor: default; pointer-events: none; }
+    .mod-tab.disabled-tab mat-icon { color: #c7c7c7; }
     .mod-tab-dropdown { border: none; background: none; font-family: inherit; }
+    .mod-tab-dropdown:disabled { color: #bbb; cursor: default; }
     .mod-tab-dropdown .dropdown-arrow { font-size: 18px; width: 18px; height: 18px; margin-left: -2px; color: #94a3b8; transition: color 0.15s; }
     .mod-tab-dropdown:hover .dropdown-arrow { color: #1B3A4B; }
     .mod-tab-dropdown.active .dropdown-arrow { color: #ED8B00; }
@@ -443,6 +466,7 @@ interface NotificationItem {
     }
     .quick-action-btn mat-icon { font-size: 14px; width: 14px; height: 14px; }
     .quick-action-btn:hover { background: #D4760A; }
+    .quick-action-btn:disabled { background: #cbd5e1; color: #64748b; cursor: default; }
 
     /* ── BREADCRUMB BAR ── */
     .breadcrumb-bar {
@@ -464,9 +488,12 @@ interface NotificationItem {
     .env-badge mat-icon { font-size: 12px; width: 12px; height: 12px; color: #2C5F7C; }
     .env-dot { width: 6px; height: 6px; border-radius: 50%; background: #4caf50; }
 
-    /* ── CONTENT AREA ── */
+    /* ── CONTENT WRAPPER ── */
+    .content-wrapper {
+      flex: 1; display: flex; overflow: hidden; gap: 0;
+    }
     .content-area {
-      flex: 1; overflow-y: auto; padding: 16px 20px;
+      flex: 1; overflow-y: auto; padding: 12px 16px;
       background: #f0f2f5;
     }
 
@@ -499,6 +526,30 @@ export class AppComponent implements OnDestroy {
   canViewReports = false;
   canViewAuditTrail = false;
   canImportExport = false;
+  canReadCapa = false;
+  canCreateCapa = false;
+  canReadDeviation = false;
+  canCreateDeviation = false;
+  canReadChange = false;
+  canCreateChange = false;
+  canReadDocument = false;
+  canCreateDocument = false;
+  canReadTraining = false;
+  canCreateTraining = false;
+  canReadRisk = false;
+  canCreateRisk = false;
+  canReadAudit = false;
+  canReadSupplier = false;
+  canCreateSupplier = false;
+  canReadComplaint = false;
+  canCreateComplaint = false;
+  canReadNonconformance = false;
+  canCreateNonconformance = false;
+  canReadEquipment = false;
+  canCreateEquipment = false;
+  canAccessQualityEvents = false;
+  canAccessAuditsActions = false;
+  canQuickCreate = false;
   searchTerm = '';
   searchResults: SearchResult[] = [];
   isSearching = false;
@@ -562,13 +613,7 @@ export class AppComponent implements OnDestroy {
     this.currentUser = null;
     this.notifications = [];
     this.unreadNotificationCount = 0;
-    this.canAccessAdmin = false;
-    this.canManageUsers = false;
-    this.canConfigureAdmin = false;
-    this.canAccessTools = false;
-    this.canViewReports = false;
-    this.canViewAuditTrail = false;
-    this.canImportExport = false;
+    this.resetAccessState();
     this.router.navigate(['/login']);
   }
 
@@ -629,6 +674,12 @@ export class AppComponent implements OnDestroy {
 
   openNotifications(): void {
     this.router.navigate(['/notifications']);
+  }
+
+  guardNav(event: Event, allowed: boolean): void {
+    if (allowed) return;
+    event.preventDefault();
+    event.stopPropagation();
   }
 
   private updateRouteState(url: string): void {
@@ -692,6 +743,10 @@ export class AppComponent implements OnDestroy {
   private refreshAdminAccess(): void {
     this.authService.ensureSessionContext().subscribe((user) => {
       this.currentUser = user;
+      if (!user) {
+        this.resetAccessState();
+        return;
+      }
       this.canAccessAdmin = this.authService.hasAdminAccess();
       this.canManageUsers = this.authService.hasPermission('ADMIN', 'READ', 'user') ||
         this.authService.hasPermission('ADMIN', 'CREATE', 'user') ||
@@ -711,6 +766,69 @@ export class AppComponent implements OnDestroy {
         this.authService.hasPermission('CHANGE_CONTROL', 'EXPORT') ||
         this.currentUser?.userType === 'SYSTEM_ADMIN';
       this.canAccessTools = this.canViewReports || this.canViewAuditTrail || this.canImportExport;
+      this.canReadCapa = this.authService.hasPermission('CAPA', 'READ', 'capa_record');
+      this.canCreateCapa = this.authService.hasPermission('CAPA', 'CREATE', 'capa_record');
+      this.canReadDeviation = this.authService.hasPermission('DEVIATION', 'READ', 'deviation_record');
+      this.canCreateDeviation = this.authService.hasPermission('DEVIATION', 'CREATE', 'deviation_record');
+      this.canReadChange = this.authService.hasPermission('CHANGE_CONTROL', 'READ', 'change_request');
+      this.canCreateChange = this.authService.hasPermission('CHANGE_CONTROL', 'CREATE', 'change_request');
+      this.canReadDocument = this.authService.hasPermission('DOCUMENT', 'READ', 'document');
+      this.canCreateDocument = this.authService.hasPermission('DOCUMENT', 'CREATE', 'document');
+      this.canReadTraining = this.authService.hasPermission('TRAINING', 'READ', 'training_record');
+      this.canCreateTraining = this.authService.hasPermission('TRAINING', 'CREATE', 'training_record');
+      this.canReadRisk = this.authService.hasPermission('RISK', 'READ', 'risk_register') ||
+        this.authService.hasPermission('RISK', 'READ', 'risk_assessment');
+      this.canCreateRisk = this.authService.hasPermission('RISK', 'CREATE', 'risk_register') ||
+        this.authService.hasPermission('RISK', 'CREATE', 'risk_assessment');
+      this.canReadAudit = this.authService.hasPermission('AUDIT', 'READ', 'audit');
+      this.canReadSupplier = this.authService.hasPermission('SUPPLIER', 'READ', 'supplier');
+      this.canCreateSupplier = this.authService.hasPermission('SUPPLIER', 'CREATE', 'supplier');
+      this.canReadComplaint = this.authService.hasPermission('COMPLAINT', 'READ', 'complaint');
+      this.canCreateComplaint = this.authService.hasPermission('COMPLAINT', 'CREATE', 'complaint');
+      this.canReadNonconformance = this.authService.hasPermission('NONCONFORMANCE', 'READ', 'nonconformance');
+      this.canCreateNonconformance = this.authService.hasPermission('NONCONFORMANCE', 'CREATE', 'nonconformance');
+      this.canReadEquipment = this.authService.hasPermission('EQUIPMENT', 'READ', 'equipment') ||
+        this.authService.hasPermission('EQUIPMENT', 'READ', 'calibration');
+      this.canCreateEquipment = this.authService.hasPermission('EQUIPMENT', 'CREATE', 'equipment');
+      this.canAccessQualityEvents = this.canReadDeviation || this.canReadCapa || this.canReadChange || this.canReadComplaint;
+      this.canAccessAuditsActions = this.canReadAudit || this.canReadSupplier || this.canReadNonconformance || this.canReadEquipment;
+      this.canQuickCreate = this.canCreateCapa || this.canCreateDeviation || this.canCreateChange ||
+        this.canCreateDocument || this.canCreateTraining || this.canCreateRisk || this.canCreateSupplier ||
+        this.canCreateComplaint || this.canCreateNonconformance || this.canCreateEquipment;
     });
+  }
+
+  private resetAccessState(): void {
+    this.canAccessAdmin = false;
+    this.canManageUsers = false;
+    this.canConfigureAdmin = false;
+    this.canAccessTools = false;
+    this.canViewReports = false;
+    this.canViewAuditTrail = false;
+    this.canImportExport = false;
+    this.canReadCapa = false;
+    this.canCreateCapa = false;
+    this.canReadDeviation = false;
+    this.canCreateDeviation = false;
+    this.canReadChange = false;
+    this.canCreateChange = false;
+    this.canReadDocument = false;
+    this.canCreateDocument = false;
+    this.canReadTraining = false;
+    this.canCreateTraining = false;
+    this.canReadRisk = false;
+    this.canCreateRisk = false;
+    this.canReadAudit = false;
+    this.canReadSupplier = false;
+    this.canCreateSupplier = false;
+    this.canReadComplaint = false;
+    this.canCreateComplaint = false;
+    this.canReadNonconformance = false;
+    this.canCreateNonconformance = false;
+    this.canReadEquipment = false;
+    this.canCreateEquipment = false;
+    this.canAccessQualityEvents = false;
+    this.canAccessAuditsActions = false;
+    this.canQuickCreate = false;
   }
 }

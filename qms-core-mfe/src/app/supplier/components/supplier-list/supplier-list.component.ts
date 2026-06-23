@@ -12,6 +12,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatChipsModule } from '@angular/material/chips';
 import { SupplierService, Supplier } from '../../services/supplier.service';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'qms-supplier-list',
@@ -23,7 +24,7 @@ import { SupplierService, Supplier } from '../../services/supplier.service';
       <div class="page-header">
         <h1>Suppliers</h1>
         <div class="actions">
-          <button mat-raised-button color="primary" routerLink="../create"><mat-icon>add</mat-icon> New Supplier</button>
+          <button mat-raised-button color="primary" routerLink="../create" [disabled]="!canCreateSupplier"><mat-icon>add</mat-icon> New Supplier</button>
           <button mat-stroked-button routerLink="../dashboard"><mat-icon>dashboard</mat-icon> Dashboard</button>
         </div>
       </div>
@@ -91,6 +92,7 @@ export class SupplierListComponent implements OnInit {
   search = ''; statusFilter = ''; typeFilter = ''; catFilter = '';
   statusOptions = ['PENDING_QUALIFICATION', 'QUALIFIED', 'APPROVED', 'CONDITIONALLY_APPROVED', 'SUSPENDED', 'DISQUALIFIED', 'INACTIVE'];
   typeOptions = ['RAW_MATERIAL', 'PACKAGING', 'EXCIPIENT', 'API', 'CONTRACT_MANUFACTURER', 'CONTRACT_LAB', 'SERVICE_PROVIDER', 'EQUIPMENT'];
+  canCreateSupplier = hasStoredPermission('SUPPLIER', 'CREATE', 'supplier');
 
   constructor(private svc: SupplierService) {}
   ngOnInit(): void { this.load(); }
