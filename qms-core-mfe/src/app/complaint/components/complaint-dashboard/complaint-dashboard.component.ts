@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { ComplaintService } from '../../services/complaint.service';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'qms-complaint-dashboard',
@@ -15,7 +16,7 @@ import { ComplaintService } from '../../services/complaint.service';
       <div class="dashboard-header">
         <h1>Complaint Management Dashboard</h1>
         <div class="header-actions">
-          <button mat-raised-button color="primary" routerLink="../create"><mat-icon>add</mat-icon> New Complaint</button>
+          <button mat-raised-button color="primary" routerLink="../create" [disabled]="!canCreateComplaint"><mat-icon>add</mat-icon> New Complaint</button>
           <button mat-stroked-button routerLink="../list"><mat-icon>list</mat-icon> All Complaints</button>
         </div>
       </div>
@@ -31,6 +32,7 @@ import { ComplaintService } from '../../services/complaint.service';
 })
 export class ComplaintDashboardComponent implements OnInit {
   metrics: Record<string, unknown> = {};
+  canCreateComplaint = hasStoredPermission('COMPLAINT', 'CREATE', 'complaint');
   constructor(private complaintService: ComplaintService) {}
   ngOnInit(): void { this.complaintService.getDashboard().subscribe((metrics) => this.metrics = metrics); }
   metric(key: string): number { return Number(this.metrics[key] ?? 0); }

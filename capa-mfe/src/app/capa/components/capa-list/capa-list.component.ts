@@ -15,6 +15,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatBadgeModule } from '@angular/material/badge';
 import { CapaService } from '../../services/capa.service';
 import { Capa, CapaStatus, CapaPriority } from '../../models/capa.model';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'capa-list',
@@ -42,7 +43,7 @@ import { Capa, CapaStatus, CapaPriority } from '../../models/capa.model';
           <h1>CAPA Records</h1>
           <p class="subtitle">Manage all Corrective and Preventive Action records</p>
         </div>
-        <button class="vault-create-btn" routerLink="../create">
+        <button class="vault-create-btn" routerLink="../create" [disabled]="!canCreateCapa">
           + Create
         </button>
       </div>
@@ -147,11 +148,11 @@ import { Capa, CapaStatus, CapaPriority } from '../../models/capa.model';
                     <mat-icon>visibility</mat-icon>
                     <span>View Details</span>
                   </button>
-                  <button mat-menu-item [routerLink]="['../edit', capa.id]" (click)="stopRowNavigation($event)">
+                  <button mat-menu-item [routerLink]="['../edit', capa.id]" [disabled]="!canUpdateCapa" (click)="stopRowNavigation($event)">
                     <mat-icon>edit</mat-icon>
                     <span>Edit</span>
                   </button>
-                  <button mat-menu-item [routerLink]="['../rca', capa.id]" (click)="stopRowNavigation($event)">
+                  <button mat-menu-item [routerLink]="['../rca', capa.id]" [disabled]="!canUpdateCapa" (click)="stopRowNavigation($event)">
                     <mat-icon>psychology</mat-icon>
                     <span>Root Cause Analysis</span>
                   </button>
@@ -200,6 +201,7 @@ import { Capa, CapaStatus, CapaPriority } from '../../models/capa.model';
 
     .vault-create-btn { background: #ED8B00; color: #fff; border: none; padding: 8px 18px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; }
     .vault-create-btn:hover { background: #D4760A; }
+    .vault-create-btn:disabled { background: #cbd5e1; color: #64748b; cursor: default; }
 
     .subtitle {
       color: #666;
@@ -325,6 +327,8 @@ export class CapaListComponent implements OnInit {
   searchTerm = '';
   selectedStatuses: CapaStatus[] = [];
   selectedPriorities: CapaPriority[] = [];
+  canCreateCapa = hasStoredPermission('CAPA', 'CREATE', 'capa_record');
+  canUpdateCapa = hasStoredPermission('CAPA', 'UPDATE', 'capa_record');
 
   displayedColumns = ['capaNumber', 'title', 'status', 'priority', 'owner', 'department', 'dueDate', 'actions'];
 

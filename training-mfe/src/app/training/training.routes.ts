@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { permissionGuard } from '../permission.guard';
 
 export const TRAINING_ROUTES: Routes = [
   {
@@ -8,6 +9,8 @@ export const TRAINING_ROUTES: Routes = [
   },
   {
     path: 'dashboard',
+    canActivate: [permissionGuard],
+    data: { permission: { module: 'TRAINING', action: 'READ', resource: 'training_record' } },
     loadComponent: () =>
       import('./components/training-dashboard/training-dashboard.component').then(
         (m) => m.TrainingDashboardComponent
@@ -15,6 +18,8 @@ export const TRAINING_ROUTES: Routes = [
   },
   {
     path: 'curricula',
+    canActivate: [permissionGuard],
+    data: { permission: { module: 'TRAINING', action: 'READ', resource: 'training_record' } },
     loadComponent: () =>
       import('./components/curriculum-list/curriculum-list.component').then(
         (m) => m.CurriculumListComponent
@@ -22,6 +27,8 @@ export const TRAINING_ROUTES: Routes = [
   },
   {
     path: 'curricula/create',
+    canActivate: [permissionGuard],
+    data: { permission: { module: 'TRAINING', action: 'CREATE', resource: 'training_record' } },
     loadComponent: () =>
       import('./components/curriculum-form/curriculum-form.component').then(
         (m) => m.CurriculumFormComponent
@@ -29,6 +36,8 @@ export const TRAINING_ROUTES: Routes = [
   },
   {
     path: 'curricula/:id',
+    canActivate: [permissionGuard],
+    data: { permission: { module: 'TRAINING', action: 'READ', resource: 'training_record' } },
     loadComponent: () =>
       import('./components/curriculum-detail/curriculum-detail.component').then(
         (m) => m.CurriculumDetailComponent
@@ -36,6 +45,8 @@ export const TRAINING_ROUTES: Routes = [
   },
   {
     path: 'assignments',
+    canActivate: [permissionGuard],
+    data: { permission: { module: 'TRAINING', action: 'ASSIGN', resource: 'training_record' } },
     loadComponent: () =>
       import('./components/assignment-list/assignment-list.component').then(
         (m) => m.AssignmentListComponent
@@ -43,6 +54,8 @@ export const TRAINING_ROUTES: Routes = [
   },
   {
     path: 'matrix',
+    canActivate: [permissionGuard],
+    data: { permission: { module: 'TRAINING', action: 'READ', resource: 'training_record' } },
     loadComponent: () =>
       import('./components/training-matrix/training-matrix.component').then(
         (m) => m.TrainingMatrixComponent
@@ -50,6 +63,8 @@ export const TRAINING_ROUTES: Routes = [
   },
   {
     path: 'my-training',
+    canActivate: [permissionGuard],
+    data: { permission: { module: 'TRAINING', action: 'READ', resource: 'training_record' } },
     loadComponent: () =>
       import('./components/my-training/my-training.component').then(
         (m) => m.MyTrainingComponent

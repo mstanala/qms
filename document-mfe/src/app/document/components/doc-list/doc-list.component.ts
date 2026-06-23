@@ -10,6 +10,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatChipsModule } from '@angular/material/chips';
 import { DocumentService } from '../../services/document.service';
 import { QmsDocument, DocumentStatus, DocumentType, DocumentListFilter } from '../../models/document.model';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'doc-list',
@@ -19,7 +20,7 @@ import { QmsDocument, DocumentStatus, DocumentType, DocumentListFilter } from '.
     <div class="list-page">
       <div class="list-header">
         <h2>Document Register</h2>
-        <button class="create-btn" routerLink="../create"><mat-icon>add</mat-icon> New Document</button>
+        <button class="create-btn" routerLink="../create" [disabled]="!canCreateDocument"><mat-icon>add</mat-icon> New Document</button>
       </div>
       <div class="filters-bar">
         <div class="search-wrap">
@@ -76,6 +77,7 @@ import { QmsDocument, DocumentStatus, DocumentType, DocumentListFilter } from '.
     .list-header h2 { font-size: 18px; font-weight: 700; color: #1B3A4B; }
     .create-btn { display: flex; align-items: center; gap: 4px; background: #5c6bc0; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; }
     .create-btn:hover { background: #3f51b5; }
+    .create-btn:disabled { background: #cbd5e1; color: #64748b; cursor: default; }
     .create-btn mat-icon { font-size: 16px; width: 16px; height: 16px; }
     .filters-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
     .search-wrap { display: flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #d0d5dd; border-radius: 4px; padding: 0 10px; height: 40px; flex: 1; min-width: 200px; }
@@ -115,6 +117,7 @@ export class DocListComponent implements OnInit {
   statusOptions = Object.values(DocumentStatus);
   typeOptions = Object.values(DocumentType);
   categoryOptions = ['Production', 'Quality Control', 'Quality Assurance', 'Regulatory', 'Engineering', 'Warehouse', 'HSE'];
+  canCreateDocument = hasStoredPermission('DOCUMENT', 'CREATE', 'document');
 
   constructor(private docService: DocumentService) {}
 

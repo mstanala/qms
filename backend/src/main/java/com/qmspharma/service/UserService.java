@@ -31,6 +31,7 @@ public class UserService {
     private final SecurityProfileRepository securityProfileRepository;
     private final UserRoleRepository userRoleRepository;
     private final UserSecurityProfileRepository userSecurityProfileRepository;
+    private final SecurityProfilePermissionRepository securityProfilePermissionRepository;
     private final PasswordEncoder passwordEncoder;
     private final CurrentUserProvider currentUserProvider;
 
@@ -192,6 +193,12 @@ public class UserService {
                 .map(ur -> RoleResponse.builder()
                         .id(ur.getRole().getId()).name(ur.getRole().getName())
                         .code(ur.getRole().getCode()).roleLevel(ur.getRole().getRoleLevel().name())
+                        .description(ur.getRole().getDescription())
+                        .isSystem(ur.getRole().getIsSystem())
+                        .isActive(ur.getRole().getIsActive())
+                        .permissions(ur.getRole().getRolePermissions().stream()
+                                .map(rp -> toPermissionResponse(rp.getPermission()))
+                                .collect(Collectors.toList()))
                         .build())
                 .collect(Collectors.toList());
 
@@ -201,6 +208,21 @@ public class UserService {
                         .name(usp.getSecurityProfile().getName())
                         .build())
                 .collect(Collectors.toList());
+
+        Map<UUID, PermissionResponse> permissions = new LinkedHashMap<>();
+        u.getUserRoles().stream()
+                .filter(ur -> ur.getIsActive())
+                .flatMap(ur -> ur.getRole().getRolePermissions().stream())
+                .map(RolePermission::getPermission)
+                .map(this::toPermissionResponse)
+                .forEach(permission -> permissions.put(permission.getId(), permission));
+
+        u.getUserSecurityProfiles().stream()
+                .filter(usp -> usp.getSecurityProfile().getIsActive())
+                .flatMap(usp -> securityProfilePermissionRepository.findBySecurityProfileId(usp.getSecurityProfile().getId()).stream())
+                .map(SecurityProfilePermission::getPermission)
+                .map(this::toPermissionResponse)
+                .forEach(permission -> permissions.put(permission.getId(), permission));
 
         return UserResponse.builder()
                 .id(u.getId()).employeeId(u.getEmployeeId()).username(u.getUsername())
@@ -217,7 +239,18 @@ public class UserService {
                 .managerName(u.getManager() != null ? u.getManager().getDisplayName() : null)
                 .isActive(u.getIsActive()).isLocked(u.getIsLocked()).lastLoginAt(u.getLastLoginAt())
                 .roles(roles).securityProfiles(profiles)
+                .permissions(new ArrayList<>(permissions.values()))
                 .createdAt(u.getCreatedAt()).updatedAt(u.getUpdatedAt())
+                .build();
+    }
+
+    private PermissionResponse toPermissionResponse(Permission permission) {
+        return PermissionResponse.builder()
+                .id(permission.getId())
+                .module(permission.getModule())
+                .action(permission.getAction())
+                .resource(permission.getResource())
+                .description(permission.getDescription())
                 .build();
     }
 }

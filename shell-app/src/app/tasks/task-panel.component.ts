@@ -163,9 +163,17 @@ import { AuthService } from '../auth/auth.service';
     </div>
   `,
   styles: [`
+    :host {
+      display: flex;
+      align-self: stretch;
+      min-height: 0;
+    }
+
     .task-panel {
-      width: 210px;
-      min-width: 210px;
+      width: 248px;
+      min-width: 248px;
+      height: 100%;
+      min-height: 0;
       background: #fff;
       border-right: 1px solid #e2e8f0;
       display: flex;
@@ -175,8 +183,8 @@ import { AuthService } from '../auth/auth.service';
       overflow: hidden;
     }
     .task-panel.collapsed {
-      width: 28px;
-      min-width: 28px;
+      width: 32px;
+      min-width: 32px;
     }
 
     .panel-toggle {
@@ -193,12 +201,13 @@ import { AuthService } from '../auth/auth.service';
     }
     .panel-toggle:hover { background: #f1f5f9; }
     .panel-toggle mat-icon { font-size: 16px; width: 16px; height: 16px; color: #64748b; }
-    .collapsed .panel-toggle { right: 50%; transform: translateX(50%); top: 10px; }
+    .collapsed .panel-toggle { right: 1px; transform: none; top: 25px; }
 
     .panel-content {
       display: flex;
       flex-direction: column;
       height: 100%;
+      min-height: 0;
       overflow: hidden;
     }
 
@@ -245,6 +254,7 @@ import { AuthService } from '../auth/auth.service';
     /* ── Sidebar Sections (matches Deviation detail sidebar) ── */
     .sidebar-sections {
       flex: 1;
+      min-height: 0;
       overflow-y: auto;
       padding: 2px 0;
     }
@@ -303,7 +313,7 @@ import { AuthService } from '../auth/auth.service';
     .sidebar-item-badge {
       font-size: 9px;
       font-weight: 600;
-      padding: 1px 4px;
+      padding: 2px 5px;
       border-radius: 3px;
       text-transform: uppercase;
       letter-spacing: 0.02em;

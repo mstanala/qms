@@ -4,6 +4,7 @@ import { DashboardComponent } from './pages/dashboard/dashboard.component';
 import { LoginComponent } from './pages/login/login.component';
 import { authGuard } from './auth/auth.guard';
 import { adminGuard } from './auth/admin.guard';
+import { permissionGuard } from './auth/permission.guard';
 import { AdminUsersComponent } from './admin/admin-users.component';
 import { AdminRolesComponent } from './admin/admin-roles.component';
 import { AdminConfigurationComponent } from './admin/admin-configuration.component';
@@ -34,7 +35,8 @@ export const routes: Routes = [
   },
   {
     path: 'capa',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard],
+    data: { permission: { module: 'CAPA', action: 'READ', resource: 'capa_record' } },
     loadChildren: () =>
       loadRemoteModule({
         type: 'manifest',
@@ -44,7 +46,8 @@ export const routes: Routes = [
   },
   {
     path: 'deviations',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard],
+    data: { permission: { module: 'DEVIATION', action: 'READ', resource: 'deviation_record' } },
     loadChildren: () =>
       loadRemoteModule({
         type: 'manifest',
@@ -54,7 +57,8 @@ export const routes: Routes = [
   },
   {
     path: 'change-control',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard],
+    data: { permission: { module: 'CHANGE_CONTROL', action: 'READ', resource: 'change_request' } },
     loadChildren: () =>
       loadRemoteModule({
         type: 'manifest',
@@ -64,7 +68,8 @@ export const routes: Routes = [
   },
   {
     path: 'documents',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard],
+    data: { permission: { module: 'DOCUMENT', action: 'READ', resource: 'document' } },
     loadChildren: () =>
       loadRemoteModule({
         type: 'manifest',
@@ -74,7 +79,8 @@ export const routes: Routes = [
   },
   {
     path: 'training',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard],
+    data: { permission: { module: 'TRAINING', action: 'READ', resource: 'training_record' } },
     loadChildren: () =>
       loadRemoteModule({
         type: 'manifest',
@@ -84,7 +90,8 @@ export const routes: Routes = [
   },
   {
     path: 'risk',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard],
+    data: { permission: { module: 'RISK', action: 'READ', resource: 'risk_register' } },
     loadChildren: () =>
       loadRemoteModule({
         type: 'manifest',
@@ -94,7 +101,8 @@ export const routes: Routes = [
   },
   {
     path: 'audit',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard],
+    data: { permission: { module: 'AUDIT', action: 'READ', resource: 'audit' } },
     loadChildren: () =>
       loadRemoteModule({
         type: 'manifest',
@@ -104,7 +112,8 @@ export const routes: Routes = [
   },
   {
     path: 'supplier',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard],
+    data: { permission: { module: 'SUPPLIER', action: 'READ', resource: 'supplier' } },
     loadChildren: () =>
       loadRemoteModule({
         type: 'manifest',
@@ -114,7 +123,8 @@ export const routes: Routes = [
   },
   {
     path: 'complaint',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard],
+    data: { permission: { module: 'COMPLAINT', action: 'READ', resource: 'complaint' } },
     loadChildren: () =>
       loadRemoteModule({
         type: 'manifest',
@@ -124,7 +134,8 @@ export const routes: Routes = [
   },
   {
     path: 'nonconformance',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard],
+    data: { permission: { module: 'NONCONFORMANCE', action: 'READ', resource: 'nonconformance' } },
     loadChildren: () =>
       loadRemoteModule({
         type: 'manifest',
@@ -134,7 +145,8 @@ export const routes: Routes = [
   },
   {
     path: 'equipment',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard],
+    data: { permission: { module: 'EQUIPMENT', action: 'READ', resource: 'equipment' } },
     loadChildren: () =>
       loadRemoteModule({
         type: 'manifest',
@@ -147,10 +159,10 @@ export const routes: Routes = [
     canActivate: [authGuard, adminGuard],
     children: [
       { path: '', redirectTo: 'users', pathMatch: 'full' },
-      { path: 'users', component: AdminUsersComponent },
-      { path: 'roles', component: AdminRolesComponent },
-      { path: 'configuration', component: AdminConfigurationComponent },
-      { path: 'compliance', component: AdminComplianceComponent },
+      { path: 'users', component: AdminUsersComponent, canActivate: [permissionGuard], data: { permission: { module: 'ADMIN', action: 'READ', resource: 'user' } } },
+      { path: 'roles', component: AdminRolesComponent, canActivate: [permissionGuard], data: { permission: { module: 'ADMIN', action: 'CONFIGURE', resource: 'system' } } },
+      { path: 'configuration', component: AdminConfigurationComponent, canActivate: [permissionGuard], data: { permission: { module: 'ADMIN', action: 'CONFIGURE', resource: 'system' } } },
+      { path: 'compliance', component: AdminComplianceComponent, canActivate: [permissionGuard], data: { permission: { module: 'ADMIN', action: 'CONFIGURE', resource: 'system' } } },
     ],
   },
   {
@@ -158,10 +170,10 @@ export const routes: Routes = [
     canActivate: [authGuard],
     children: [
       { path: '', redirectTo: 'reports', pathMatch: 'full' },
-      { path: 'reports', component: ToolsReportsComponent },
-      { path: 'analytics', component: ToolsAnalyticsComponent },
-      { path: 'audit-trail', component: ToolsAuditTrailComponent },
-      { path: 'import-export', component: ToolsImportExportComponent },
+      { path: 'reports', component: ToolsReportsComponent, canActivate: [permissionGuard], data: { permission: { module: 'REPORT', action: 'READ', resource: 'dashboard' } } },
+      { path: 'analytics', component: ToolsAnalyticsComponent, canActivate: [permissionGuard], data: { permission: { module: 'REPORT', action: 'READ', resource: 'analytics' } } },
+      { path: 'audit-trail', component: ToolsAuditTrailComponent, canActivate: [permissionGuard], data: { permission: { module: 'ADMIN', action: 'READ', resource: 'audit_trail' } } },
+      { path: 'import-export', component: ToolsImportExportComponent, canActivate: [permissionGuard], data: { permission: { module: 'REPORT', action: 'EXPORT', resource: 'report' } } },
     ],
   },
   {

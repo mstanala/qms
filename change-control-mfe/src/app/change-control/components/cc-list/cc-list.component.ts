@@ -13,6 +13,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatChipsModule } from '@angular/material/chips';
 import { ChangeControlService } from '../../services/change-control.service';
 import { ChangeRequest, ChangeStatus, ChangeClassification, ChangeType, ChangePriority } from '../../models/change-control.model';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'cc-list',
@@ -38,7 +39,7 @@ import { ChangeRequest, ChangeStatus, ChangeClassification, ChangeType, ChangePr
           <h1>Change Control Register</h1>
           <p class="subtitle">Complete register of all change requests</p>
         </div>
-        <button class="vault-create-btn" routerLink="../create">
+        <button class="vault-create-btn" routerLink="../create" [disabled]="!canCreateChange">
           + Create
         </button>
       </div>
@@ -151,7 +152,7 @@ import { ChangeRequest, ChangeStatus, ChangeClassification, ChangeType, ChangePr
                     <mat-icon>visibility</mat-icon>
                     <span>View Details</span>
                   </button>
-                  <button mat-menu-item [routerLink]="['../edit', cr.id]" (click)="stopRowNavigation($event)">
+                  <button mat-menu-item [routerLink]="['../edit', cr.id]" [disabled]="!canUpdateChange" (click)="stopRowNavigation($event)">
                     <mat-icon>edit</mat-icon>
                     <span>Edit</span>
                   </button>
@@ -183,6 +184,7 @@ import { ChangeRequest, ChangeStatus, ChangeClassification, ChangeType, ChangePr
     .subtitle { color: #666; font-size: 14px; margin-top: 4px; }
     .vault-create-btn { background: #ED8B00; color: #fff; border: none; padding: 8px 18px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; }
     .vault-create-btn:hover { background: #D4760A; }
+    .vault-create-btn:disabled { background: #cbd5e1; color: #64748b; cursor: default; }
 
     .filter-card { margin-bottom: 16px; padding: 16px; }
     .filters-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
@@ -242,6 +244,8 @@ export class CcListComponent implements OnInit {
   selectedStatuses: ChangeStatus[] = [];
   selectedTypes: ChangeType[] = [];
   selectedPriorities: ChangePriority[] = [];
+  canCreateChange = hasStoredPermission('CHANGE_CONTROL', 'CREATE', 'change_request');
+  canUpdateChange = hasStoredPermission('CHANGE_CONTROL', 'UPDATE', 'change_request');
 
   displayedColumns = ['changeNumber', 'title', 'type', 'classification', 'priority', 'status', 'changeOwner', 'targetDate', 'actions'];
 

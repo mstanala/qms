@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { permissionGuard } from '../permission.guard';
 
 export const DEVIATION_ROUTES: Routes = [
   {
@@ -8,6 +9,8 @@ export const DEVIATION_ROUTES: Routes = [
   },
   {
     path: 'dashboard',
+    canActivate: [permissionGuard],
+    data: { permission: { module: 'DEVIATION', action: 'READ', resource: 'deviation_record' } },
     loadComponent: () =>
       import('./components/deviation-dashboard/deviation-dashboard.component').then(
         (m) => m.DeviationDashboardComponent
@@ -15,6 +18,8 @@ export const DEVIATION_ROUTES: Routes = [
   },
   {
     path: 'list',
+    canActivate: [permissionGuard],
+    data: { permission: { module: 'DEVIATION', action: 'READ', resource: 'deviation_record' } },
     loadComponent: () =>
       import('./components/deviation-list/deviation-list.component').then(
         (m) => m.DeviationListComponent
@@ -22,6 +27,8 @@ export const DEVIATION_ROUTES: Routes = [
   },
   {
     path: 'create',
+    canActivate: [permissionGuard],
+    data: { permission: { module: 'DEVIATION', action: 'CREATE', resource: 'deviation_record' } },
     loadComponent: () =>
       import('./components/deviation-form/deviation-form.component').then(
         (m) => m.DeviationFormComponent
@@ -29,6 +36,8 @@ export const DEVIATION_ROUTES: Routes = [
   },
   {
     path: 'edit/:id',
+    canActivate: [permissionGuard],
+    data: { permission: { module: 'DEVIATION', action: 'UPDATE', resource: 'deviation_record' } },
     loadComponent: () =>
       import('./components/deviation-form/deviation-form.component').then(
         (m) => m.DeviationFormComponent
@@ -36,6 +45,8 @@ export const DEVIATION_ROUTES: Routes = [
   },
   {
     path: 'detail/:id',
+    canActivate: [permissionGuard],
+    data: { permission: { module: 'DEVIATION', action: 'READ', resource: 'deviation_record' } },
     loadComponent: () =>
       import('./components/deviation-detail/deviation-detail.component').then(
         (m) => m.DeviationDetailComponent

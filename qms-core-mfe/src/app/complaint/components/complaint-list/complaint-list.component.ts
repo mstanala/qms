@@ -12,6 +12,7 @@ import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { Complaint, ComplaintService } from '../../services/complaint.service';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'qms-complaint-list',
@@ -23,7 +24,7 @@ import { Complaint, ComplaintService } from '../../services/complaint.service';
       <div class="page-header">
         <h1>Complaints</h1>
         <div class="actions">
-          <button mat-raised-button color="primary" routerLink="../create"><mat-icon>add</mat-icon> New Complaint</button>
+          <button mat-raised-button color="primary" routerLink="../create" [disabled]="!canCreateComplaint"><mat-icon>add</mat-icon> New Complaint</button>
           <button mat-stroked-button routerLink="../dashboard"><mat-icon>dashboard</mat-icon> Dashboard</button>
         </div>
       </div>
@@ -64,6 +65,7 @@ export class ComplaintListComponent implements OnInit {
   classFilter = '';
   statuses = ['RECEIVED', 'TRIAGE', 'INVESTIGATION', 'RESPONSE_PENDING', 'CLOSED'];
   types = ['PRODUCT_QUALITY', 'ADVERSE_EVENT', 'PACKAGING', 'DELIVERY', 'SERVICE', 'OTHER'];
+  canCreateComplaint = hasStoredPermission('COMPLAINT', 'CREATE', 'complaint');
 
   constructor(private complaintService: ComplaintService) {}
   ngOnInit(): void { this.load(); }

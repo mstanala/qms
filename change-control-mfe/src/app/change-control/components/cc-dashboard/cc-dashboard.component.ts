@@ -7,6 +7,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { ChangeControlService } from '../../services/change-control.service';
 import { ChangeControlDashboardMetrics } from '../../models/change-control.model';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'cc-dashboard',
@@ -27,7 +28,7 @@ import { ChangeControlDashboardMetrics } from '../../models/change-control.model
           <p class="subtitle">Manage and track changes to validated systems, processes, and documents</p>
         </div>
         <div class="header-actions">
-          <button class="vault-create-btn" routerLink="../create">
+          <button class="vault-create-btn" routerLink="../create" [disabled]="!canCreateChange">
             + Create
           </button>
         </div>
@@ -44,7 +45,7 @@ import { ChangeControlDashboardMetrics } from '../../models/change-control.model
                 <mat-icon>list_alt</mat-icon>
                 View All Changes
               </button>
-              <button mat-stroked-button routerLink="../create" class="action-btn">
+              <button mat-stroked-button routerLink="../create" class="action-btn" [disabled]="!canCreateChange">
                 <mat-icon>add_circle</mat-icon>
                 New Change Request
               </button>
@@ -302,6 +303,7 @@ import { ChangeControlDashboardMetrics } from '../../models/change-control.model
     .quick-actions { margin-bottom: 24px; }
     .actions-grid { display: flex; gap: 12px; flex-wrap: wrap; padding: 8px 0; }
     .action-btn { display: flex; align-items: center; gap: 8px; }
+    .vault-create-btn:disabled { background: #cbd5e1; color: #64748b; cursor: default; }
 
     @media (max-width: 768px) {
       .dashboard-grid { grid-template-columns: 1fr; }
@@ -311,6 +313,7 @@ import { ChangeControlDashboardMetrics } from '../../models/change-control.model
 })
 export class CcDashboardComponent implements OnInit {
   metrics: ChangeControlDashboardMetrics | null = null;
+  canCreateChange = hasStoredPermission('CHANGE_CONTROL', 'CREATE', 'change_request');
 
   constructor(private ccService: ChangeControlService) {}
 

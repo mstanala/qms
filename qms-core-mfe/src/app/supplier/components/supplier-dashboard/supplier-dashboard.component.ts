@@ -5,6 +5,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { SupplierService } from '../../services/supplier.service';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'qms-supplier-dashboard',
@@ -15,7 +16,7 @@ import { SupplierService } from '../../services/supplier.service';
       <div class="header">
         <h1>Supplier Quality Dashboard</h1>
         <div class="actions">
-          <button mat-raised-button color="primary" routerLink="../create"><mat-icon>add</mat-icon> New Supplier</button>
+          <button mat-raised-button color="primary" routerLink="../create" [disabled]="!canCreateSupplier"><mat-icon>add</mat-icon> New Supplier</button>
           <button mat-stroked-button routerLink="../list"><mat-icon>list</mat-icon> All Suppliers</button>
         </div>
       </div>
@@ -69,6 +70,7 @@ export class SupplierDashboardComponent implements OnInit {
   statusBreakdown: [string, number][] = [];
   typeBreakdown: [string, number][] = [];
   categoryBreakdown: [string, number][] = [];
+  canCreateSupplier = hasStoredPermission('SUPPLIER', 'CREATE', 'supplier');
 
   constructor(private svc: SupplierService) {}
 

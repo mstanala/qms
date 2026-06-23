@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { EquipmentService } from '../../services/equipment.service';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'qms-equipment-dashboard',
@@ -15,7 +16,7 @@ import { EquipmentService } from '../../services/equipment.service';
       <div class="dashboard-header">
         <h1>Equipment & Calibration Dashboard</h1>
         <div class="header-actions">
-          <button mat-raised-button color="primary" routerLink="../create"><mat-icon>add</mat-icon> New Equipment</button>
+          <button mat-raised-button color="primary" routerLink="../create" [disabled]="!canCreateEquipment"><mat-icon>add</mat-icon> New Equipment</button>
           <button mat-stroked-button routerLink="../list"><mat-icon>list</mat-icon> All Equipment</button>
         </div>
       </div>
@@ -31,6 +32,7 @@ import { EquipmentService } from '../../services/equipment.service';
 })
 export class EquipmentDashboardComponent implements OnInit {
   metrics: Record<string, unknown> = {};
+  canCreateEquipment = hasStoredPermission('EQUIPMENT', 'CREATE', 'equipment');
 
   constructor(private equipmentService: EquipmentService) {}
 

@@ -6,6 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatGridListModule } from '@angular/material/grid-list';
 import { RiskService } from '../../services/risk.service';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'qms-risk-dashboard',
@@ -16,7 +17,7 @@ import { RiskService } from '../../services/risk.service';
       <div class="dashboard-header">
         <h1>Risk Management Dashboard</h1>
         <div class="header-actions">
-          <button mat-raised-button color="primary" routerLink="../registers/create">
+          <button mat-raised-button color="primary" routerLink="../registers/create" [disabled]="!canCreateRisk">
             <mat-icon>add</mat-icon> New Risk Register
           </button>
           <button mat-stroked-button routerLink="../matrix">
@@ -113,7 +114,7 @@ import { RiskService } from '../../services/risk.service';
               <button mat-stroked-button routerLink="../matrix" class="action-btn">
                 <mat-icon>grid_on</mat-icon> Risk Matrix View
               </button>
-              <button mat-stroked-button routerLink="../registers/create" class="action-btn">
+              <button mat-stroked-button routerLink="../registers/create" class="action-btn" [disabled]="!canCreateRisk">
                 <mat-icon>add_circle</mat-icon> New FMEA Assessment
               </button>
             </div>
@@ -158,6 +159,7 @@ export class RiskDashboardComponent implements OnInit {
   riskLevelData: { level: string; count: number; percentage: number }[] = [];
   registerTypeData: { type: string; count: number }[] = [];
   methodologyData: { methodology: string; count: number }[] = [];
+  canCreateRisk = hasStoredPermission('RISK', 'CREATE', 'risk_register');
 
   constructor(private riskService: RiskService) {}
 

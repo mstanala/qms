@@ -33,6 +33,7 @@ public class UserResponse {
     private Instant lastLoginAt;
     private List<RoleResponse> roles;
     private List<SecurityProfileResponse> securityProfiles;
+    private List<PermissionResponse> permissions;
     private Instant createdAt;
     private Instant updatedAt;
 }

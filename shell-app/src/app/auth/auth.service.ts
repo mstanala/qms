@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, catchError, forkJoin, map, of, switchMap, tap } from 'rxjs';
+import { Observable, catchError, map, of, switchMap, tap } from 'rxjs';
 
 const API_BASE_URL = 'http://localhost:8082/api/v1';
 
@@ -127,11 +127,8 @@ export class AuthService {
   loadSessionContext(): Observable<AuthUser | null> {
     if (!this.isAuthenticated()) return of(null);
 
-    return forkJoin({
-      user: this.http.get<AuthUser>(`${API_BASE_URL}/auth/me`),
-      roles: this.http.get<RoleResponse[]>(`${API_BASE_URL}/roles`).pipe(catchError(() => of([] as RoleResponse[]))),
-    }).pipe(
-      map(({ user, roles }) => this.withResolvedPermissions(user, roles)),
+    return this.http.get<AuthUser>(`${API_BASE_URL}/auth/me`).pipe(
+      map((user) => this.normalizeUser(user)),
       tap((user) => {
         this.updateStoredUser(user);
         this.sessionContextLoaded = true;
@@ -156,7 +153,7 @@ export class AuthService {
   }
 
   hasPermission(module: string, action?: string, resource?: string): boolean {
-    if (this.hasRole('VAULT_ADMIN')) return true;
+    if (this.isSystemAdmin()) return true;
     return this.getPermissions().some((permission) =>
       permission.module === module &&
       (!action || permission.action === action) &&
@@ -164,10 +161,17 @@ export class AuthService {
     );
   }
 
+  hasAnyPermission(checks: Array<{ module: string; action?: string; resource?: string }>): boolean {
+    return checks.some((check) => this.hasPermission(check.module, check.action, check.resource));
+  }
+
   hasAdminAccess(): boolean {
-    return this.getUser()?.userType === 'SYSTEM_ADMIN' ||
-      this.hasRole('VAULT_ADMIN') ||
+    return this.isSystemAdmin() ||
       this.getPermissions().some((permission) => permission.module === 'ADMIN');
+  }
+
+  isSystemAdmin(): boolean {
+    return this.getUser()?.userType === 'SYSTEM_ADMIN' || this.hasRole('VAULT_ADMIN');
   }
 
   private storeSession(response: AuthResponse): void {
@@ -183,12 +187,14 @@ export class AuthService {
     localStorage.setItem(this.authKey, JSON.stringify(updated));
   }
 
-  private withResolvedPermissions(user: AuthUser, allRoles: RoleResponse[]): AuthUser {
-    const roleCodes = (user.roles || []).map((role) => typeof role === 'string' ? role : role.code);
-    const resolvedRoles = allRoles.filter((role) => roleCodes.includes(role.code));
+  private normalizeUser(user: AuthUser): AuthUser {
     const permissionMap = new Map<string, PermissionResponse>();
 
-    resolvedRoles.forEach((role) => {
+    (user.permissions || []).forEach((permission) => {
+      permissionMap.set(permission.id, permission);
+    });
+    (user.roles || []).forEach((role) => {
+      if (typeof role === 'string') return;
       (role.permissions || []).forEach((permission) => {
         permissionMap.set(permission.id, permission);
       });
@@ -196,7 +202,6 @@ export class AuthService {
 
     return {
       ...user,
-      roles: resolvedRoles.length ? resolvedRoles : user.roles,
       permissions: Array.from(permissionMap.values()),
     };
   }

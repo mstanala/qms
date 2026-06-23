@@ -12,6 +12,7 @@ import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { Equipment, EquipmentService } from '../../services/equipment.service';
+import { hasStoredPermission } from '../../../permission.guard';
 
 @Component({
   selector: 'qms-equipment-list',
@@ -23,7 +24,7 @@ import { Equipment, EquipmentService } from '../../services/equipment.service';
       <div class="page-header">
         <h1>Equipment</h1>
         <div class="actions">
-          <button mat-raised-button color="primary" routerLink="../create"><mat-icon>add</mat-icon> New Equipment</button>
+          <button mat-raised-button color="primary" routerLink="../create" [disabled]="!canCreateEquipment"><mat-icon>add</mat-icon> New Equipment</button>
           <button mat-stroked-button routerLink="../dashboard"><mat-icon>dashboard</mat-icon> Dashboard</button>
         </div>
       </div>
@@ -80,6 +81,7 @@ export class EquipmentListComponent implements OnInit {
   typeFilter = '';
   statuses = ['ACTIVE', 'INACTIVE', 'OUT_OF_SERVICE', 'DECOMMISSIONED'];
   types = ['MANUFACTURING', 'LABORATORY', 'UTILITY', 'WAREHOUSE', 'COMPUTERIZED_SYSTEM', 'MEASURING_DEVICE'];
+  canCreateEquipment = hasStoredPermission('EQUIPMENT', 'CREATE', 'equipment');
 
   constructor(private equipmentService: EquipmentService) {}
 

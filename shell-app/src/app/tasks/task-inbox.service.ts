@@ -76,11 +76,11 @@ export class TaskInboxService {
 
   getRecordRoute(task: TaskInboxItem): string {
     switch (task.recordType) {
-      case 'DEVIATION': return `/deviations/${task.recordId}`;
-      case 'CAPA': return `/capa/${task.recordId}`;
-      case 'CHANGE_CONTROL': return `/change-control/${task.recordId}`;
-      case 'DOCUMENT': return `/documents/${task.recordId}`;
-      case 'TRAINING': return `/training/${task.recordId}`;
+      case 'DEVIATION': return task.recordId ? `/deviations/detail/${task.recordId}` : '/deviations';
+      case 'CAPA': return task.recordId ? `/capa/detail/${task.recordId}` : '/capa';
+      case 'CHANGE_CONTROL': return task.recordId ? `/change-control/detail/${task.recordId}` : '/change-control';
+      case 'DOCUMENT': return task.recordId ? `/documents/detail/${task.recordId}` : '/documents';
+      case 'TRAINING': return '/training';
       default: return '/dashboard';
     }
   }
