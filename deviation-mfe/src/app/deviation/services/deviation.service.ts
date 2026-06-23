@@ -99,6 +99,25 @@ export class DeviationService {
             map((attachments) => ({ ...deviation, attachments })),
             catchError(() => of({ ...deviation, attachments: [] }))
           )
+        ),
+        switchMap((deviation) =>
+          this.getAuditTrail(id).pipe(
+            map((trail) => ({
+              ...deviation,
+              auditTrail: (trail || []).map((item: any) => ({
+                id: item.id,
+                action: item.action,
+                timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
+                userId: item.userId || '',
+                userName: item.userName || '',
+                field: item.fieldName,
+                oldValue: item.oldValue,
+                newValue: item.newValue,
+                comments: item.comments || item.reasonForChange,
+              })),
+            })),
+            catchError(() => of({ ...deviation, auditTrail: [] }))
+          )
         )
       );
   }
@@ -171,14 +190,18 @@ export class DeviationService {
       .pipe(map((item) => this.toDeviation(item)));
   }
 
+  getWorkflowHistory(id: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/${id}/workflow-history`, { headers: this.authHeaders() });
+  }
+
+  getAuditTrail(id: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/${id}/audit-trail`, { headers: this.authHeaders() });
+  }
+
   getDashboardMetrics(): Observable<DeviationDashboardMetrics> {
     return this.http
       .get<Record<string, any>>(`${API_BASE_URL}/dashboard/deviation-metrics`, { headers: this.authHeaders() })
       .pipe(map((data) => this.toDashboardMetrics(data)));
-  }
-
-  getWorkflowHistory(id: string): Observable<ApiWorkflowHistory[]> {
-    return this.http.get<ApiWorkflowHistory[]>(`${this.apiUrl}/${id}/workflow-history`, { headers: this.authHeaders() });
   }
 
   submitInvestigation(
@@ -450,6 +473,26 @@ export class DeviationService {
     return Object.entries(source || {}).map(([name, count]) => ({ [key]: name as T, count: Number(count) }));
   }
 
+  private resolveUserId(name?: string): string {
+    const users: Record<string, string> = {
+      'Rajesh Kumar': 'd0000000-0000-0000-0000-000000000001',
+      'Srinivas Rao': 'd0000000-0000-0000-0000-000000000002',
+      'Priya Sharma': 'd0000000-0000-0000-0000-000000000003',
+      'Suresh Reddy': 'd0000000-0000-0000-0000-000000000004',
+      'Anitha Rao': 'd0000000-0000-0000-0000-000000000005',
+      'Lakshmi Devi': 'd0000000-0000-0000-0000-000000000006',
+      'Venkat Naidu': 'd0000000-0000-0000-0000-000000000007',
+      'Venkat Rao': 'd0000000-0000-0000-0000-000000000007',
+      'Mohammad Ali': 'd0000000-0000-0000-0000-000000000008',
+      'Kavitha Krishnan': 'd0000000-0000-0000-0000-000000000009',
+      'Kavitha Reddy': 'd0000000-0000-0000-0000-000000000009',
+      'Ravi Teja': 'd0000000-0000-0000-0000-000000000010',
+      'Deepa Menon': 'd0000000-0000-0000-0000-000000000011',
+      'Ramesh Gupta': 'd0000000-0000-0000-0000-000000000012',
+    };
+    return users[name || ''] || users['Priya Sharma'];
+  }
+
   private toDate(value: unknown): Date {
     return value ? new Date(value as string) : new Date();
   }
@@ -482,18 +525,6 @@ export class DeviationService {
       'Research & Development': 'c0000000-0000-0000-0000-000000000007',
     };
     return departments[name || ''] || departments['Quality Assurance'];
-  }
-
-  private resolveUserId(name?: string): string | null {
-    const users: Record<string, string> = {
-      'Rajesh Kumar': 'd0000000-0000-0000-0000-000000000001',
-      'Priya Sharma': 'd0000000-0000-0000-0000-000000000002',
-      'Lakshmi Devi': 'd0000000-0000-0000-0000-000000000003',
-      'Kavitha Reddy': 'd0000000-0000-0000-0000-000000000004',
-      'Deepak Joshi': 'd0000000-0000-0000-0000-000000000005',
-      'Mahesh Patil': 'd0000000-0000-0000-0000-000000000006',
-    };
-    return users[name || ''] || null;
   }
 
   private generateMockData(): Deviation[] {

@@ -93,6 +93,25 @@ export class ChangeControlService {
               workflowHistory: this.toWorkflowSteps([], CHANGE_WORKFLOW_TEMPLATE, changeRequest.currentWorkflowStep),
             }))
           )
+        ),
+        switchMap((changeRequest) =>
+          this.getAuditTrail(id).pipe(
+            map((trail) => ({
+              ...changeRequest,
+              auditTrail: (trail || []).map((item: any) => ({
+                id: item.id,
+                action: item.action,
+                timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
+                userId: item.userId || '',
+                userName: item.userName || '',
+                field: item.fieldName,
+                oldValue: item.oldValue,
+                newValue: item.newValue,
+                comments: item.comments || item.reasonForChange,
+              })),
+            })),
+            catchError(() => of({ ...changeRequest, auditTrail: [] }))
+          )
         )
       );
   }
@@ -159,14 +178,24 @@ export class ChangeControlService {
       .pipe(map((item) => this.toChangeRequest(item)));
   }
 
+  getWorkflowHistory(id: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/${id}/workflow-history`, { headers: this.authHeaders() });
+  }
+
+  getAuditTrail(id: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/${id}/audit-trail`, { headers: this.authHeaders() });
+  }
+
+  transitionStatus(id: string, status: string, comments?: string): Observable<ChangeRequest> {
+    return this.http
+      .patch<any>(`${this.apiUrl}/${id}/status`, { status, comments: comments || `Status changed to ${status}` }, { headers: this.authHeaders() })
+      .pipe(map((item) => this.toChangeRequest(item)));
+  }
+
   getDashboardMetrics(): Observable<ChangeControlDashboardMetrics> {
     return this.http
       .get<Record<string, any>>(`${API_BASE_URL}/dashboard/change-control-metrics`, { headers: this.authHeaders() })
       .pipe(map((data) => this.toDashboardMetrics(data)));
-  }
-
-  getWorkflowHistory(id: string): Observable<ApiWorkflowHistory[]> {
-    return this.http.get<ApiWorkflowHistory[]>(`${this.apiUrl}/${id}/workflow-history`, { headers: this.authHeaders() });
   }
 
   private authHeaders(): HttpHeaders {
@@ -427,9 +456,14 @@ export class ChangeControlService {
       'Suresh Reddy': 'd0000000-0000-0000-0000-000000000004',
       'Anitha Rao': 'd0000000-0000-0000-0000-000000000005',
       'Lakshmi Devi': 'd0000000-0000-0000-0000-000000000006',
+      'Venkat Naidu': 'd0000000-0000-0000-0000-000000000007',
       'Venkat Rao': 'd0000000-0000-0000-0000-000000000007',
       'Mohammad Ali': 'd0000000-0000-0000-0000-000000000008',
+      'Kavitha Krishnan': 'd0000000-0000-0000-0000-000000000009',
       'Kavitha Reddy': 'd0000000-0000-0000-0000-000000000009',
+      'Ravi Teja': 'd0000000-0000-0000-0000-000000000010',
+      'Deepa Menon': 'd0000000-0000-0000-0000-000000000011',
+      'Ramesh Gupta': 'd0000000-0000-0000-0000-000000000012',
       'Suresh Menon': 'd0000000-0000-0000-0000-000000000002',
     };
     return users[name || ''] || users['Priya Sharma'];

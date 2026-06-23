@@ -92,6 +92,25 @@ export class CapaService {
               workflowHistory: this.toWorkflowSteps([], CAPA_WORKFLOW_TEMPLATE, capa.currentWorkflowStep),
             }))
           )
+        ),
+        switchMap((capa) =>
+          this.getAuditTrail(id).pipe(
+            map((trail) => ({
+              ...capa,
+              auditTrail: (trail || []).map((item: any) => ({
+                id: item.id,
+                action: item.action,
+                timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
+                userId: item.userId || '',
+                userName: item.userName || '',
+                field: item.fieldName,
+                oldValue: item.oldValue,
+                newValue: item.newValue,
+                comments: item.comments || item.reasonForChange,
+              })),
+            })),
+            catchError(() => of({ ...capa, auditTrail: [] }))
+          )
         )
       );
   }
@@ -154,14 +173,18 @@ export class CapaService {
       .pipe(map((item) => this.toCapa(item)));
   }
 
+  getWorkflowHistory(id: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/${id}/workflow-history`, { headers: this.authHeaders() });
+  }
+
+  getAuditTrail(id: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/${id}/audit-trail`, { headers: this.authHeaders() });
+  }
+
   getDashboardMetrics(): Observable<CapaDashboardMetrics> {
     return this.http
       .get<Record<string, any>>(`${API_BASE_URL}/dashboard/capa-metrics`, { headers: this.authHeaders() })
       .pipe(map((data) => this.toDashboardMetrics(data)));
-  }
-
-  getWorkflowHistory(id: string): Observable<ApiWorkflowHistory[]> {
-    return this.http.get<ApiWorkflowHistory[]>(`${this.apiUrl}/${id}/workflow-history`, { headers: this.authHeaders() });
   }
 
   submitRootCauseAnalysis(id: string, rca: RootCauseAnalysis): Observable<Capa> {
@@ -372,13 +395,19 @@ export class CapaService {
   private resolveUserId(name?: string): string {
     const users: Record<string, string> = {
       'Rajesh Kumar': 'd0000000-0000-0000-0000-000000000001',
+      'Srinivas Rao': 'd0000000-0000-0000-0000-000000000002',
       'Priya Sharma': 'd0000000-0000-0000-0000-000000000003',
       'Suresh Reddy': 'd0000000-0000-0000-0000-000000000004',
       'Anitha Rao': 'd0000000-0000-0000-0000-000000000005',
       'Lakshmi Devi': 'd0000000-0000-0000-0000-000000000006',
+      'Venkat Naidu': 'd0000000-0000-0000-0000-000000000007',
       'Venkat Rao': 'd0000000-0000-0000-0000-000000000007',
       'Mohammad Ali': 'd0000000-0000-0000-0000-000000000008',
+      'Kavitha Krishnan': 'd0000000-0000-0000-0000-000000000009',
       'Kavitha Reddy': 'd0000000-0000-0000-0000-000000000009',
+      'Ravi Teja': 'd0000000-0000-0000-0000-000000000010',
+      'Deepa Menon': 'd0000000-0000-0000-0000-000000000011',
+      'Ramesh Gupta': 'd0000000-0000-0000-0000-000000000012',
     };
     return users[name || ''] || users['Anitha Rao'];
   }

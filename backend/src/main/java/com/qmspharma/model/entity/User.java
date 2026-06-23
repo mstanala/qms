@@ -1,5 +1,7 @@
 package com.qmspharma.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.qmspharma.model.enums.UserType;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -41,6 +43,7 @@ public class User {
     private String displayName;
 
     @Column(name = "password_hash", length = 512)
+    @JsonIgnore
     private String passwordHash;
 
     @Column(length = 50)
@@ -53,20 +56,24 @@ public class User {
     @Column(name = "user_type", nullable = false, length = 50)
     private UserType userType;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "organization_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Organization organization;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "plant_site_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "organization"})
     private PlantSite plantSite;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "plantSite"})
     private Department department;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "manager_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "manager", "organization", "plantSite", "department", "userRoles", "userSecurityProfiles", "createdBy", "updatedBy"})
     private User manager;
 
     @Column(name = "is_active", nullable = false)
@@ -88,27 +95,35 @@ public class User {
     private Instant lastLoginAt;
 
     @Column(name = "last_password_change")
+    @JsonIgnore
     private Instant lastPasswordChange;
 
     @Column(name = "password_expires_at")
+    @JsonIgnore
     private Instant passwordExpiresAt;
 
     @Column(name = "must_change_password", nullable = false)
+    @JsonIgnore
     private Boolean mustChangePassword = true;
 
     @Column(name = "oauth_provider", length = 50)
+    @JsonIgnore
     private String oauthProvider;
 
     @Column(name = "oauth_subject")
+    @JsonIgnore
     private String oauthSubject;
 
     @Column(name = "saml_name_id")
+    @JsonIgnore
     private String samlNameId;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
     private Set<UserRole> userRoles = new HashSet<>();
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
     private Set<UserSecurityProfile> userSecurityProfiles = new HashSet<>();
 
     @CreationTimestamp
@@ -121,9 +136,11 @@ public class User {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
+    @JsonIgnore
     private User createdBy;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "updated_by")
+    @JsonIgnore
     private User updatedBy;
 }

@@ -90,6 +90,12 @@ public class AuditService {
         audit.setDescription((String) request.get("description"));
         audit.setAuditType((String) request.get("auditType"));
         audit.setAuditScope((String) request.get("auditScope"));
+        audit.setCategory((String) request.get("category"));
+        audit.setExecutiveSummary((String) request.get("executiveSummary"));
+        audit.setFindingsSummary((String) request.get("findingsSummary"));
+        audit.setFrequency((String) request.get("frequency"));
+        audit.setProposedAction((String) request.get("proposedAction"));
+        audit.setLifecycleState((String) request.getOrDefault("lifecycleState", "DRAFT"));
         audit.setLeadAuditor(userRepository.getReferenceById(UUID.fromString((String) request.get("leadAuditorId"))));
         audit.setPlantSite(plantSiteRepository.getReferenceById(UUID.fromString((String) request.get("plantSiteId"))));
         audit.setCreatedBy(currentUser);
@@ -106,6 +112,12 @@ public class AuditService {
         if (request.containsKey("title")) audit.setTitle((String) request.get("title"));
         if (request.containsKey("auditScope")) audit.setAuditScope((String) request.get("auditScope"));
         if (request.containsKey("priority")) audit.setPriority((String) request.get("priority"));
+        if (request.containsKey("category")) audit.setCategory((String) request.get("category"));
+        if (request.containsKey("executiveSummary")) audit.setExecutiveSummary((String) request.get("executiveSummary"));
+        if (request.containsKey("findingsSummary")) audit.setFindingsSummary((String) request.get("findingsSummary"));
+        if (request.containsKey("frequency")) audit.setFrequency((String) request.get("frequency"));
+        if (request.containsKey("proposedAction")) audit.setProposedAction((String) request.get("proposedAction"));
+        if (request.containsKey("lifecycleState")) audit.setLifecycleState((String) request.get("lifecycleState"));
         audit.setUpdatedBy(currentUserProvider.getCurrentUser());
         return auditRepository.save(audit);
     }
@@ -152,7 +164,9 @@ public class AuditService {
     public Map<String, Object> getDashboardMetrics() {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("totalAudits", auditRepository.count());
-        m.put("overdue", auditRepository.countOverdue());
+        m.put("totalPlans", auditPlanRepository.count());
+        m.put("totalFindings", auditFindingRepository.count());
+        m.put("overdueAudits", auditRepository.countOverdue());
         m.put("byStatus", auditRepository.countByStatusGrouped());
         m.put("byType", auditRepository.countByAuditType());
         m.put("findingsByClassification", auditFindingRepository.countByClassification());

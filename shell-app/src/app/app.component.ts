@@ -193,18 +193,30 @@ interface NotificationItem {
           <mat-icon>dashboard</mat-icon>
           <span>Dashboard</span>
         </a>
-        <a class="mod-tab" routerLink="/deviations" routerLinkActive="active">
-          <mat-icon>report_problem</mat-icon>
-          <span>Deviations</span>
-        </a>
-        <a class="mod-tab" routerLink="/capa" routerLinkActive="active">
-          <mat-icon>assignment_turned_in</mat-icon>
-          <span>CAPA</span>
-        </a>
-        <a class="mod-tab" routerLink="/change-control" routerLinkActive="active">
-          <mat-icon>swap_horiz</mat-icon>
-          <span>Change Control</span>
-        </a>
+        <button class="mod-tab mod-tab-dropdown" [matMenuTriggerFor]="qualityEventsMenu"
+                [class.active]="isQualityEventsActive()">
+          <mat-icon>event_note</mat-icon>
+          <span>Quality Events</span>
+          <mat-icon class="dropdown-arrow">arrow_drop_down</mat-icon>
+        </button>
+        <mat-menu #qualityEventsMenu="matMenu" class="quality-events-dropdown">
+          <button mat-menu-item routerLink="/deviations">
+            <mat-icon>report_problem</mat-icon>
+            <span>Deviations</span>
+          </button>
+          <button mat-menu-item routerLink="/capa">
+            <mat-icon>assignment_turned_in</mat-icon>
+            <span>CAPA</span>
+          </button>
+          <button mat-menu-item routerLink="/change-control">
+            <mat-icon>swap_horiz</mat-icon>
+            <span>Change Controls</span>
+          </button>
+          <button mat-menu-item routerLink="/complaint">
+            <mat-icon>feedback</mat-icon>
+            <span>Complaints</span>
+          </button>
+        </mat-menu>
         <a class="mod-tab" routerLink="/documents" routerLinkActive="active">
           <mat-icon>description</mat-icon>
           <span>Document Mgmt</span>
@@ -217,26 +229,30 @@ interface NotificationItem {
           <mat-icon>warning_amber</mat-icon>
           <span>Risk Mgmt</span>
         </a>
-        <a class="mod-tab" routerLink="/audit" routerLinkActive="active">
+        <button class="mod-tab mod-tab-dropdown" [matMenuTriggerFor]="auditsActionsMenu"
+                [class.active]="isAuditsActionsActive()">
           <mat-icon>fact_check</mat-icon>
-          <span>Audits</span>
-        </a>
-        <a class="mod-tab" routerLink="/supplier" routerLinkActive="active">
-          <mat-icon>local_shipping</mat-icon>
-          <span>Suppliers</span>
-        </a>
-        <a class="mod-tab" routerLink="/complaint" routerLinkActive="active">
-          <mat-icon>feedback</mat-icon>
-          <span>Complaints</span>
-        </a>
-        <a class="mod-tab" routerLink="/nonconformance" routerLinkActive="active">
-          <mat-icon>block</mat-icon>
-          <span>Nonconformance</span>
-        </a>
-        <a class="mod-tab" routerLink="/equipment" routerLinkActive="active">
-          <mat-icon>precision_manufacturing</mat-icon>
-          <span>Equipment</span>
-        </a>
+          <span>Audits & Actions</span>
+          <mat-icon class="dropdown-arrow">arrow_drop_down</mat-icon>
+        </button>
+        <mat-menu #auditsActionsMenu="matMenu">
+          <button mat-menu-item routerLink="/audit">
+            <mat-icon>fact_check</mat-icon>
+            <span>Audit Management</span>
+          </button>
+          <button mat-menu-item routerLink="/supplier">
+            <mat-icon>local_shipping</mat-icon>
+            <span>Suppliers</span>
+          </button>
+          <button mat-menu-item routerLink="/nonconformance">
+            <mat-icon>block</mat-icon>
+            <span>Nonconformance</span>
+          </button>
+          <button mat-menu-item routerLink="/equipment">
+            <mat-icon>precision_manufacturing</mat-icon>
+            <span>Equipment</span>
+          </button>
+        </mat-menu>
         <div class="tab-spacer"></div>
         <div class="tab-actions">
           <button class="quick-action-btn" [matMenuTriggerFor]="quickCreate" matTooltip="Quick Create">
@@ -376,12 +392,13 @@ interface NotificationItem {
 
     /* ── MENU BAR ── */
     .menu-bar {
-      display: flex; align-items: center; height: 28px; padding: 0 8px;
+      display: flex; align-items: center; height: 34px; padding: 0 10px;
       background: #234E5F; flex-shrink: 0;
     }
     .menu-item {
-      background: none; border: none; color: rgba(255,255,255,0.8);
-      font-size: 12px; padding: 4px 10px; cursor: pointer; border-radius: 3px;
+      background: none; border: none; color: rgba(255,255,255,0.85);
+      font-size: 13.5px; font-weight: 400; padding: 5px 14px; cursor: pointer; border-radius: 3px;
+      letter-spacing: 0.01em;
     }
     .menu-item:hover { background: rgba(255,255,255,0.12); color: #fff; }
     .menu-item:disabled { color: rgba(255,255,255,0.35); cursor: default; }
@@ -389,7 +406,7 @@ interface NotificationItem {
 
     /* ── MODULE TABS ── */
     .module-tabs {
-      display: flex; align-items: stretch; height: 36px; padding: 0 8px;
+      display: flex; align-items: stretch; height: 42px; padding: 0 12px;
       background: #fff; border-bottom: 1px solid #d0d5dd; flex-shrink: 0;
       box-shadow: 0 1px 2px rgba(0,0,0,0.04);
       overflow-x: auto; overflow-y: hidden;
@@ -397,18 +414,25 @@ interface NotificationItem {
     .module-tabs::-webkit-scrollbar { height: 4px; }
     .module-tabs::-webkit-scrollbar-thumb { background: #c7d0d9; border-radius: 999px; }
     .mod-tab {
-      display: flex; align-items: center; gap: 5px; padding: 0 14px;
-      font-size: 12px; font-weight: 500; color: #555; text-decoration: none;
+      display: flex; align-items: center; gap: 6px; padding: 0 16px;
+      font-size: 13.5px; font-weight: 500; color: #475569; text-decoration: none;
       border-bottom: 2px solid transparent; cursor: pointer;
       transition: all 0.15s; white-space: nowrap; flex: 0 0 auto;
+      letter-spacing: 0.01em;
     }
-    .mod-tab mat-icon { font-size: 16px; width: 16px; height: 16px; }
+    .mod-tab mat-icon { font-size: 18px; width: 18px; height: 18px; color: #94a3b8; }
     .mod-tab:hover { color: #1B3A4B; background: rgba(44,95,124,0.04); }
+    .mod-tab:hover mat-icon { color: #2C5F7C; }
     .mod-tab.active {
       color: #1B3A4B; border-bottom-color: #ED8B00; font-weight: 600;
       background: rgba(237,139,0,0.04);
     }
+    .mod-tab.active mat-icon { color: #1B3A4B; }
     .mod-tab.disabled-tab { color: #bbb; cursor: default; pointer-events: none; }
+    .mod-tab-dropdown { border: none; background: none; font-family: inherit; }
+    .mod-tab-dropdown .dropdown-arrow { font-size: 18px; width: 18px; height: 18px; margin-left: -2px; color: #94a3b8; transition: color 0.15s; }
+    .mod-tab-dropdown:hover .dropdown-arrow { color: #1B3A4B; }
+    .mod-tab-dropdown.active .dropdown-arrow { color: #ED8B00; }
     .tab-spacer { flex: 1 0 12px; }
     .tab-actions { display: flex; align-items: center; flex: 0 0 auto; }
     .quick-action-btn {
@@ -584,6 +608,16 @@ export class AppComponent implements OnDestroy {
 
   formatStatus(status: string): string {
     return status.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+
+  isQualityEventsActive(): boolean {
+    const url = this.router.url;
+    return url.startsWith('/deviations') || url.startsWith('/capa') || url.startsWith('/change-control') || url.startsWith('/complaint');
+  }
+
+  isAuditsActionsActive(): boolean {
+    const url = this.router.url;
+    return url.startsWith('/audit') || url.startsWith('/supplier') || url.startsWith('/nonconformance') || url.startsWith('/equipment');
   }
 
   notificationIcon(notification: NotificationItem): string {
