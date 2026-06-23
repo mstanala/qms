@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://qmspharma.com/equipment"
+             id="equipmentDefinitions">
+
+    <process id="equipmentCalibrationProcess" name="Equipment Calibration Process" isExecutable="true">
+
+        <!-- Process Variables:
+             recordId, calibrationNumber, equipmentId, equipmentName,
+             technicianId, calibrationDueDate, departmentId -->
+
+        <startEvent id="start" name="Calibration Due"/>
+
+        <sequenceFlow id="flow-start-schedule" sourceRef="start" targetRef="scheduleCalibration"/>
+
+        <!-- Step 1: Schedule Calibration -->
+        <userTask id="scheduleCalibration" name="Schedule Calibration"
+                  flowable:candidateGroups="MAINTENANCE,CALIBRATION"
+                  flowable:formKey="equipment-schedule">
+            <documentation>Schedule calibration activity and assign technician</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-schedule-execute" sourceRef="scheduleCalibration" targetRef="executeCalibration"/>
+
+        <!-- Step 2: Execute Calibration -->
+        <userTask id="executeCalibration" name="Execute Calibration"
+                  flowable:assignee="${technicianId}"
+                  flowable:formKey="equipment-calibrate"
+                  flowable:dueDate="${calibrationDueDate}">
+            <documentation>Perform calibration, record measurements, and document results</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-execute-gateway" sourceRef="executeCalibration" targetRef="resultGateway"/>
+
+        <!-- Gateway: Calibration Result -->
+        <exclusiveGateway id="resultGateway" name="Calibration Result"/>
+
+        <sequenceFlow id="flow-pass" sourceRef="resultGateway" targetRef="qaReview">
+            <conditionExpression>${calibrationResult == 'PASS'}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow-fail" sourceRef="resultGateway" targetRef="outOfTolerance">
+            <conditionExpression>${calibrationResult == 'FAIL'}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow-adjusted" sourceRef="resultGateway" targetRef="qaReview">
+            <conditionExpression>${calibrationResult == 'ADJUSTED'}</conditionExpression>
+        </sequenceFlow>
+
+        <!-- Out of Tolerance handling -->
+        <userTask id="outOfTolerance" name="Out of Tolerance Investigation"
+                  flowable:candidateGroups="QA_REVIEWER,MAINTENANCE"
+                  flowable:formKey="equipment-oot">
+            <documentation>Investigate impact of out-of-tolerance equipment on product quality</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-oot-deviation" sourceRef="outOfTolerance" targetRef="deviationInitiation"/>
+
+        <userTask id="deviationInitiation" name="Initiate Deviation"
+                  flowable:candidateGroups="QA_REVIEWER,OWNER"
+                  flowable:formKey="equipment-deviation">
+            <documentation>Create deviation record for out-of-tolerance equipment impact</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-deviation-review" sourceRef="deviationInitiation" targetRef="qaReview"/>
+
+        <!-- Step 3: QA Review -->
+        <userTask id="qaReview" name="QA Review of Calibration"
+                  flowable:candidateGroups="QA_REVIEWER,QA_APPROVER"
+                  flowable:formKey="equipment-review">
+            <documentation>QA reviews calibration results and approves certificate</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-review-label" sourceRef="qaReview" targetRef="updateLabel"/>
+
+        <!-- Step 4: Update Calibration Label -->
+        <serviceTask id="updateLabel" name="Update Calibration Status"
+                     flowable:delegateExpression="${equipmentCalibrationDelegate}">
+            <extensionElements>
+                <flowable:field name="action" stringValue="UPDATE_CALIBRATION_STATUS"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-label-notify" sourceRef="updateLabel" targetRef="notifyComplete"/>
+
+        <serviceTask id="notifyComplete" name="Notify Calibration Complete"
+                     flowable:delegateExpression="${notificationDelegate}">
+            <extensionElements>
+                <flowable:field name="notificationType" stringValue="STATUS_CHANGE"/>
+                <flowable:field name="titleTemplate" stringValue="Calibration Complete: {equipmentName}"/>
+                <flowable:field name="messageTemplate" stringValue="Equipment {equipmentName} ({calibrationNumber}) calibration is complete"/>
+                <flowable:field name="recipientVariable" stringValue="technicianId"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-notify-end" sourceRef="notifyComplete" targetRef="end"/>
+
+        <endEvent id="end" name="Calibration Complete"/>
+
+        <!-- Overdue timer -->
+        <boundaryEvent id="overdueTimer" attachedToRef="executeCalibration" cancelActivity="false">
+            <timerEventDefinition>
+                <timeDuration>P3D</timeDuration>
+            </timerEventDefinition>
+        </boundaryEvent>
+
+        <sequenceFlow id="flow-timer-escalation" sourceRef="overdueTimer" targetRef="escalateOverdue"/>
+
+        <serviceTask id="escalateOverdue" name="Escalate Overdue Calibration"
+                     flowable:delegateExpression="${escalationDelegate}">
+            <extensionElements>
+                <flowable:field name="escalationType" stringValue="CALIBRATION_OVERDUE"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-escalation-end" sourceRef="escalateOverdue" targetRef="escalationEnd"/>
+        <endEvent id="escalationEnd"/>
+
+    </process>
+</definitions>

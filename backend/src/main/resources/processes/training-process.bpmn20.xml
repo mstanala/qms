@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://qmspharma.com/training"
+             id="trainingDefinitions">
+
+    <process id="trainingProcess" name="Training Management Process" isExecutable="true">
+
+        <!-- Process Variables:
+             recordId, trainingNumber, traineeId, trainerId, trainingType,
+             documentId, departmentId, dueDate -->
+
+        <startEvent id="start" name="Training Assigned"/>
+
+        <sequenceFlow id="flow-start-notification" sourceRef="start" targetRef="notifyTrainee"/>
+
+        <serviceTask id="notifyTrainee" name="Notify Trainee"
+                     flowable:delegateExpression="${notificationDelegate}">
+            <extensionElements>
+                <flowable:field name="notificationType" stringValue="TASK_ASSIGNED"/>
+                <flowable:field name="titleTemplate" stringValue="Training Assigned: {trainingNumber}"/>
+                <flowable:field name="messageTemplate" stringValue="You have been assigned training {trainingNumber}. Due by {dueDate}"/>
+                <flowable:field name="recipientVariable" stringValue="traineeId"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-notify-completion" sourceRef="notifyTrainee" targetRef="trainingCompletion"/>
+
+        <!-- Step 1: Training Completion -->
+        <userTask id="trainingCompletion" name="Complete Training"
+                  flowable:assignee="${traineeId}"
+                  flowable:formKey="training-complete"
+                  flowable:dueDate="${dueDate}">
+            <documentation>Trainee completes the assigned training (read SOP, attend session, etc.)</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-completion-gateway" sourceRef="trainingCompletion" targetRef="assessmentGateway"/>
+
+        <!-- Gateway: Assessment Required? -->
+        <exclusiveGateway id="assessmentGateway" name="Assessment Required?"/>
+
+        <sequenceFlow id="flow-assessment-yes" sourceRef="assessmentGateway" targetRef="trainingAssessment">
+            <conditionExpression>${assessmentRequired == true}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow-assessment-no" sourceRef="assessmentGateway" targetRef="trainerVerification">
+            <conditionExpression>${assessmentRequired == false}</conditionExpression>
+        </sequenceFlow>
+
+        <!-- Step 2: Training Assessment -->
+        <userTask id="trainingAssessment" name="Training Assessment"
+                  flowable:assignee="${traineeId}"
+                  flowable:formKey="training-assessment">
+            <documentation>Trainee completes assessment quiz or practical evaluation</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-assessment-verify" sourceRef="trainingAssessment" targetRef="trainerVerification"/>
+
+        <!-- Step 3: Trainer Verification -->
+        <userTask id="trainerVerification" name="Trainer Verification"
+                  flowable:assignee="${trainerId}"
+                  flowable:formKey="training-verify">
+            <documentation>Trainer verifies training completion and assessment results</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-verify-gateway" sourceRef="trainerVerification" targetRef="verifyGateway"/>
+
+        <exclusiveGateway id="verifyGateway" name="Training Effective?"/>
+
+        <sequenceFlow id="flow-effective" sourceRef="verifyGateway" targetRef="recordCompletion">
+            <conditionExpression>${trainingEffective == true}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow-retrain" sourceRef="verifyGateway" targetRef="trainingCompletion">
+            <conditionExpression>${trainingEffective == false}</conditionExpression>
+        </sequenceFlow>
+
+        <!-- Step 4: Record Completion -->
+        <serviceTask id="recordCompletion" name="Record Training Completion"
+                     flowable:delegateExpression="${trainingCompletionDelegate}">
+            <extensionElements>
+                <flowable:field name="action" stringValue="RECORD_COMPLETION"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-record-end" sourceRef="recordCompletion" targetRef="end"/>
+
+        <endEvent id="end" name="Training Completed"/>
+
+        <!-- Overdue timer -->
+        <boundaryEvent id="overdueTimer" attachedToRef="trainingCompletion" cancelActivity="false">
+            <timerEventDefinition>
+                <timeDuration>P7D</timeDuration>
+            </timerEventDefinition>
+        </boundaryEvent>
+
+        <sequenceFlow id="flow-timer-escalation" sourceRef="overdueTimer" targetRef="escalateOverdue"/>
+
+        <serviceTask id="escalateOverdue" name="Escalate Overdue Training"
+                     flowable:delegateExpression="${escalationDelegate}">
+            <extensionElements>
+                <flowable:field name="escalationType" stringValue="TRAINING_OVERDUE"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-escalation-end" sourceRef="escalateOverdue" targetRef="escalationEnd"/>
+        <endEvent id="escalationEnd"/>
+
+    </process>
+</definitions>

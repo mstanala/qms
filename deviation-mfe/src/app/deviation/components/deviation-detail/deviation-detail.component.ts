@@ -7,13 +7,30 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { DeviationService } from '../../services/deviation.service';
 import { Deviation, DeviationStatus, ImpactLevel, DispositionDecision } from '../../models/deviation.model';
+import { ESignatureDialogComponent } from '../e-signature-dialog/e-signature-dialog.component';
+
+function getUserRoleCodes(): string[] {
+  const raw = localStorage.getItem('auth') || sessionStorage.getItem('auth');
+  if (!raw) return [];
+  try {
+    const roles = JSON.parse(raw)?.user?.roles || [];
+    return roles.map((r: any) => typeof r === 'string' ? r : r.code).filter(Boolean);
+  } catch { return []; }
+}
+
+function getUserId(): string {
+  const raw = localStorage.getItem('auth') || sessionStorage.getItem('auth');
+  if (!raw) return '';
+  try { return JSON.parse(raw)?.user?.id || ''; } catch { return ''; }
+}
 
 @Component({
   selector: 'dev-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, MatIconModule, MatButtonModule, MatTooltipModule, MatMenuModule, MatSnackBarModule],
+  imports: [CommonModule, FormsModule, RouterModule, MatIconModule, MatButtonModule, MatTooltipModule, MatMenuModule, MatSnackBarModule, MatDialogModule, ESignatureDialogComponent],
   template: `
     <div class="vault-detail" *ngIf="deviation">
       <!-- Record Header -->
@@ -79,15 +96,32 @@ import { Deviation, DeviationStatus, ImpactLevel, DispositionDecision } from '..
         </div>
         <div class="record-title-line">
           <div class="record-title">{{ deviation.title }}</div>
-          <select
-            class="status-select"
-            [ngClass]="getStatusClass(deviation.status)"
-            [value]="deviation.status"
-            [disabled]="isStatusUpdating"
-            (change)="changeStatus(inputValue($event))">
-            <option *ngFor="let status of statusOptions" [value]="status">{{ formatStatus(status) }}</option>
-          </select>
+          <span class="status-pill" [ngClass]="getStatusClass(deviation.status)">{{ formatStatus(deviation.status) }}</span>
           <span class="record-meta">{{ deviation.type }} | {{ deviation.classification }}</span>
+        </div>
+
+        <!-- Workflow Action Bar -->
+        <div class="workflow-actions-bar" *ngIf="getAvailableActions().length > 0">
+          <ng-container *ngFor="let action of getAvailableActions()">
+            <button *ngIf="action.type === 'primary'"
+                    class="wf-btn wf-btn-primary"
+                    [disabled]="isStatusUpdating"
+                    (click)="executeWorkflowAction(action)">
+              <mat-icon>{{ action.icon }}</mat-icon> {{ action.label }}
+            </button>
+            <button *ngIf="action.type === 'danger'"
+                    class="wf-btn wf-btn-danger"
+                    [disabled]="isStatusUpdating"
+                    (click)="executeWorkflowAction(action)">
+              <mat-icon>{{ action.icon }}</mat-icon> {{ action.label }}
+            </button>
+            <button *ngIf="action.type === 'secondary'"
+                    class="wf-btn wf-btn-secondary"
+                    [disabled]="isStatusUpdating"
+                    (click)="executeWorkflowAction(action)">
+              <mat-icon>{{ action.icon }}</mat-icon> {{ action.label }}
+            </button>
+          </ng-container>
         </div>
       </div>
 
@@ -123,8 +157,11 @@ import { Deviation, DeviationStatus, ImpactLevel, DispositionDecision } from '..
           <!-- Veeva Lifecycle Bar -->
           <div class="lifecycle-bar" [style.--workflow-step-count]="deviation.workflowHistory.length">
             <div class="lifecycle-step" *ngFor="let step of deviation.workflowHistory; let i = index"
-                 [ngClass]="{'completed': step.status === 'COMPLETED', 'current': step.status === 'CURRENT', 'pending': step.status === 'PENDING'}">
+                 [ngClass]="{'completed': step.status === 'COMPLETED', 'current': step.status === 'CURRENT', 'pending': step.status === 'PENDING'}"
+                 [matTooltip]="getStepTooltip(step)">
               <div class="lifecycle-fill"></div>
+              <span class="lifecycle-icon" *ngIf="step.status === 'COMPLETED'">&#10003;</span>
+              <span class="lifecycle-icon pulse" *ngIf="step.status === 'CURRENT'">&#9679;</span>
               <span class="lifecycle-label">{{ step.stepName }}</span>
             </div>
           </div>
@@ -690,6 +727,52 @@ import { Deviation, DeviationStatus, ImpactLevel, DispositionDecision } from '..
     .status-badge.capa-initiated { background: #7B1FA2; color: #fff; }
     .status-badge.pending-closure { background: #388E3C; color: #fff; }
     .status-badge.closed { background: #666; color: #fff; }
+    .status-pill {
+      display: inline-block;
+      padding: 4px 14px;
+      border-radius: 14px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .status-pill.reported { background: #ED8B00; color: #fff; }
+    .status-pill.under-review { background: #F5A623; color: #fff; }
+    .status-pill.classified { background: #2C5F7C; color: #fff; }
+    .status-pill.investigation { background: #ED8B00; color: #fff; }
+    .status-pill.impact-assessment { background: #D4760A; color: #fff; }
+    .status-pill.disposition { background: #2C5F7C; color: #fff; }
+    .status-pill.capa-initiated { background: #7B1FA2; color: #fff; }
+    .status-pill.pending-closure { background: #388E3C; color: #fff; }
+    .status-pill.closed { background: #666; color: #fff; }
+    .status-pill.rejected { background: #c62828; color: #fff; }
+
+    .workflow-actions-bar {
+      display: flex;
+      gap: 8px;
+      padding: 10px 0 4px;
+      flex-wrap: wrap;
+    }
+    .wf-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 100ms;
+    }
+    .wf-btn mat-icon { font-size: 16px; width: 16px; height: 16px; }
+    .wf-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .wf-btn-primary { background: #2C5F7C; color: #fff; }
+    .wf-btn-primary:hover:not(:disabled) { background: #1B3A4B; }
+    .wf-btn-danger { background: #dc2626; color: #fff; }
+    .wf-btn-danger:hover:not(:disabled) { background: #b91c1c; }
+    .wf-btn-secondary { background: #f1f5f9; color: #334155; border: 1px solid #d1d5db; }
+    .wf-btn-secondary:hover:not(:disabled) { background: #e2e8f0; }
+
     .status-select {
       min-width: 178px;
       border: 0;
@@ -791,6 +874,21 @@ import { Deviation, DeviationStatus, ImpactLevel, DispositionDecision } from '..
       background: #f8fafc;
       clip-path: polygon(0 0, 50% 0, 100% 50%, 50% 100%, 0 100%, 50% 50%);
       pointer-events: none;
+    }
+    .lifecycle-step .lifecycle-icon {
+      position: relative;
+      z-index: 3;
+      font-size: 10px;
+      margin-right: 3px;
+      line-height: 1;
+    }
+    .lifecycle-step .lifecycle-icon.pulse {
+      animation: pulse-dot 1.5s ease-in-out infinite;
+      font-size: 8px;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
     }
     .lifecycle-step .lifecycle-label { position: relative; z-index: 3; line-height: 1.2; }
     .lifecycle-step.completed .lifecycle-fill { background: #e8eef4; border-color: #d5dde6; }
@@ -1139,7 +1237,8 @@ export class DeviationDetailComponent implements OnInit {
     private route: ActivatedRoute,
     private router: Router,
     private deviationService: DeviationService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private dialog: MatDialog
   ) {}
 
   ngOnInit(): void {
@@ -1191,14 +1290,95 @@ export class DeviationDetailComponent implements OnInit {
     this.router.navigate(['/deviations/detail', id]);
   }
 
-  changeStatus(status: DeviationStatus): void {
-    if (!this.deviation || status === this.deviation.status || this.isStatusUpdating) {
+  getAvailableActions(): WorkflowAction[] {
+    if (!this.deviation) return [];
+    const roles = getUserRoleCodes();
+    const userId = getUserId();
+    const isAssignee = this.deviation.assignedToId === userId;
+    const isReporter = this.deviation.reportedById === userId;
+
+    const actions: WorkflowAction[] = [];
+    switch (this.deviation.status) {
+      case DeviationStatus.REPORTED:
+        actions.push({ label: 'Submit for Review', icon: 'send', targetStatus: DeviationStatus.UNDER_REVIEW, type: 'primary',
+          requiredRoles: ['END_USER', 'OWNER', 'QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] });
+        break;
+      case DeviationStatus.UNDER_REVIEW:
+        actions.push({ label: 'Classify & Assign', icon: 'assignment', targetStatus: DeviationStatus.CLASSIFIED, type: 'primary',
+          requiredRoles: ['QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] });
+        actions.push({ label: 'Reject', icon: 'close', targetStatus: DeviationStatus.REJECTED, type: 'danger', requiresComment: true,
+          requiredRoles: ['QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] });
+        break;
+      case DeviationStatus.CLASSIFIED:
+        actions.push({ label: 'Start Investigation', icon: 'search', targetStatus: DeviationStatus.INVESTIGATION, type: 'primary',
+          requiredRoles: ['REVIEWER', 'OWNER', 'QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] });
+        break;
+      case DeviationStatus.INVESTIGATION:
+        actions.push({ label: 'Submit Investigation', icon: 'fact_check', targetStatus: DeviationStatus.IMPACT_ASSESSMENT, type: 'primary',
+          requiredRoles: ['REVIEWER', 'OWNER', 'QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] });
+        actions.push({ label: 'Return for Rework', icon: 'undo', targetStatus: DeviationStatus.REPORTED, type: 'danger', requiresComment: true,
+          requiredRoles: ['QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] });
+        break;
+      case DeviationStatus.IMPACT_ASSESSMENT:
+        actions.push({ label: 'Submit for Disposition', icon: 'gavel', targetStatus: DeviationStatus.DISPOSITION, type: 'primary',
+          requiredRoles: ['QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] });
+        break;
+      case DeviationStatus.DISPOSITION:
+        actions.push({ label: 'Approve Disposition', icon: 'verified', targetStatus: DeviationStatus.PENDING_CLOSURE, type: 'primary', requiresESign: true,
+          requiredRoles: ['QA_APPROVER', 'VAULT_ADMIN'] });
+        actions.push({ label: 'Initiate CAPA', icon: 'assignment_turned_in', targetStatus: DeviationStatus.CAPA_INITIATED, type: 'secondary',
+          requiredRoles: ['QA_REVIEWER', 'OWNER', 'QA_APPROVER', 'VAULT_ADMIN'] });
+        actions.push({ label: 'Reject', icon: 'close', targetStatus: DeviationStatus.REJECTED, type: 'danger', requiresComment: true,
+          requiredRoles: ['QA_APPROVER', 'VAULT_ADMIN'] });
+        break;
+      case DeviationStatus.CAPA_INITIATED:
+        actions.push({ label: 'Move to Pending Closure', icon: 'check_circle', targetStatus: DeviationStatus.PENDING_CLOSURE, type: 'primary',
+          requiredRoles: ['QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] });
+        break;
+      case DeviationStatus.PENDING_CLOSURE:
+        actions.push({ label: 'Close Deviation', icon: 'lock', targetStatus: DeviationStatus.CLOSED, type: 'primary', requiresESign: true,
+          requiredRoles: ['QA_APPROVER', 'VAULT_ADMIN'] });
+        break;
+    }
+    return actions.filter(a => !a.requiredRoles || a.requiredRoles.some(r => roles.includes(r)) || isAssignee);
+  }
+
+  executeWorkflowAction(action: WorkflowAction): void {
+    if (!this.deviation || this.isStatusUpdating) return;
+
+    if (action.requiresComment) {
+      const comment = prompt('Please provide a reason:');
+      if (!comment) return;
+      this.performStatusChange(action.targetStatus, comment);
       return;
     }
 
+    if (action.requiresESign) {
+      const dialogRef = this.dialog.open(ESignatureDialogComponent, {
+        width: '440px',
+        disableClose: true,
+        data: {
+          recordNumber: this.deviation.deviationNumber,
+          action: action.label,
+          meaning: `${action.label} for ${this.deviation.deviationNumber}`,
+        },
+      });
+      dialogRef.afterClosed().subscribe((result) => {
+        if (result?.signed) {
+          this.performStatusChange(action.targetStatus, result.meaning);
+        }
+      });
+      return;
+    }
+
+    this.performStatusChange(action.targetStatus);
+  }
+
+  private performStatusChange(status: DeviationStatus, comments?: string): void {
+    if (!this.deviation) return;
     const previousStatus = this.deviation.status;
     this.isStatusUpdating = true;
-    this.deviationService.updateDeviationStatus(this.deviation.id, status).subscribe({
+    this.deviationService.updateDeviationStatus(this.deviation.id, status, comments).subscribe({
       next: () => {
         if (this.deviation) {
           this.deviation.status = status;
@@ -1217,6 +1397,10 @@ export class DeviationDetailComponent implements OnInit {
         this.isStatusUpdating = false;
       },
     });
+  }
+
+  changeStatus(status: DeviationStatus): void {
+    this.performStatusChange(status);
   }
 
   openRootCauseForm(): void {
@@ -1529,6 +1713,15 @@ export class DeviationDetailComponent implements OnInit {
     return decision.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
   }
 
+  getStepTooltip(step: { stepName: string; status: string; assignedTo?: string; startedAt?: Date; completedAt?: Date }): string {
+    const parts = [step.stepName];
+    if (step.assignedTo) parts.push('Assigned: ' + step.assignedTo);
+    if (step.status === 'CURRENT' && step.startedAt) parts.push('Started: ' + new Date(step.startedAt).toLocaleDateString());
+    if (step.status === 'COMPLETED' && step.completedAt) parts.push('Completed: ' + new Date(step.completedAt).toLocaleDateString());
+    if (step.status === 'PENDING') parts.push('Pending');
+    return parts.join('\n');
+  }
+
   getStatusClass(status: DeviationStatus): string {
     return status.toLowerCase().replace(/_/g, '-');
   }
@@ -1572,4 +1765,14 @@ export class DeviationDetailComponent implements OnInit {
       .map((item) => item.trim())
       .filter(Boolean);
   }
+}
+
+interface WorkflowAction {
+  label: string;
+  icon: string;
+  targetStatus: DeviationStatus;
+  type: 'primary' | 'secondary' | 'danger';
+  requiresESign?: boolean;
+  requiresComment?: boolean;
+  requiredRoles?: string[];
 }

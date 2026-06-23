@@ -107,7 +107,7 @@ import { AuditService, Audit } from '../../services/audit.service';
         </table>
       </div>
 
-      <mat-paginator [length]="total" [pageSize]="20" [pageSizeOptions]="[10, 20, 50]"
+      <mat-paginator [length]="total" [pageSize]="pageSize" [pageSizeOptions]="[10, 20, 50]"
                      (page)="onPage($event)" showFirstLastButtons></mat-paginator>
     </div>
   `,
@@ -177,21 +177,34 @@ export class AuditListComponent implements OnInit {
   ];
   total = 0;
   page = 0;
+  pageSize = 20;
+  sortField = '';
+  sortDirection = '';
 
   constructor(private auditService: AuditService) {}
 
   ngOnInit(): void { this.load(); }
 
   load(): void {
-    this.auditService.listAudits({ page: this.page.toString(), size: '20' }).subscribe((r) => {
+    const params: Record<string, string> = { page: this.page.toString(), size: this.pageSize.toString() };
+    if (this.sortField && this.sortDirection) {
+      params['sort'] = `${this.sortField},${this.sortDirection}`;
+    }
+    this.auditService.listAudits(params).subscribe((r) => {
       this.audits = r.content;
       this.total = r.totalElements;
     });
   }
 
-  onPage(e: PageEvent): void { this.page = e.pageIndex; this.load(); }
+  onPage(e: PageEvent): void {
+    this.page = e.pageIndex;
+    this.pageSize = e.pageSize;
+    this.load();
+  }
 
   onSort(sort: Sort): void {
+    this.sortField = sort.active;
+    this.sortDirection = sort.direction;
     this.page = 0;
     this.load();
   }

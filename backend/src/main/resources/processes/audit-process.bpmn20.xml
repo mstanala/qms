@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://qmspharma.com/audit"
+             id="auditDefinitions">
+
+    <process id="auditProcess" name="Audit Management Process" isExecutable="true">
+
+        <!-- Process Variables:
+             recordId, auditNumber, auditType, leadAuditorId, auditeeId,
+             plantSiteId, departmentId, scheduledDate -->
+
+        <startEvent id="start" name="Audit Initiated"/>
+
+        <sequenceFlow id="flow-start-planning" sourceRef="start" targetRef="auditPlanning"/>
+
+        <!-- Step 1: Audit Planning -->
+        <userTask id="auditPlanning" name="Audit Planning"
+                  flowable:assignee="${leadAuditorId}"
+                  flowable:formKey="audit-planning">
+            <documentation>Define audit scope, checklist, schedule, and team assignments</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-planning-approval" sourceRef="auditPlanning" targetRef="planApproval"/>
+
+        <!-- Step 2: Plan Approval -->
+        <userTask id="planApproval" name="Audit Plan Approval"
+                  flowable:candidateGroups="QA_APPROVER"
+                  flowable:formKey="audit-plan-approve">
+            <documentation>QA Head approves audit plan and schedule</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-approval-execution" sourceRef="planApproval" targetRef="auditExecution"/>
+
+        <!-- Step 3: Audit Execution -->
+        <userTask id="auditExecution" name="Audit Execution"
+                  flowable:assignee="${leadAuditorId}"
+                  flowable:formKey="audit-execution"
+                  flowable:dueDate="${scheduledDate}">
+            <documentation>Conduct audit, document observations and findings</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-execution-findings" sourceRef="auditExecution" targetRef="findingsReview"/>
+
+        <!-- Step 4: Findings Review -->
+        <userTask id="findingsReview" name="Findings Review"
+                  flowable:candidateGroups="QA_REVIEWER,QA_APPROVER"
+                  flowable:formKey="audit-findings">
+            <documentation>Review audit findings and classify observations (Critical/Major/Minor/OFI)</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-findings-gateway" sourceRef="findingsReview" targetRef="capaGateway"/>
+
+        <!-- Gateway: CAPA Required for any finding? -->
+        <exclusiveGateway id="capaGateway" name="CAPA Required?"/>
+
+        <sequenceFlow id="flow-capa-yes" sourceRef="capaGateway" targetRef="capaInitiation">
+            <conditionExpression>${capaRequired == true}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow-capa-no" sourceRef="capaGateway" targetRef="auditeeResponse">
+            <conditionExpression>${capaRequired == false}</conditionExpression>
+        </sequenceFlow>
+
+        <!-- Step 5a: CAPA Initiation -->
+        <userTask id="capaInitiation" name="Initiate CAPA for Findings"
+                  flowable:candidateGroups="QA_REVIEWER,OWNER"
+                  flowable:formKey="audit-capa">
+            <documentation>Create CAPA records for critical/major audit findings</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-capa-response" sourceRef="capaInitiation" targetRef="auditeeResponse"/>
+
+        <!-- Step 5b: Auditee Response -->
+        <userTask id="auditeeResponse" name="Auditee Response"
+                  flowable:assignee="${auditeeId}"
+                  flowable:formKey="audit-response">
+            <documentation>Auditee provides response to audit findings with action plan</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-response-closure" sourceRef="auditeeResponse" targetRef="auditClosure"/>
+
+        <!-- Step 6: Audit Closure -->
+        <userTask id="auditClosure" name="Audit Closure"
+                  flowable:candidateGroups="QA_APPROVER"
+                  flowable:formKey="audit-close">
+            <documentation>Final review of responses, close audit report</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-closure-notify" sourceRef="auditClosure" targetRef="notifyClosed"/>
+
+        <serviceTask id="notifyClosed" name="Notify Audit Closure"
+                     flowable:delegateExpression="${notificationDelegate}">
+            <extensionElements>
+                <flowable:field name="notificationType" stringValue="STATUS_CHANGE"/>
+                <flowable:field name="titleTemplate" stringValue="Audit Closed: {auditNumber}"/>
+                <flowable:field name="messageTemplate" stringValue="Audit {auditNumber} has been closed"/>
+                <flowable:field name="recipientVariable" stringValue="leadAuditorId"/>
+            </extensionElements>
+        </serviceTask>
+
+        <sequenceFlow id="flow-notify-end" sourceRef="notifyClosed" targetRef="end"/>
+
+        <endEvent id="end" name="Audit Closed"/>
+
+    </process>
+</definitions>

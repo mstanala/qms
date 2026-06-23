@@ -13,6 +13,7 @@ import { Subject, Subscription, of } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, filter, switchMap, tap } from 'rxjs/operators';
 import { AuthService, AuthUser } from './auth/auth.service';
 import { ProfileApiService, SearchResult } from './profile/profile-api.service';
+import { TaskPanelComponent } from './tasks/task-panel.component';
 
 const API_BASE_URL = 'http://localhost:8082/api/v1';
 
@@ -46,6 +47,7 @@ interface NotificationItem {
     MatBadgeModule,
     MatTooltipModule,
     MatDividerModule,
+    TaskPanelComponent,
   ],
   template: `
     <router-outlet *ngIf="isLoginRoute"></router-outlet>
@@ -287,9 +289,12 @@ interface NotificationItem {
         </div>
       </div>
 
-      <!-- ═══ MAIN CONTENT ═══ -->
-      <div class="content-area">
-        <router-outlet></router-outlet>
+      <!-- ═══ MAIN CONTENT WITH TASK PANEL ═══ -->
+      <div class="content-wrapper">
+        <qms-task-panel></qms-task-panel>
+        <div class="content-area">
+          <router-outlet></router-outlet>
+        </div>
       </div>
 
       <!-- ═══ STATUS BAR ═══ -->
@@ -464,9 +469,12 @@ interface NotificationItem {
     .env-badge mat-icon { font-size: 12px; width: 12px; height: 12px; color: #2C5F7C; }
     .env-dot { width: 6px; height: 6px; border-radius: 50%; background: #4caf50; }
 
-    /* ── CONTENT AREA ── */
+    /* ── CONTENT WRAPPER ── */
+    .content-wrapper {
+      flex: 1; display: flex; overflow: hidden; gap: 0;
+    }
     .content-area {
-      flex: 1; overflow-y: auto; padding: 16px 20px;
+      flex: 1; overflow-y: auto; padding: 12px 16px;
       background: #f0f2f5;
     }
 

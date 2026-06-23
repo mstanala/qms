@@ -122,7 +122,7 @@ export class DeviationService {
       );
   }
 
-  createDeviation(deviation: Partial<Deviation>): Observable<Deviation> {
+  createDeviation(deviation: Partial<Deviation> & Record<string, any>): Observable<Deviation> {
     const payload = {
       title: deviation.title,
       description: deviation.description,
@@ -131,8 +131,9 @@ export class DeviationService {
       occurredDate: this.toIso(deviation.occurredDate),
       detectedDate: this.toIso(deviation.detectedDate),
       targetClosureDate: this.toIso(deviation.targetClosureDate),
-      plantSiteId: this.resolvePlantSiteId((deviation as any).plantSite),
-      departmentId: this.resolveDepartmentId((deviation as any).department),
+      plantSiteId: deviation['plantSiteId'] || this.resolvePlantSiteId(deviation.plantSite),
+      departmentId: deviation['departmentId'] || this.resolveDepartmentId(deviation.department),
+      assignedToId: deviation.assignedToId,
       area: deviation.area,
       equipment: deviation.equipment,
       product: deviation.product,
@@ -180,11 +181,11 @@ export class DeviationService {
       );
   }
 
-  updateDeviationStatus(id: string, status: DeviationStatus): Observable<Deviation> {
+  updateDeviationStatus(id: string, status: DeviationStatus, comments?: string): Observable<Deviation> {
     return this.http
       .patch<ApiDeviation>(
         `${this.apiUrl}/${id}/status`,
-        { status, comments: `Status changed to ${status}` },
+        { status, comments: comments || `Status changed to ${status}` },
         { headers: this.authHeaders() }
       )
       .pipe(map((item) => this.toDeviation(item)));
