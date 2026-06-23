@@ -186,6 +186,46 @@ table.data-table tbody tr:focus-within,
   color: var(--qms-select-focus);
 }
 
+.filters-row,
+.filters,
+.filters-bar {
+  align-items: center;
+}
+
+.filters-row .mat-mdc-form-field.search-field,
+.filters-bar .search-wrap.search-wrap {
+  flex: 0 1 320px;
+  min-width: 220px;
+  max-width: 360px;
+}
+
+.filters-row .mat-mdc-form-field.filter-field,
+.filter-card .filters .mat-mdc-form-field,
+.filters-bar .mat-mdc-form-field.filter-field {
+  flex: 0 0 168px;
+  min-width: 148px;
+  max-width: 190px;
+}
+
+.filters-row button,
+.filters button,
+.filters-bar button {
+  min-height: 40px;
+}
+
+@media (max-width: 768px) {
+  .filters-row .mat-mdc-form-field.search-field,
+  .filters-row .mat-mdc-form-field.filter-field,
+  .filter-card .filters .mat-mdc-form-field,
+  .filters-bar .search-wrap.search-wrap,
+  .filters-bar .mat-mdc-form-field.filter-field {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+}
+
 .cdk-overlay-pane .mat-mdc-select-panel {
   background: #fff !important;
   border: 1px solid #d8dee8;

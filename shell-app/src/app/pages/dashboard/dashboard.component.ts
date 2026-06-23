@@ -179,25 +179,25 @@ interface StatusRow {
             <span>Quick Actions</span>
           </div>
           <div class="quick-grid">
-            <button class="qa-btn" routerLink="/capa/create" [disabled]="!canCreateCapa">
-              <mat-icon>add_circle</mat-icon>
-              <span>New CAPA</span>
-            </button>
             <button class="qa-btn" routerLink="/deviations/create" [disabled]="!canCreateDeviation">
               <mat-icon>add_circle</mat-icon>
               <span>New Deviation</span>
+            </button>
+            <button class="qa-btn" routerLink="/capa/create" [disabled]="!canCreateCapa">
+              <mat-icon>add_circle</mat-icon>
+              <span>New CAPA</span>
             </button>
             <button class="qa-btn" routerLink="/change-control/create" [disabled]="!canCreateChange">
               <mat-icon>add_circle</mat-icon>
               <span>New Change Request</span>
             </button>
-            <button class="qa-btn" routerLink="/capa/list" [disabled]="!canReadCapa">
-              <mat-icon>assignment_turned_in</mat-icon>
-              <span>CAPA Register</span>
-            </button>
             <button class="qa-btn" routerLink="/deviations/list" [disabled]="!canReadDeviation">
               <mat-icon>report_problem</mat-icon>
               <span>Deviation Register</span>
+            </button>
+            <button class="qa-btn" routerLink="/capa/list" [disabled]="!canReadCapa">
+              <mat-icon>assignment_turned_in</mat-icon>
+              <span>CAPA Register</span>
             </button>
             <button class="qa-btn" routerLink="/change-control/list" [disabled]="!canReadChange">
               <mat-icon>swap_horiz</mat-icon>

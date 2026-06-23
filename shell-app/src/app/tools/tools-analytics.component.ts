@@ -18,10 +18,13 @@ import {
   ToolsApiService,
 } from './tools-api.service';
 
-interface ChartRow {
+interface PieSlice {
   label: string;
   value: number;
-  percent: number;
+  color: string;
+  path: string;
+  labelX: number;
+  labelY: number;
 }
 
 @Component({
@@ -57,24 +60,26 @@ interface ChartRow {
       <div class="analytics-grid">
         <mat-card>
           <mat-card-header><mat-card-title>CAPA by Priority</mat-card-title></mat-card-header>
-          <mat-card-content><ng-container *ngTemplateOutlet="bars; context: { rows: toRows(capaMetrics?.byPriority) }"></ng-container></mat-card-content>
+          <mat-card-content>
+            <ng-container *ngTemplateOutlet="pieChart; context: { slices: toPieSlices(capaMetrics?.byPriority), total: totalValue(capaMetrics?.byPriority) }"></ng-container>
+          </mat-card-content>
         </mat-card>
         <mat-card>
           <mat-card-header><mat-card-title>Deviation by Classification</mat-card-title></mat-card-header>
-          <mat-card-content><ng-container *ngTemplateOutlet="bars; context: { rows: toRows(deviationMetrics?.byClassification) }"></ng-container></mat-card-content>
+          <mat-card-content>
+            <ng-container *ngTemplateOutlet="pieChart; context: { slices: toPieSlices(deviationMetrics?.byClassification), total: totalValue(deviationMetrics?.byClassification) }"></ng-container>
+          </mat-card-content>
         </mat-card>
         <mat-card>
           <mat-card-header><mat-card-title>Change by Classification</mat-card-title></mat-card-header>
-          <mat-card-content><ng-container *ngTemplateOutlet="bars; context: { rows: toRows(changeMetrics?.byClassification) }"></ng-container></mat-card-content>
+          <mat-card-content>
+            <ng-container *ngTemplateOutlet="pieChart; context: { slices: toPieSlices(changeMetrics?.byClassification), total: totalValue(changeMetrics?.byClassification) }"></ng-container>
+          </mat-card-content>
         </mat-card>
         <mat-card>
           <mat-card-header><mat-card-title>Open vs Closed</mat-card-title></mat-card-header>
           <mat-card-content>
-            <div class="summary-list">
-              <div><span>CAPA</span><strong>{{ capaMetrics?.openCapas || 0 }} open / {{ capaMetrics?.closedCapas || 0 }} closed</strong></div>
-              <div><span>Deviation</span><strong>{{ deviationMetrics?.openDeviations || 0 }} open / {{ deviationMetrics?.closedDeviations || 0 }} closed</strong></div>
-              <div><span>Change Control</span><strong>{{ changeMetrics?.openChangeRequests || 0 }} open / {{ changeMetrics?.closedChangeRequests || 0 }} closed</strong></div>
-            </div>
+            <ng-container *ngTemplateOutlet="pieChart; context: { slices: toPieSlices(openClosedMetrics()), total: totalValue(openClosedMetrics()) }"></ng-container>
           </mat-card-content>
         </mat-card>
       </div>
@@ -109,11 +114,30 @@ interface ChartRow {
         </mat-card-content>
       </mat-card>
 
-      <ng-template #bars let-rows="rows">
-        <div class="bars" *ngIf="rows.length; else noData">
-          <div class="bar-row" *ngFor="let row of rows">
-            <div class="bar-label"><span>{{ formatLabel(row.label) }}</span><strong>{{ row.value }}</strong></div>
-            <div class="bar-track"><div class="bar-fill" [style.width.%]="row.percent"></div></div>
+      <ng-template #pieChart let-slices="slices" let-total="total">
+        <div class="pie-layout" *ngIf="slices.length; else noData">
+          <div class="pie-wrap">
+            <svg class="pie-chart" viewBox="0 0 220 220" role="img" aria-label="Analytics pie chart">
+              <path *ngFor="let slice of slices; trackBy: trackSlice" class="pie-slice" [attr.d]="slice.path" [attr.fill]="slice.color"></path>
+              <text
+                *ngFor="let slice of slices; trackBy: trackSlice"
+                class="slice-number"
+                [attr.x]="slice.labelX"
+                [attr.y]="slice.labelY"
+                text-anchor="middle"
+                dominant-baseline="central">{{ slice.value }}</text>
+            </svg>
+            <div class="pie-total">
+              <span>Total</span>
+              <strong>{{ total }}</strong>
+            </div>
+          </div>
+          <div class="pie-legend">
+            <div class="legend-row" *ngFor="let slice of slices; trackBy: trackSlice">
+              <span class="legend-color" [style.background]="slice.color"></span>
+              <span class="legend-label">{{ formatLabel(slice.label) }}</span>
+              <strong>{{ slice.value }}</strong>
+            </div>
           </div>
         </div>
       </ng-template>
@@ -128,14 +152,31 @@ interface ChartRow {
     .analytics-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
     mat-card { border-radius: 8px; border: 1px solid #d8dee8; box-shadow: none; }
     mat-card-title { font-size: 16px; color: #1B3A4B; letter-spacing: 0; }
-    .bars { display: grid; gap: 12px; }
-    .bar-label { display: flex; justify-content: space-between; color: #344054; font-size: 12px; margin-bottom: 4px; }
-    .bar-track { height: 8px; background: #edf2f7; border-radius: 999px; overflow: hidden; }
-    .bar-fill { height: 100%; background: #2C5F7C; border-radius: 999px; }
-    .summary-list { display: grid; gap: 10px; }
-    .summary-list div { display: flex; justify-content: space-between; gap: 12px; padding: 10px; border-radius: 6px; background: #f8fafc; }
-    .summary-list span { color: #667085; font-size: 12px; }
-    .summary-list strong { color: #1B3A4B; font-size: 13px; }
+    .pie-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); align-items: center; gap: 18px; min-height: 236px; }
+    .pie-wrap { position: relative; width: 220px; height: 220px; }
+    .pie-chart { width: 220px; height: 220px; display: block; overflow: visible; }
+    .pie-slice { stroke: #fff; stroke-width: 2.5; filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.08)); }
+    .slice-number {
+      fill: #fff; font-size: 13px; font-weight: 700; paint-order: stroke;
+      stroke: rgba(15, 23, 42, 0.42); stroke-width: 3px; letter-spacing: 0;
+    }
+    .pie-total {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      display: grid; place-items: center; width: 74px; height: 74px; border-radius: 50%;
+      background: #fff; border: 1px solid #d8dee8; box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12);
+      pointer-events: none;
+    }
+    .pie-total span { color: #667085; font-size: 10px; text-transform: uppercase; letter-spacing: 0; }
+    .pie-total strong { color: #1B3A4B; font-size: 20px; line-height: 1; }
+    .pie-legend { display: grid; gap: 8px; align-content: center; }
+    .legend-row {
+      display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: center; gap: 8px;
+      padding: 8px 10px; background: #f8fafc; border: 1px solid #edf2f7; border-radius: 6px;
+      color: #344054; font-size: 12px;
+    }
+    .legend-color { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(15, 23, 42, 0.08); }
+    .legend-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .legend-row strong { color: #1B3A4B; font-size: 13px; }
     .search-form { display: grid; gap: 12px; }
     .record-types { display: flex; flex-wrap: wrap; gap: 16px; }
     .search-actions { display: flex; }
@@ -144,9 +185,15 @@ interface ChartRow {
     .search-result span, .no-data { color: #667085; font-size: 12px; }
     button mat-icon { margin-right: 6px; }
     @media (max-width: 1000px) { .analytics-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) {
+      .pie-layout { grid-template-columns: 1fr; justify-items: center; }
+      .pie-legend { width: 100%; }
+    }
   `],
 })
 export class ToolsAnalyticsComponent implements OnInit {
+  private readonly pieColors = ['#2C5F7C', '#ED8B00', '#388E3C', '#7B1FA2', '#C62828', '#00897B', '#5C6BC0', '#6D4C41'];
+
   capaMetrics: CapaMetrics | null = null;
   deviationMetrics: DeviationMetrics | null = null;
   changeMetrics: ChangeControlMetrics | null = null;
@@ -211,13 +258,64 @@ export class ToolsAnalyticsComponent implements OnInit {
     this.searchForm.patchValue({ recordTypes: next });
   }
 
-  toRows(source: Record<string, number> | undefined | null): ChartRow[] {
-    const entries = Object.entries(source || {});
-    const max = Math.max(...entries.map(([, value]) => value), 1);
-    return entries.map(([label, value]) => ({ label, value, percent: Math.max((value / max) * 100, value > 0 ? 6 : 0) }));
+  toPieSlices(source: Record<string, number> | undefined | null): PieSlice[] {
+    const entries = Object.entries(source || {}).filter(([, value]) => value > 0);
+    const total = entries.reduce((sum, [, value]) => sum + value, 0);
+    if (!total) return [];
+
+    let currentAngle = -90;
+    return entries.map(([label, value], index) => {
+      const span = (value / total) * 360;
+      const startAngle = currentAngle;
+      const endAngle = currentAngle + (span >= 360 ? 359.99 : span);
+      const midAngle = startAngle + span / 2;
+      currentAngle += span;
+      return {
+        label,
+        value,
+        color: this.pieColors[index % this.pieColors.length],
+        path: this.describeSlice(110, 110, 96, startAngle, endAngle),
+        labelX: this.polarToCartesian(110, 110, 58, midAngle).x,
+        labelY: this.polarToCartesian(110, 110, 58, midAngle).y,
+      };
+    });
+  }
+
+  openClosedMetrics(): Record<string, number> {
+    return {
+      'CAPA Open': this.capaMetrics?.openCapas || 0,
+      'CAPA Closed': this.capaMetrics?.closedCapas || 0,
+      'Deviation Open': this.deviationMetrics?.openDeviations || 0,
+      'Deviation Closed': this.deviationMetrics?.closedDeviations || 0,
+      'Change Open': this.changeMetrics?.openChangeRequests || 0,
+      'Change Closed': this.changeMetrics?.closedChangeRequests || 0,
+    };
+  }
+
+  totalValue(source: Record<string, number> | undefined | null): number {
+    return Object.values(source || {}).reduce((sum, value) => sum + value, 0);
+  }
+
+  trackSlice(_: number, slice: PieSlice): string {
+    return slice.label;
   }
 
   formatLabel(value: string): string {
     return value.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  private describeSlice(cx: number, cy: number, radius: number, startAngle: number, endAngle: number): string {
+    const start = this.polarToCartesian(cx, cy, radius, startAngle);
+    const end = this.polarToCartesian(cx, cy, radius, endAngle);
+    const largeArcFlag = endAngle - startAngle <= 180 ? 0 : 1;
+    return `M ${cx} ${cy} L ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${end.x} ${end.y} Z`;
+  }
+
+  private polarToCartesian(cx: number, cy: number, radius: number, angleInDegrees: number): { x: number; y: number } {
+    const angleInRadians = angleInDegrees * Math.PI / 180;
+    return {
+      x: cx + radius * Math.cos(angleInRadians),
+      y: cy + radius * Math.sin(angleInRadians),
+    };
   }
 }

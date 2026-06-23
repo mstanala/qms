@@ -176,6 +176,7 @@ public class DeviationService {
         Deviation dev = deviationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Deviation", "id", id));
         User currentUser = currentUserProvider.getCurrentUser();
+        requireActiveRole(currentUser, "QA_REVIEWER", "Deviation QA review and classification");
         String oldClassification = dev.getClassification() != null ? dev.getClassification().name() : null;
 
         dev.setClassification(DeviationClassification.valueOf(request.getClassification()));
@@ -320,6 +321,7 @@ public class DeviationService {
         Deviation dev = deviationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Deviation", "id", id));
         User currentUser = currentUserProvider.getCurrentUser();
+        requireActiveRole(currentUser, "QA_APPROVER", "Deviation disposition approval");
 
         DeviationDisposition disp = dev.getDisposition() != null ? dev.getDisposition() : new DeviationDisposition();
         disp.setDeviation(dev);
@@ -397,6 +399,20 @@ public class DeviationService {
             throw new BusinessRuleException("Disposition must be recorded before closure", "DEV_CLOSE_NO_DISPOSITION");
         if (dev.getCapaRequired() && dev.getCapaId() == null)
             throw new BusinessRuleException("CAPA is required but not linked", "DEV_CLOSE_NO_CAPA");
+    }
+
+    private void requireActiveRole(User user, String requiredRoleCode, String action) {
+        Instant now = Instant.now();
+        boolean hasRole = user.getUserRoles() != null && user.getUserRoles().stream()
+                .filter(userRole -> Boolean.TRUE.equals(userRole.getIsActive()))
+                .filter(userRole -> userRole.getValidFrom() == null || !userRole.getValidFrom().isAfter(now))
+                .filter(userRole -> userRole.getValidUntil() == null || userRole.getValidUntil().isAfter(now))
+                .map(UserRole::getRole)
+                .filter(Objects::nonNull)
+                .anyMatch(role -> requiredRoleCode.equals(role.getCode()) && Boolean.TRUE.equals(role.getIsActive()));
+        if (!hasRole) {
+            throw new ForbiddenException(action + " requires " + requiredRoleCode + " role");
+        }
     }
 
     @Transactional(readOnly = true)

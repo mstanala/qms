@@ -69,13 +69,14 @@ import { TrainingAssignment, AssignmentStatus } from '../../models/training.mode
     .stat-val { font-size: 16px; font-weight: 700; color: #1B3A4B; margin-right: 4px; }
     .stat-val.ok { color: #2e7d32; }
     .stat-val.warn { color: #c62828; }
-    .filters-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+    .filters-bar { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
     .search-wrap { display: flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #d0d5dd; border-radius: 4px; padding: 0 10px; height: 40px; flex: 1; min-width: 200px; }
     .search-wrap mat-icon { font-size: 18px; color: #888; }
     .search-wrap input { border: none; outline: none; font-size: 13px; width: 100%; background: none; }
-    .filter-field { width: 160px; }
+    .filter-field { width: 160px; height: 40px; }
     ::ng-deep .filter-field .mat-mdc-form-field-wrapper { margin: 0; padding: 0; }
     ::ng-deep .filter-field .mdc-text-field { height: 40px; }
+    ::ng-deep .filter-field .mat-mdc-form-field-subscript-wrapper { display: none; }
     .table-wrap { background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; overflow-x: auto; }
     .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
     .data-table th { background: #fafbfc; padding: 10px 12px; text-align: left; font-weight: 600; color: #555; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }

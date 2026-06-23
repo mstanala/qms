@@ -17,7 +17,7 @@
         <sequenceFlow id="flow-start-review" sourceRef="start" targetRef="qaReview"/>
 
         <userTask id="qaReview" name="QA Review &amp; Classification"
-                  flowable:candidateGroups="QA_REVIEWER,QA_APPROVER"
+                  flowable:candidateGroups="QA_REVIEWER"
                   flowable:formKey="deviation-classify">
             <documentation>Review and classify the reported deviation (Critical/Major/Minor)</documentation>
         </userTask>
