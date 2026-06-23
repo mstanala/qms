@@ -212,7 +212,7 @@ import { AuthService } from '../auth/auth.service';
     .toggle-badge {
       position: absolute;
       top: -7px;
-      right: -8px;
+      right: -3px;
       min-width: 16px;
       height: 16px;
       line-height: 16px;
@@ -228,7 +228,7 @@ import { AuthService } from '../auth/auth.service';
     }
     .collapsed .panel-toggle { right: 6px; top: 7px; }
     .collapsed .toggle-badge {
-      right: -5px;
+      right: 1px;
     }
 
     .panel-content {
@@ -344,6 +344,8 @@ import { AuthService } from '../auth/auth.service';
     .sidebar-item-row {
       display: flex;
       align-items: center;
+      padding-right: 5px;
+      box-sizing: border-box;
     }
     .sidebar-item-row .sidebar-item {
       flex: 1;

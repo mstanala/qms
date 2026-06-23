@@ -32,6 +32,8 @@ a {
   --qms-button-primary-hover: #1B3A4B;
   --qms-button-primary-disabled: #cbd5e1;
   --qms-button-primary-disabled-text: #64748b;
+  --qms-table-alt-row: #f1f5f9;
+  --qms-table-hover-row: #dbeafe;
 }
 
 .mat-mdc-raised-button.mat-primary,
@@ -106,6 +108,30 @@ a {
   border-color: var(--qms-button-primary-disabled) !important;
   color: var(--qms-button-primary-disabled-text) !important;
   cursor: default !important;
+}
+
+.mat-mdc-table tbody tr.mat-mdc-row:nth-child(even) td.mat-mdc-cell,
+table.data-table tbody tr:nth-child(even),
+.vault-table table tbody tr:nth-child(even),
+.matrix-table tbody tr:nth-child(even),
+.scale-table tbody tr:nth-child(even),
+.full-table tbody tr:nth-child(even) {
+  background-color: var(--qms-table-alt-row) !important;
+}
+
+.mat-mdc-table tbody tr.mat-mdc-row:hover td.mat-mdc-cell,
+.mat-mdc-table tbody tr.mat-mdc-row:focus-within td.mat-mdc-cell,
+table.data-table tbody tr:hover,
+table.data-table tbody tr:focus-within,
+.vault-table table tbody tr:hover,
+.vault-table table tbody tr:focus-within,
+.matrix-table tbody tr:hover,
+.matrix-table tbody tr:focus-within,
+.scale-table tbody tr:hover,
+.scale-table tbody tr:focus-within,
+.full-table tbody tr:hover,
+.full-table tbody tr:focus-within {
+  background-color: var(--qms-table-hover-row) !important;
 }
 
 .mat-mdc-form-field {
