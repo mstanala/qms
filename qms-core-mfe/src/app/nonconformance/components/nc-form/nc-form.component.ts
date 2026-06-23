@@ -25,10 +25,10 @@ import { NonconformanceService } from '../../services/nonconformance.service';
         <mat-card>
           <mat-card-header><mat-card-title>Nonconformance Intake</mat-card-title></mat-card-header>
           <mat-card-content class="grid">
-            <mat-form-field appearance="outline"><mat-label>Title</mat-label><input matInput formControlName="title"></mat-form-field>
-            <mat-form-field appearance="outline"><mat-label>Type</mat-label><mat-select formControlName="ncType"><mat-option *ngFor="let type of types" [value]="type">{{ label(type) }}</mat-option></mat-select></mat-form-field>
-            <mat-form-field appearance="outline"><mat-label>Priority</mat-label><mat-select formControlName="priority"><mat-option value="LOW">Low</mat-option><mat-option value="MEDIUM">Medium</mat-option><mat-option value="HIGH">High</mat-option><mat-option value="CRITICAL">Critical</mat-option></mat-select></mat-form-field>
-            <mat-form-field appearance="outline" class="wide"><mat-label>Description</mat-label><textarea matInput rows="4" formControlName="description"></textarea></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Title</mat-label><input matInput formControlName="title"><mat-error *ngIf="form.get('title')?.hasError('required')">Title is required</mat-error></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Type</mat-label><mat-select formControlName="ncType"><mat-option *ngFor="let type of types" [value]="type">{{ label(type) }}</mat-option></mat-select><mat-error *ngIf="form.get('ncType')?.hasError('required')">Type is required</mat-error></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Priority</mat-label><mat-select formControlName="priority"><mat-option value="LOW">Low</mat-option><mat-option value="MEDIUM">Medium</mat-option><mat-option value="HIGH">High</mat-option><mat-option value="CRITICAL">Critical</mat-option></mat-select><mat-error *ngIf="form.get('priority')?.hasError('required')">Priority is required</mat-error></mat-form-field>
+            <mat-form-field appearance="outline" class="wide"><mat-label>Description</mat-label><textarea matInput rows="4" formControlName="description"></textarea><mat-error *ngIf="form.get('description')?.hasError('required')">Description is required</mat-error></mat-form-field>
           </mat-card-content>
         </mat-card>
         <mat-card>
@@ -37,9 +37,9 @@ import { NonconformanceService } from '../../services/nonconformance.service';
             <mat-form-field appearance="outline"><mat-label>Product Name</mat-label><input matInput formControlName="productName"></mat-form-field>
             <mat-form-field appearance="outline"><mat-label>Batch Number</mat-label><input matInput formControlName="batchNumber"></mat-form-field>
             <mat-form-field appearance="outline"><mat-label>Stage Detected</mat-label><input matInput formControlName="stageDetected"></mat-form-field>
-            <mat-form-field appearance="outline"><mat-label>Owner</mat-label><mat-select formControlName="ownerId"><mat-option *ngFor="let user of users" [value]="user.id">{{ user.displayName || user.username }}</mat-option></mat-select></mat-form-field>
-            <mat-form-field appearance="outline"><mat-label>Plant Site</mat-label><mat-select formControlName="plantSiteId"><mat-option *ngFor="let site of sites" [value]="site.id">{{ site.name }}</mat-option></mat-select></mat-form-field>
-            <mat-form-field appearance="outline"><mat-label>Department</mat-label><mat-select formControlName="departmentId"><mat-option *ngFor="let dept of departments" [value]="dept.id">{{ dept.name }}</mat-option></mat-select></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Owner</mat-label><mat-select formControlName="ownerId"><mat-option *ngFor="let user of users" [value]="user.id">{{ user.displayName || user.username }}</mat-option></mat-select><mat-error *ngIf="form.get('ownerId')?.hasError('required')">Owner is required</mat-error></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Plant Site</mat-label><mat-select formControlName="plantSiteId"><mat-option *ngFor="let site of sites" [value]="site.id">{{ site.name }}</mat-option></mat-select><mat-error *ngIf="form.get('plantSiteId')?.hasError('required')">Plant site is required</mat-error></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Department</mat-label><mat-select formControlName="departmentId"><mat-option *ngFor="let dept of departments" [value]="dept.id">{{ dept.name }}</mat-option></mat-select><mat-error *ngIf="form.get('departmentId')?.hasError('required')">Department is required</mat-error></mat-form-field>
           </mat-card-content>
         </mat-card>
         <div class="form-actions"><button mat-raised-button color="primary" type="submit" [disabled]="form.invalid || saving"><mat-icon>save</mat-icon> Create NC</button><button mat-stroked-button type="button" routerLink="../list">Cancel</button></div>
@@ -78,6 +78,7 @@ export class NcFormComponent implements OnInit {
   }
 
   save(): void {
+    this.form.markAllAsTouched();
     if (this.form.invalid) return;
     this.saving = true;
     this.ncService.create(this.form.getRawValue()).subscribe({

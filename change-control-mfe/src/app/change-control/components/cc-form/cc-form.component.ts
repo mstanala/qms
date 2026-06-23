@@ -82,6 +82,7 @@ import { ChangeRequest, ChangeType, ChangeCategory, ChangeClassification, Change
                       {{ formatEnum(type) }}
                     </mat-option>
                   </mat-select>
+                  <mat-error *ngIf="descriptionForm.get('type')?.hasError('required')">Change type is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -91,6 +92,7 @@ import { ChangeRequest, ChangeType, ChangeCategory, ChangeClassification, Change
                       {{ formatEnum(cat) }}
                     </mat-option>
                   </mat-select>
+                  <mat-error *ngIf="descriptionForm.get('category')?.hasError('required')">Category is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -100,6 +102,7 @@ import { ChangeRequest, ChangeType, ChangeCategory, ChangeClassification, Change
                     <mat-option [value]="classifications.MAJOR">Major - Significant quality system impact</mat-option>
                     <mat-option [value]="classifications.MINOR">Minor - Minimal impact, no regulatory implications</mat-option>
                   </mat-select>
+                  <mat-error *ngIf="descriptionForm.get('classification')?.hasError('required')">Classification is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -107,6 +110,7 @@ import { ChangeRequest, ChangeType, ChangeCategory, ChangeClassification, Change
                   <mat-select formControlName="priority">
                     <mat-option *ngFor="let p of priorityOptions" [value]="p">{{ p }}</mat-option>
                   </mat-select>
+                  <mat-error *ngIf="descriptionForm.get('priority')?.hasError('required')">Priority is required</mat-error>
                 </mat-form-field>
               </div>
               <div class="step-actions">
@@ -130,6 +134,7 @@ import { ChangeRequest, ChangeType, ChangeCategory, ChangeClassification, Change
                     <mat-option value="Hyderabad Unit-2">Hyderabad Unit-2</mat-option>
                     <mat-option value="Vizag Unit-1">Vizag Unit-1</mat-option>
                   </mat-select>
+                  <mat-error *ngIf="scopeForm.get('plantSite')?.hasError('required')">Plant site is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -144,6 +149,7 @@ import { ChangeRequest, ChangeType, ChangeCategory, ChangeClassification, Change
                     <mat-option value="R&D">R&D</mat-option>
                     <mat-option value="Packaging">Packaging</mat-option>
                   </mat-select>
+                  <mat-error *ngIf="scopeForm.get('department')?.hasError('required')">Department is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -156,6 +162,7 @@ import { ChangeRequest, ChangeType, ChangeCategory, ChangeClassification, Change
                     <mat-option value="Deepak Joshi">Deepak Joshi</mat-option>
                     <mat-option value="Suresh Menon">Suresh Menon</mat-option>
                   </mat-select>
+                  <mat-error *ngIf="scopeForm.get('changeOwnerName')?.hasError('required')">Change owner is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -172,6 +179,7 @@ import { ChangeRequest, ChangeType, ChangeCategory, ChangeClassification, Change
                   <input matInput [matDatepicker]="targetPicker" formControlName="targetImplementationDate">
                   <mat-datepicker-toggle matIconSuffix [for]="targetPicker"></mat-datepicker-toggle>
                   <mat-datepicker #targetPicker></mat-datepicker>
+                  <mat-error *ngIf="scopeForm.get('targetImplementationDate')?.hasError('required')">Target date is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline" class="full-width">
@@ -342,6 +350,9 @@ export class CcFormComponent implements OnInit {
   }
 
   saveDraft(): void {
+    this.descriptionForm.markAllAsTouched();
+    this.scopeForm.markAllAsTouched();
+    if (this.descriptionForm.invalid || this.scopeForm.invalid) return;
     const data = this.buildChangeData();
     this.ccService.createChangeRequest(data).subscribe((created) => {
       this.snackBar.open(`Draft ${created.changeNumber} saved`, 'OK', { duration: 4000 });
@@ -350,6 +361,8 @@ export class CcFormComponent implements OnInit {
   }
 
   submitChange(): void {
+    this.descriptionForm.markAllAsTouched();
+    this.scopeForm.markAllAsTouched();
     if (this.descriptionForm.valid && this.scopeForm.valid) {
       const data = this.buildChangeData();
       const request$ = this.isEditMode && this.changeRequestId

@@ -35,6 +35,7 @@ import { RiskService } from '../../services/risk.service';
               <mat-form-field appearance="outline" class="full-width">
                 <mat-label>Title</mat-label>
                 <input matInput formControlName="title" placeholder="Risk register title">
+                <mat-error *ngIf="form.get('title')?.hasError('required')">Title is required</mat-error>
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="full-width">
@@ -52,6 +53,7 @@ import { RiskService } from '../../services/risk.service';
                   <mat-option value="REGULATORY">Regulatory</mat-option>
                   <mat-option value="DATA_INTEGRITY">Data Integrity</mat-option>
                 </mat-select>
+                <mat-error *ngIf="form.get('riskType')?.hasError('required')">Risk type is required</mat-error>
               </mat-form-field>
 
               <mat-form-field appearance="outline">
@@ -64,6 +66,7 @@ import { RiskService } from '../../services/risk.service';
                   <mat-option value="PHA">Preliminary Hazard Analysis</mat-option>
                   <mat-option value="BOW_TIE">Bow-Tie</mat-option>
                 </mat-select>
+                <mat-error *ngIf="form.get('methodology')?.hasError('required')">Methodology is required</mat-error>
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="full-width">
@@ -127,6 +130,7 @@ export class RiskRegisterFormComponent {
   }
 
   onSubmit(): void {
+    this.form.markAllAsTouched();
     if (this.form.invalid) return;
     // Use current user context from localStorage
     let ownerId = 'd0000000-0000-0000-0000-000000000001';

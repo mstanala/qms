@@ -75,6 +75,7 @@ import { Deviation, DeviationType, DeviationCategory, DeviationClassification } 
                     <mat-option [value]="deviationTypes.PLANNED">Planned</mat-option>
                     <mat-option [value]="deviationTypes.UNPLANNED">Unplanned</mat-option>
                   </mat-select>
+                  <mat-error *ngIf="eventForm.get('type')?.hasError('required')">Deviation type is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -84,6 +85,7 @@ import { Deviation, DeviationType, DeviationCategory, DeviationClassification } 
                       {{ formatCategory(cat) }}
                     </mat-option>
                   </mat-select>
+                  <mat-error *ngIf="eventForm.get('category')?.hasError('required')">Category is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -93,6 +95,7 @@ import { Deviation, DeviationType, DeviationCategory, DeviationClassification } 
                     <mat-option [value]="classifications.MAJOR">Major - Significant quality impact</mat-option>
                     <mat-option [value]="classifications.MINOR">Minor - No significant quality impact</mat-option>
                   </mat-select>
+                  <mat-error *ngIf="eventForm.get('classification')?.hasError('required')">Classification is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -100,6 +103,7 @@ import { Deviation, DeviationType, DeviationCategory, DeviationClassification } 
                   <input matInput [matDatepicker]="occurPicker" formControlName="occurredDate">
                   <mat-datepicker-toggle matIconSuffix [for]="occurPicker"></mat-datepicker-toggle>
                   <mat-datepicker #occurPicker></mat-datepicker>
+                  <mat-error *ngIf="eventForm.get('occurredDate')?.hasError('required')">Occurred date is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -107,11 +111,13 @@ import { Deviation, DeviationType, DeviationCategory, DeviationClassification } 
                   <input matInput [matDatepicker]="detectPicker" formControlName="detectedDate">
                   <mat-datepicker-toggle matIconSuffix [for]="detectPicker"></mat-datepicker-toggle>
                   <mat-datepicker #detectPicker></mat-datepicker>
+                  <mat-error *ngIf="eventForm.get('detectedDate')?.hasError('required')">Detected date is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
                   <mat-label>Source Area</mat-label>
                   <input matInput formControlName="sourceArea" placeholder="e.g., Production Floor, Cold Storage">
+                  <mat-error *ngIf="eventForm.get('sourceArea')?.hasError('required')">Source area is required</mat-error>
                 </mat-form-field>
               </div>
 
@@ -134,6 +140,7 @@ import { Deviation, DeviationType, DeviationCategory, DeviationClassification } 
                   <mat-select formControlName="plantSite" (selectionChange)="onPlantSiteChange($event.value)">
                     <mat-option *ngFor="let site of plantSites" [value]="site.id">{{ site.name }}</mat-option>
                   </mat-select>
+                  <mat-error *ngIf="locationForm.get('plantSite')?.hasError('required')">Plant site is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -141,11 +148,13 @@ import { Deviation, DeviationType, DeviationCategory, DeviationClassification } 
                   <mat-select formControlName="department">
                     <mat-option *ngFor="let dept of departments" [value]="dept.id">{{ dept.name }}</mat-option>
                   </mat-select>
+                  <mat-error *ngIf="locationForm.get('department')?.hasError('required')">Department is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
                   <mat-label>Area / Room</mat-label>
                   <input matInput formControlName="area" placeholder="e.g., Room 204, Compression Area">
+                  <mat-error *ngIf="locationForm.get('area')?.hasError('required')">Area is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -168,6 +177,7 @@ import { Deviation, DeviationType, DeviationCategory, DeviationClassification } 
                   <mat-select formControlName="assignedToId">
                     <mat-option *ngFor="let user of users" [value]="user.id">{{ user.displayName }}</mat-option>
                   </mat-select>
+                  <mat-error *ngIf="locationForm.get('assignedToId')?.hasError('required')">Assigned person is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -175,6 +185,7 @@ import { Deviation, DeviationType, DeviationCategory, DeviationClassification } 
                   <input matInput [matDatepicker]="closurePicker" formControlName="targetClosureDate">
                   <mat-datepicker-toggle matIconSuffix [for]="closurePicker"></mat-datepicker-toggle>
                   <mat-datepicker #closurePicker></mat-datepicker>
+                  <mat-error *ngIf="locationForm.get('targetClosureDate')?.hasError('required')">Target closure date is required</mat-error>
                 </mat-form-field>
               </div>
 
@@ -386,6 +397,8 @@ export class DeviationFormComponent implements OnInit {
   }
 
   saveDraft(): void {
+    this.eventForm.markAllAsTouched();
+    this.locationForm.markAllAsTouched();
     if (this.eventForm.valid) {
       const formValues = { ...this.eventForm.value, ...this.locationForm.value };
       const deviationData = {
@@ -403,6 +416,8 @@ export class DeviationFormComponent implements OnInit {
   }
 
   submitDeviation(): void {
+    this.eventForm.markAllAsTouched();
+    this.locationForm.markAllAsTouched();
     if (this.eventForm.valid && this.locationForm.valid) {
       const formValues = { ...this.eventForm.value, ...this.locationForm.value };
       const deviationData = {

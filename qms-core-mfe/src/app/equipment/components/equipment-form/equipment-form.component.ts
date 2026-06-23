@@ -29,14 +29,16 @@ import { EquipmentService } from '../../services/equipment.service';
         <mat-card>
           <mat-card-header><mat-card-title>Equipment Identity</mat-card-title></mat-card-header>
           <mat-card-content class="grid">
-            <mat-form-field appearance="outline"><mat-label>Name</mat-label><input matInput formControlName="name"></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Name</mat-label><input matInput formControlName="name"><mat-error *ngIf="form.get('name')?.hasError('required')">Name is required</mat-error></mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Type</mat-label>
               <mat-select formControlName="equipmentType"><mat-option *ngFor="let type of types" [value]="type">{{ label(type) }}</mat-option></mat-select>
+              <mat-error *ngIf="form.get('equipmentType')?.hasError('required')">Type is required</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Category</mat-label>
               <mat-select formControlName="category"><mat-option value="CRITICAL">Critical</mat-option><mat-option value="MAJOR">Major</mat-option><mat-option value="MINOR">Minor</mat-option></mat-select>
+              <mat-error *ngIf="form.get('category')?.hasError('required')">Category is required</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline" class="wide"><mat-label>Description</mat-label><textarea matInput rows="3" formControlName="description"></textarea></mat-form-field>
           </mat-card-content>
@@ -44,7 +46,7 @@ import { EquipmentService } from '../../services/equipment.service';
         <mat-card>
           <mat-card-header><mat-card-title>Location & Manufacturer</mat-card-title></mat-card-header>
           <mat-card-content class="grid">
-            <mat-form-field appearance="outline"><mat-label>Plant Site</mat-label><mat-select formControlName="plantSiteId"><mat-option *ngFor="let site of sites" [value]="site.id">{{ site.name }}</mat-option></mat-select></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Plant Site</mat-label><mat-select formControlName="plantSiteId"><mat-option *ngFor="let site of sites" [value]="site.id">{{ site.name }}</mat-option></mat-select><mat-error *ngIf="form.get('plantSiteId')?.hasError('required')">Plant site is required</mat-error></mat-form-field>
             <mat-form-field appearance="outline"><mat-label>Department</mat-label><mat-select formControlName="departmentId"><mat-option value="">None</mat-option><mat-option *ngFor="let dept of departments" [value]="dept.id">{{ dept.name }}</mat-option></mat-select></mat-form-field>
             <mat-form-field appearance="outline"><mat-label>Manufacturer</mat-label><input matInput formControlName="manufacturer"></mat-form-field>
             <mat-form-field appearance="outline"><mat-label>Model Number</mat-label><input matInput formControlName="modelNumber"></mat-form-field>
@@ -96,6 +98,7 @@ export class EquipmentFormComponent implements OnInit {
   }
 
   save(): void {
+    this.form.markAllAsTouched();
     if (this.form.invalid) return;
     this.saving = true;
     this.equipmentService.create(this.form.getRawValue()).subscribe({

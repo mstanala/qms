@@ -73,6 +73,7 @@ import { Capa, CapaType, CapaSourceType, CapaPriority } from '../../models/capa.
                     <mat-option [value]="capaTypes.PREVENTIVE">Preventive</mat-option>
                     <mat-option [value]="capaTypes.BOTH">Corrective & Preventive</mat-option>
                   </mat-select>
+                  <mat-error *ngIf="basicForm.get('type')?.hasError('required')">CAPA type is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -83,6 +84,7 @@ import { Capa, CapaType, CapaSourceType, CapaPriority } from '../../models/capa.
                     <mat-option [value]="priorities.MEDIUM">Medium</mat-option>
                     <mat-option [value]="priorities.LOW">Low</mat-option>
                   </mat-select>
+                  <mat-error *ngIf="basicForm.get('priority')?.hasError('required')">Priority is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -92,6 +94,7 @@ import { Capa, CapaType, CapaSourceType, CapaPriority } from '../../models/capa.
                       {{ formatSource(src) }}
                     </mat-option>
                   </mat-select>
+                  <mat-error *ngIf="basicForm.get('sourceType')?.hasError('required')">Source type is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -122,6 +125,7 @@ import { Capa, CapaType, CapaSourceType, CapaPriority } from '../../models/capa.
                     <mat-option value="Hyderabad Unit-2">Hyderabad Unit-2</mat-option>
                     <mat-option value="Vizag Unit-1">Vizag Unit-1</mat-option>
                   </mat-select>
+                  <mat-error *ngIf="assignmentForm.get('plantSite')?.hasError('required')">Plant site is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -134,6 +138,7 @@ import { Capa, CapaType, CapaSourceType, CapaPriority } from '../../models/capa.
                     <mat-option value="Engineering">Engineering</mat-option>
                     <mat-option value="R&D">R&D</mat-option>
                   </mat-select>
+                  <mat-error *ngIf="assignmentForm.get('department')?.hasError('required')">Department is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -145,6 +150,7 @@ import { Capa, CapaType, CapaSourceType, CapaPriority } from '../../models/capa.
                     <mat-option value="Kavitha Reddy">Kavitha Reddy</mat-option>
                     <mat-option value="Venkat Rao">Venkat Rao</mat-option>
                   </mat-select>
+                  <mat-error *ngIf="assignmentForm.get('ownerName')?.hasError('required')">CAPA owner is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -152,6 +158,7 @@ import { Capa, CapaType, CapaSourceType, CapaPriority } from '../../models/capa.
                   <input matInput [matDatepicker]="picker" formControlName="targetCompletionDate">
                   <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
                   <mat-datepicker #picker></mat-datepicker>
+                  <mat-error *ngIf="assignmentForm.get('targetCompletionDate')?.hasError('required')">Target date is required</mat-error>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -419,6 +426,8 @@ export class CapaFormComponent implements OnInit {
   }
 
   submitCapa(): void {
+    this.basicForm.markAllAsTouched();
+    this.assignmentForm.markAllAsTouched();
     if (this.basicForm.valid && this.assignmentForm.valid) {
       const capaData = {
         ...this.basicForm.value,

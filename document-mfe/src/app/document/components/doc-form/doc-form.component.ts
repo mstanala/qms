@@ -1,7 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, NgForm } from '@angular/forms';
 import { of, switchMap, map } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -22,37 +22,41 @@ import { DocumentType, ConfidentialityLevel } from '../../models/document.model'
         <h2>Create New Document</h2>
         <button class="cancel-btn" routerLink="../list">Cancel</button>
       </div>
+      <form #docForm="ngForm">
       <div class="form-card">
         <div class="form-section">
           <h3>Document Information</h3>
           <div class="form-grid">
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Title</mat-label>
-              <input matInput [(ngModel)]="doc.title" required placeholder="e.g., Batch Manufacturing Record - Tablet Compression" />
+              <input matInput [(ngModel)]="doc.title" name="title" #title="ngModel" required placeholder="e.g., Batch Manufacturing Record - Tablet Compression" />
+              <mat-error *ngIf="title.invalid">Title is required</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Description</mat-label>
-              <textarea matInput [(ngModel)]="doc.description" rows="3" placeholder="Brief description of the document purpose and scope"></textarea>
+              <textarea matInput [(ngModel)]="doc.description" name="description" rows="3" placeholder="Brief description of the document purpose and scope"></textarea>
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Document Type</mat-label>
-              <mat-select [(ngModel)]="doc.documentType" required>
+              <mat-select [(ngModel)]="doc.documentType" name="documentType" #documentType="ngModel" required>
                 <mat-option *ngFor="let t of typeOptions" [value]="t">{{ formatEnum(t) }}</mat-option>
               </mat-select>
+              <mat-error *ngIf="documentType.invalid">Document type is required</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Category</mat-label>
-              <mat-select [(ngModel)]="doc.category" required>
+              <mat-select [(ngModel)]="doc.category" name="category" #docCategory="ngModel" required>
                 <mat-option *ngFor="let c of categoryOptions" [value]="c">{{ c }}</mat-option>
               </mat-select>
+              <mat-error *ngIf="docCategory.invalid">Category is required</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Sub-Category</mat-label>
-              <input matInput [(ngModel)]="doc.subCategory" placeholder="e.g., Tablet Manufacturing" />
+              <input matInput [(ngModel)]="doc.subCategory" name="subCategory" placeholder="e.g., Tablet Manufacturing" />
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Confidentiality</mat-label>
-              <mat-select [(ngModel)]="doc.confidentialityLevel">
+              <mat-select [(ngModel)]="doc.confidentialityLevel" name="confidentialityLevel">
                 <mat-option *ngFor="let c of confidentialityOptions" [value]="c">{{ formatEnum(c) }}</mat-option>
               </mat-select>
             </mat-form-field>
@@ -63,15 +67,16 @@ import { DocumentType, ConfidentialityLevel } from '../../models/document.model'
           <div class="form-grid">
             <mat-form-field appearance="outline">
               <mat-label>Plant Site</mat-label>
-              <mat-select [(ngModel)]="doc.plantSiteId" required>
+              <mat-select [(ngModel)]="doc.plantSiteId" name="plantSiteId" #plantSiteId="ngModel" required>
                 <mat-option value="site-hyd">Hyderabad Plant - Unit I</mat-option>
                 <mat-option value="site-viz">Visakhapatnam Plant</mat-option>
                 <mat-option value="site-blr">Bangalore R&D Center</mat-option>
               </mat-select>
+              <mat-error *ngIf="plantSiteId.invalid">Plant site is required</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Department</mat-label>
-              <mat-select [(ngModel)]="doc.departmentId" required>
+              <mat-select [(ngModel)]="doc.departmentId" name="departmentId" #departmentId="ngModel" required>
                 <mat-option value="dept-prod">Production</mat-option>
                 <mat-option value="dept-qa">Quality Assurance</mat-option>
                 <mat-option value="dept-qc">Quality Control</mat-option>
@@ -79,6 +84,7 @@ import { DocumentType, ConfidentialityLevel } from '../../models/document.model'
                 <mat-option value="dept-wh">Warehouse</mat-option>
                 <mat-option value="dept-reg">Regulatory Affairs</mat-option>
               </mat-select>
+              <mat-error *ngIf="departmentId.invalid">Department is required</mat-error>
             </mat-form-field>
           </div>
         </div>
@@ -114,10 +120,11 @@ import { DocumentType, ConfidentialityLevel } from '../../models/document.model'
           </div>
         </div>
         <div class="form-actions">
-          <button class="btn-secondary" (click)="saveDraft()">Save as Draft</button>
-          <button class="btn-primary" (click)="submitForReview()">Submit for Review</button>
+          <button type="button" class="btn-secondary" (click)="saveDraft()">Save as Draft</button>
+          <button type="button" class="btn-primary" (click)="submitForReview()">Submit for Review</button>
         </div>
       </div>
+      </form>
     </div>
   `,
   styles: [`
@@ -145,6 +152,7 @@ import { DocumentType, ConfidentialityLevel } from '../../models/document.model'
   `],
 })
 export class DocFormComponent {
+  @ViewChild('docForm') docForm!: NgForm;
   doc: any = { reviewPeriodMonths: 24, confidentialityLevel: 'INTERNAL' };
   selectedFile: File | null = null;
   typeOptions = Object.values(DocumentType);
@@ -166,6 +174,7 @@ export class DocFormComponent {
   }
 
   saveDraft(): void {
+    if (this.docForm?.invalid) { this.docForm.control.markAllAsTouched(); return; }
     this.createDocumentWithAttachment().subscribe({
       next: (created) => this.router.navigate(['/documents/detail', created.id]),
       error: () => alert('Draft saved (mock mode)'),
@@ -173,6 +182,7 @@ export class DocFormComponent {
   }
 
   submitForReview(): void {
+    if (this.docForm?.invalid) { this.docForm.control.markAllAsTouched(); return; }
     this.createDocumentWithAttachment().subscribe({
       next: () => this.router.navigate(['/documents/list']),
       error: () => alert('Submitted for review (mock mode)'),

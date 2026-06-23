@@ -35,6 +35,7 @@ import { SupplierService } from '../../services/supplier.service';
             <mat-form-field appearance="outline">
               <mat-label>Supplier Name</mat-label>
               <input matInput formControlName="name">
+              <mat-error *ngIf="form.get('name')?.hasError('required')">Supplier name is required</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Legal Name</mat-label>
@@ -45,6 +46,7 @@ import { SupplierService } from '../../services/supplier.service';
               <mat-select formControlName="supplierType">
                 <mat-option *ngFor="let type of supplierTypes" [value]="type">{{ label(type) }}</mat-option>
               </mat-select>
+              <mat-error *ngIf="form.get('supplierType')?.hasError('required')">Supplier type is required</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Category</mat-label>
@@ -53,6 +55,7 @@ import { SupplierService } from '../../services/supplier.service';
                 <mat-option value="MAJOR">Major</mat-option>
                 <mat-option value="MINOR">Minor</mat-option>
               </mat-select>
+              <mat-error *ngIf="form.get('category')?.hasError('required')">Category is required</mat-error>
             </mat-form-field>
           </mat-card-content>
         </mat-card>
@@ -71,6 +74,7 @@ import { SupplierService } from '../../services/supplier.service';
               <mat-select formControlName="ownerId">
                 <mat-option *ngFor="let user of users" [value]="user.id">{{ user.displayName || user.username }}</mat-option>
               </mat-select>
+              <mat-error *ngIf="form.get('ownerId')?.hasError('required')">Owner is required</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Plant Site</mat-label>
@@ -145,6 +149,7 @@ export class SupplierFormComponent implements OnInit {
   }
 
   save(): void {
+    this.form.markAllAsTouched();
     if (this.form.invalid) return;
     this.saving = true;
     this.supplierService.create(this.form.getRawValue()).subscribe({

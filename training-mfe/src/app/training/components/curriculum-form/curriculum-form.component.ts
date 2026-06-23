@@ -1,7 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, NgForm } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -21,45 +21,51 @@ import { TrainingCategory, TrainingType } from '../../models/training.model';
         <h2>Create New Training Curriculum</h2>
         <button class="cancel-btn" routerLink="../curricula">Cancel</button>
       </div>
+      <form #curriculumForm="ngForm">
       <div class="form-card">
         <div class="form-section">
           <h3>Curriculum Information</h3>
           <div class="form-grid">
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Title</mat-label>
-              <input matInput [(ngModel)]="cur.title" required placeholder="e.g., GMP Fundamentals for Manufacturing Personnel" />
+              <input matInput [(ngModel)]="cur.title" name="title" #title="ngModel" required placeholder="e.g., GMP Fundamentals for Manufacturing Personnel" />
+              <mat-error *ngIf="title.invalid">Title is required</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Description</mat-label>
-              <textarea matInput [(ngModel)]="cur.description" rows="3" placeholder="Training objective, scope, and target audience"></textarea>
+              <textarea matInput [(ngModel)]="cur.description" name="description" rows="3" placeholder="Training objective, scope, and target audience"></textarea>
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Category</mat-label>
-              <mat-select [(ngModel)]="cur.category" required>
+              <mat-select [(ngModel)]="cur.category" name="category" #category="ngModel" required>
                 <mat-option *ngFor="let c of categoryOptions" [value]="c">{{ formatEnum(c) }}</mat-option>
               </mat-select>
+              <mat-error *ngIf="category.invalid">Category is required</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Training Type</mat-label>
-              <mat-select [(ngModel)]="cur.trainingType" required>
+              <mat-select [(ngModel)]="cur.trainingType" name="trainingType" #trainingType="ngModel" required>
                 <mat-option *ngFor="let t of typeOptions" [value]="t">{{ formatEnum(t) }}</mat-option>
               </mat-select>
+              <mat-error *ngIf="trainingType.invalid">Training type is required</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Duration (hours)</mat-label>
-              <input matInput type="number" [(ngModel)]="cur.durationHours" required />
+              <input matInput type="number" [(ngModel)]="cur.durationHours" name="durationHours" #durationHours="ngModel" required />
+              <mat-error *ngIf="durationHours.invalid">Duration is required</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Validity (months)</mat-label>
-              <input matInput type="number" [(ngModel)]="cur.validityMonths" required />
+              <input matInput type="number" [(ngModel)]="cur.validityMonths" name="validityMonths" #validityMonths="ngModel" required />
+              <mat-error *ngIf="validityMonths.invalid">Validity is required</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Passing Score (%)</mat-label>
-              <input matInput type="number" [(ngModel)]="cur.passingScore" placeholder="e.g., 80" />
+              <input matInput type="number" [(ngModel)]="cur.passingScore" name="passingScore" placeholder="e.g., 80" />
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Regulatory Reference</mat-label>
-              <input matInput [(ngModel)]="cur.regulatoryReference" placeholder="e.g., Schedule M Part I Sec 3" />
+              <input matInput [(ngModel)]="cur.regulatoryReference" name="regulatoryReference" placeholder="e.g., Schedule M Part I Sec 3" />
             </mat-form-field>
           </div>
         </div>
@@ -68,15 +74,16 @@ import { TrainingCategory, TrainingType } from '../../models/training.model';
           <div class="form-grid">
             <mat-form-field appearance="outline">
               <mat-label>Plant Site</mat-label>
-              <mat-select [(ngModel)]="cur.plantSiteId" required>
+              <mat-select [(ngModel)]="cur.plantSiteId" name="plantSiteId" #plantSiteId="ngModel" required>
                 <mat-option value="site-hyd">Hyderabad Plant - Unit I</mat-option>
                 <mat-option value="site-viz">Visakhapatnam Plant</mat-option>
                 <mat-option value="site-blr">Bangalore R&D Center</mat-option>
               </mat-select>
+              <mat-error *ngIf="plantSiteId.invalid">Plant site is required</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Department</mat-label>
-              <mat-select [(ngModel)]="cur.departmentId" required>
+              <mat-select [(ngModel)]="cur.departmentId" name="departmentId" #departmentId="ngModel" required>
                 <mat-option value="dept-prod">Production</mat-option>
                 <mat-option value="dept-qa">Quality Assurance</mat-option>
                 <mat-option value="dept-qc">Quality Control</mat-option>
@@ -84,6 +91,7 @@ import { TrainingCategory, TrainingType } from '../../models/training.model';
                 <mat-option value="dept-wh">Warehouse</mat-option>
                 <mat-option value="dept-reg">Regulatory Affairs</mat-option>
               </mat-select>
+              <mat-error *ngIf="departmentId.invalid">Department is required</mat-error>
             </mat-form-field>
           </div>
         </div>
@@ -92,15 +100,16 @@ import { TrainingCategory, TrainingType } from '../../models/training.model';
           <div class="form-grid">
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Related Document Number</mat-label>
-              <input matInput [(ngModel)]="cur.relatedDocumentNumber" placeholder="e.g., SOP-2025-001 (links training to controlled document)" />
+              <input matInput [(ngModel)]="cur.relatedDocumentNumber" name="relatedDocumentNumber" placeholder="e.g., SOP-2025-001 (links training to controlled document)" />
             </mat-form-field>
           </div>
         </div>
         <div class="form-actions">
-          <button class="btn-secondary" (click)="saveDraft()">Save as Draft</button>
-          <button class="btn-primary" (click)="activate()">Activate Curriculum</button>
+          <button type="button" class="btn-secondary" (click)="saveDraft()">Save as Draft</button>
+          <button type="button" class="btn-primary" (click)="activate()">Activate Curriculum</button>
         </div>
       </div>
+      </form>
     </div>
   `,
   styles: [`
@@ -120,6 +129,7 @@ import { TrainingCategory, TrainingType } from '../../models/training.model';
   `],
 })
 export class CurriculumFormComponent {
+  @ViewChild('curriculumForm') curriculumForm!: NgForm;
   cur: any = { durationHours: 4, validityMonths: 12 };
   categoryOptions = Object.values(TrainingCategory);
   typeOptions = Object.values(TrainingType);
@@ -129,6 +139,7 @@ export class CurriculumFormComponent {
   formatEnum(val: string): string { return val.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()); }
 
   saveDraft(): void {
+    if (this.curriculumForm?.invalid) { this.curriculumForm.control.markAllAsTouched(); return; }
     this.trainingService.createCurriculum(this.cur).subscribe({
       next: (created) => this.router.navigate(['/training/curricula', created.id]),
       error: () => alert('Draft saved (mock mode)'),
@@ -136,6 +147,7 @@ export class CurriculumFormComponent {
   }
 
   activate(): void {
+    if (this.curriculumForm?.invalid) { this.curriculumForm.control.markAllAsTouched(); return; }
     this.cur.status = 'ACTIVE';
     this.trainingService.createCurriculum(this.cur).subscribe({
       next: () => this.router.navigate(['/training/curricula']),
