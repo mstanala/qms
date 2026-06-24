@@ -64,8 +64,8 @@ interface PieSlice extends PieRow {
                 New Change Request
               </button>
               <button mat-stroked-button class="action-btn" (click)="downloadCycleTimeReport()" [disabled]="!canReadChange || !metrics">
-                <mat-icon>assessment</mat-icon>
-                Cycle Time Report
+                <mat-icon>file_download</mat-icon>
+                Export Trends
               </button>
               <button mat-stroked-button class="action-btn" (click)="exportRegister()" [disabled]="!canReadChange">
                 <mat-icon>download</mat-icon>

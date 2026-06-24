@@ -66,8 +66,8 @@ interface PieSlice extends PieRow {
                 New CAPA
               </button>
               <button mat-stroked-button class="action-btn" (click)="downloadPerformanceReport()" [disabled]="!canReadCapa || !metrics">
-                <mat-icon>assessment</mat-icon>
-                Generate Report
+                <mat-icon>file_download</mat-icon>
+                Export Trends
               </button>
               <button mat-stroked-button class="action-btn" (click)="exportData()" [disabled]="!canReadCapa">
                 <mat-icon>download</mat-icon>

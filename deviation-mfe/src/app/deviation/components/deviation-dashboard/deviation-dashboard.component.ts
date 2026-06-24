@@ -64,8 +64,8 @@ interface PieSlice extends PieRow {
                 Report Deviation
               </button>
               <button mat-stroked-button class="action-btn" (click)="downloadTrendReport()" [disabled]="!canReadDeviation || !metrics">
-                <mat-icon>assessment</mat-icon>
-                Trend Analysis Report
+                <mat-icon>file_download</mat-icon>
+                Export Trends
               </button>
               <button mat-stroked-button class="action-btn" (click)="exportRegister()" [disabled]="!canReadDeviation">
                 <mat-icon>download</mat-icon>
