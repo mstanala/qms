@@ -5,19 +5,24 @@ import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { provideNativeDateAdapter } from '@angular/material/core';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { CalibrationRecord, Equipment, EquipmentService } from '../../services/equipment.service';
+import { CalibrationCompleteDialogComponent } from '../calibration-complete-dialog/calibration-complete-dialog.component';
 
 @Component({
   selector: 'qms-calibration-list',
   standalone: true,
+  providers: [provideNativeDateAdapter()],
   imports: [CommonModule, RouterModule, ReactiveFormsModule, MatButtonModule, MatCardModule, MatChipsModule,
-    MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule, MatSnackBarModule, MatTableModule],
+    MatDatepickerModule, MatDialogModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule, MatSnackBarModule, MatTableModule],
   template: `
     <div class="page">
       <div class="page-header">
@@ -41,7 +46,12 @@ import { CalibrationRecord, Equipment, EquipmentService } from '../../services/e
                 <mat-option value="OUT_OF_TOLERANCE">Out of Tolerance</mat-option>
               </mat-select>
             </mat-form-field>
-            <mat-form-field appearance="outline"><mat-label>Scheduled Date</mat-label><input matInput type="datetime-local" formControlName="scheduledDate"></mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Scheduled Date</mat-label>
+              <input matInput [matDatepicker]="picker" formControlName="scheduledDate" (click)="picker.open()">
+              <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
+              <mat-datepicker #picker></mat-datepicker>
+            </mat-form-field>
             <mat-form-field appearance="outline"><mat-label>Standard Used</mat-label><input matInput formControlName="standardUsed"></mat-form-field>
             <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid"><mat-icon>event</mat-icon> Schedule</button>
           </form>
@@ -55,12 +65,24 @@ import { CalibrationRecord, Equipment, EquipmentService } from '../../services/e
             <ng-container matColumnDef="calibrationNumber"><th mat-header-cell *matHeaderCellDef>Calibration #</th><td mat-cell *matCellDef="let row">{{ row.calibrationNumber }}</td></ng-container>
             <ng-container matColumnDef="calibrationType"><th mat-header-cell *matHeaderCellDef>Type</th><td mat-cell *matCellDef="let row">{{ label(row.calibrationType) }}</td></ng-container>
             <ng-container matColumnDef="scheduledDate"><th mat-header-cell *matHeaderCellDef>Scheduled</th><td mat-cell *matCellDef="let row">{{ row.scheduledDate | date:'medium' }}</td></ng-container>
-            <ng-container matColumnDef="status"><th mat-header-cell *matHeaderCellDef>Status</th><td mat-cell *matCellDef="let row"><mat-chip>{{ label(row.status) }}</mat-chip></td></ng-container>
-            <ng-container matColumnDef="result"><th mat-header-cell *matHeaderCellDef>Result</th><td mat-cell *matCellDef="let row">{{ label(row.result || 'PENDING') }}</td></ng-container>
+            <ng-container matColumnDef="performedDate"><th mat-header-cell *matHeaderCellDef>Performed</th><td mat-cell *matCellDef="let row">{{ row.performedDate ? (row.performedDate | date:'medium') : '-' }}</td></ng-container>
+            <ng-container matColumnDef="status"><th mat-header-cell *matHeaderCellDef>Status</th><td mat-cell *matCellDef="let row"><mat-chip [class]="'chip-' + row.status.toLowerCase()">{{ label(row.status) }}</mat-chip></td></ng-container>
+            <ng-container matColumnDef="result"><th mat-header-cell *matHeaderCellDef>Result</th><td mat-cell *matCellDef="let row">
+              <mat-chip *ngIf="row.result" [class]="'chip-result-' + row.result.toLowerCase()">{{ label(row.result) }}</mat-chip>
+              <span *ngIf="!row.result">-</span>
+            </td></ng-container>
+            <ng-container matColumnDef="standardUsed"><th mat-header-cell *matHeaderCellDef>Standard</th><td mat-cell *matCellDef="let row">{{ row.standardUsed || '-' }}</td></ng-container>
             <ng-container matColumnDef="actions">
               <th mat-header-cell *matHeaderCellDef></th>
               <td mat-cell *matCellDef="let row">
-                <button mat-stroked-button (click)="markComplete(row)">Mark Complete</button>
+                <button mat-stroked-button color="primary" (click)="openCompleteDialog(row)"
+                  *ngIf="row.status === 'SCHEDULED' || row.status === 'IN_PROGRESS'">
+                  <mat-icon>check_circle</mat-icon> Complete
+                </button>
+                <button mat-stroked-button color="warn" (click)="cancelCalibration(row)"
+                  *ngIf="row.status === 'SCHEDULED'">
+                  Cancel
+                </button>
               </td>
             </ng-container>
             <tr mat-header-row *matHeaderRowDef="columns"></tr>
@@ -75,12 +97,20 @@ import { CalibrationRecord, Equipment, EquipmentService } from '../../services/e
     .page{padding:24px}.page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;gap:12px}
     h1{margin:0;font-size:24px}.page-header span{color:#667085}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;align-items:center}
     .records-card{margin-top:16px}.full-table{width:100%}.empty{padding:16px;color:#667085}
+    .chip-completed{background:#dcfce7!important;color:#166534!important}
+    .chip-scheduled{background:#dbeafe!important;color:#1e40af!important}
+    .chip-in_progress{background:#fef3c7!important;color:#92400e!important}
+    .chip-failed,.chip-cancelled{background:#fee2e2!important;color:#991b1b!important}
+    .chip-result-pass{background:#dcfce7!important;color:#166534!important}
+    .chip-result-fail,.chip-result-out_of_tolerance{background:#fee2e2!important;color:#991b1b!important}
+    .chip-result-pass_with_adjustment{background:#fef3c7!important;color:#92400e!important}
+    td.mat-mdc-cell button+button{margin-left:8px}
   `],
 })
 export class CalibrationListComponent implements OnInit {
   equipment: Equipment | null = null;
   records: CalibrationRecord[] = [];
-  columns = ['calibrationNumber', 'calibrationType', 'scheduledDate', 'status', 'result', 'actions'];
+  columns = ['calibrationNumber', 'calibrationType', 'scheduledDate', 'performedDate', 'status', 'result', 'standardUsed', 'actions'];
   equipmentId = '';
   form = this.fb.group({
     calibrationType: ['ROUTINE', Validators.required],
@@ -88,7 +118,13 @@ export class CalibrationListComponent implements OnInit {
     standardUsed: [''],
   });
 
-  constructor(private route: ActivatedRoute, private fb: FormBuilder, private equipmentService: EquipmentService, private snackBar: MatSnackBar) {}
+  constructor(
+    private route: ActivatedRoute,
+    private fb: FormBuilder,
+    private equipmentService: EquipmentService,
+    private snackBar: MatSnackBar,
+    private dialog: MatDialog,
+  ) {}
 
   ngOnInit(): void {
     this.equipmentId = this.route.snapshot.paramMap.get('id')!;
@@ -116,14 +152,27 @@ export class CalibrationListComponent implements OnInit {
     });
   }
 
-  markComplete(record: CalibrationRecord): void {
-    this.equipmentService.updateCalibration(record.id, {
-      status: 'COMPLETED',
-      result: 'PASS',
-      performedDate: new Date().toISOString(),
-    }).subscribe(() => {
-      this.snackBar.open('Calibration completed', 'Dismiss', { duration: 2500 });
-      this.load();
+  openCompleteDialog(record: CalibrationRecord): void {
+    const ref = this.dialog.open(CalibrationCompleteDialogComponent, {
+      width: '700px',
+      data: { record },
+    });
+    ref.afterClosed().subscribe((result) => {
+      if (result?.saved) {
+        this.snackBar.open('Calibration completed', 'Dismiss', { duration: 2500 });
+        this.load();
+      }
+    });
+  }
+
+  cancelCalibration(record: CalibrationRecord): void {
+    if (!confirm('Cancel this calibration?')) return;
+    this.equipmentService.updateCalibration(record.id, { status: 'CANCELLED' }).subscribe({
+      next: () => {
+        this.snackBar.open('Calibration cancelled', 'Dismiss', { duration: 2500 });
+        this.load();
+      },
+      error: () => this.snackBar.open('Unable to cancel calibration', 'Dismiss', { duration: 3500 }),
     });
   }
 
@@ -131,7 +180,7 @@ export class CalibrationListComponent implements OnInit {
     return value ? value.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '-';
   }
 
-  private toIso(value: string): string {
-    return new Date(value).toISOString();
+  private toIso(value: string | Date): string {
+    return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
   }
 }

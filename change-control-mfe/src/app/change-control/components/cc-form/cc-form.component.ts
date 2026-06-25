@@ -176,7 +176,7 @@ import { ChangeRequest, ChangeType, ChangeCategory, ChangeClassification, Change
 
                 <mat-form-field appearance="outline">
                   <mat-label>Target Implementation Date</mat-label>
-                  <input matInput [matDatepicker]="targetPicker" formControlName="targetImplementationDate">
+                  <input matInput [matDatepicker]="targetPicker" formControlName="targetImplementationDate" (click)="targetPicker.open()">
                   <mat-datepicker-toggle matIconSuffix [for]="targetPicker"></mat-datepicker-toggle>
                   <mat-datepicker #targetPicker></mat-datepicker>
                   <mat-error *ngIf="scopeForm.get('targetImplementationDate')?.hasError('required')">Target date is required</mat-error>

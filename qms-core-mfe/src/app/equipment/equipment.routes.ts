@@ -34,7 +34,7 @@ export const EQUIPMENT_ROUTES: Routes = [
   {
     path: ':id/calibrations',
     canActivate: [permissionGuard],
-    data: { permission: { module: 'EQUIPMENT', action: 'READ', resource: 'calibration' } },
+    data: { permission: { module: 'EQUIPMENT', action: 'READ', resource: 'equipment' } },
     loadComponent: () =>
       import('./components/calibration-list/calibration-list.component').then((m) => m.CalibrationListComponent),
   },

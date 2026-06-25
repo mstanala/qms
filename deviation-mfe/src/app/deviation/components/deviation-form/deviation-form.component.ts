@@ -100,7 +100,7 @@ import { Deviation, DeviationType, DeviationCategory, DeviationClassification } 
 
                 <mat-form-field appearance="outline">
                   <mat-label>Date/Time Occurred</mat-label>
-                  <input matInput [matDatepicker]="occurPicker" formControlName="occurredDate">
+                  <input matInput [matDatepicker]="occurPicker" formControlName="occurredDate" (click)="occurPicker.open()">
                   <mat-datepicker-toggle matIconSuffix [for]="occurPicker"></mat-datepicker-toggle>
                   <mat-datepicker #occurPicker></mat-datepicker>
                   <mat-error *ngIf="eventForm.get('occurredDate')?.hasError('required')">Occurred date is required</mat-error>
@@ -108,7 +108,7 @@ import { Deviation, DeviationType, DeviationCategory, DeviationClassification } 
 
                 <mat-form-field appearance="outline">
                   <mat-label>Date/Time Detected</mat-label>
-                  <input matInput [matDatepicker]="detectPicker" formControlName="detectedDate">
+                  <input matInput [matDatepicker]="detectPicker" formControlName="detectedDate" (click)="detectPicker.open()">
                   <mat-datepicker-toggle matIconSuffix [for]="detectPicker"></mat-datepicker-toggle>
                   <mat-datepicker #detectPicker></mat-datepicker>
                   <mat-error *ngIf="eventForm.get('detectedDate')?.hasError('required')">Detected date is required</mat-error>
@@ -182,7 +182,7 @@ import { Deviation, DeviationType, DeviationCategory, DeviationClassification } 
 
                 <mat-form-field appearance="outline">
                   <mat-label>Target Closure Date</mat-label>
-                  <input matInput [matDatepicker]="closurePicker" formControlName="targetClosureDate">
+                  <input matInput [matDatepicker]="closurePicker" formControlName="targetClosureDate" (click)="closurePicker.open()">
                   <mat-datepicker-toggle matIconSuffix [for]="closurePicker"></mat-datepicker-toggle>
                   <mat-datepicker #closurePicker></mat-datepicker>
                   <mat-error *ngIf="locationForm.get('targetClosureDate')?.hasError('required')">Target closure date is required</mat-error>

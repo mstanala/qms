@@ -119,6 +119,14 @@ public class EquipmentService {
         if (request.containsKey("result")) cr.setResult((String) request.get("result"));
         if (request.containsKey("asFoundReading")) cr.setAsFoundReading((String) request.get("asFoundReading"));
         if (request.containsKey("asLeftReading")) cr.setAsLeftReading((String) request.get("asLeftReading"));
+        if (request.containsKey("tolerance")) cr.setTolerance((String) request.get("tolerance"));
+        if (request.containsKey("standardUsed")) cr.setStandardUsed((String) request.get("standardUsed"));
+        if (request.containsKey("standardCertificate")) cr.setStandardCertificate((String) request.get("standardCertificate"));
+        if (request.containsKey("adjustmentMade")) cr.setAdjustmentMade((Boolean) request.get("adjustmentMade"));
+        if (request.containsKey("adjustmentDetails")) cr.setAdjustmentDetails((String) request.get("adjustmentDetails"));
+        if (request.containsKey("certificatePath")) cr.setCertificatePath((String) request.get("certificatePath"));
+        if (request.containsKey("impactAssessmentRequired")) cr.setImpactAssessmentRequired((Boolean) request.get("impactAssessmentRequired"));
+        if (request.containsKey("impactOnResults")) cr.setImpactOnResults((String) request.get("impactOnResults"));
         if (request.containsKey("performedDate")) cr.setPerformedDate(Instant.parse((String) request.get("performedDate")));
         return toCalibrationResponse(calibrationRepository.save(cr));
     }

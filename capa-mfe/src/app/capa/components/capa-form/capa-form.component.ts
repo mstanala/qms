@@ -155,7 +155,7 @@ import { Capa, CapaType, CapaSourceType, CapaPriority } from '../../models/capa.
 
                 <mat-form-field appearance="outline">
                   <mat-label>Target Completion Date</mat-label>
-                  <input matInput [matDatepicker]="picker" formControlName="targetCompletionDate">
+                  <input matInput [matDatepicker]="picker" formControlName="targetCompletionDate" (click)="picker.open()">
                   <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
                   <mat-datepicker #picker></mat-datepicker>
                   <mat-error *ngIf="assignmentForm.get('targetCompletionDate')?.hasError('required')">Target date is required</mat-error>
