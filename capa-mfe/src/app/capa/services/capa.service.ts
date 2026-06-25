@@ -187,6 +187,34 @@ export class CapaService {
       .pipe(map((data) => this.toDashboardMetrics(data)));
   }
 
+  addAction(capaId: string, payload: { description: string; type: string; assignedToId: string; dueDate: string }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/${capaId}/actions`, payload, { headers: this.authHeaders() });
+  }
+
+  completeAction(capaId: string, actionId: string, payload: { evidence: string; completedDate?: string }): Observable<any> {
+    return this.http.patch(`${this.apiUrl}/${capaId}/actions/${actionId}/complete`, payload, { headers: this.authHeaders() });
+  }
+
+  verifyAction(capaId: string, actionId: string, payload: { verificationComments: string }): Observable<any> {
+    return this.http.patch(`${this.apiUrl}/${capaId}/actions/${actionId}/verify`, payload, { headers: this.authHeaders() });
+  }
+
+  startActionExecution(capaId: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/${capaId}/start-action-execution`, {}, { headers: this.authHeaders() });
+  }
+
+  completeActionExecution(capaId: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/${capaId}/complete-action-execution`, {}, { headers: this.authHeaders() });
+  }
+
+  submitEffectivenessCheck(capaId: string, payload: { criteria: string; checkDate: string; result: string; evidence: string; comments: string; requiresRecurrence?: boolean; recurrenceMonths?: number }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/${capaId}/effectiveness-check`, payload, { headers: this.authHeaders() });
+  }
+
+  submitRiskAssessment(id: string, payload: { severity: number; occurrence: number; detection: number; riskLevel: string; justification: string }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/${id}/risk-assessment`, payload, { headers: this.authHeaders() });
+  }
+
   submitRootCauseAnalysis(id: string, rca: RootCauseAnalysis): Observable<Capa> {
     const payload = {
       method: rca.method,

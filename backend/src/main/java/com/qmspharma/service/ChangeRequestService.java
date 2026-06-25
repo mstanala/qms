@@ -234,7 +234,7 @@ public class ChangeRequestService {
     public void submitImpactAssessment(UUID id, SubmitChangeImpactRequest request) {
         ChangeRequest cr = changeRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ChangeRequest", "id", id));
-        ChangeImpactAssessment ia = new ChangeImpactAssessment();
+        ChangeImpactAssessment ia = impactRepository.findByChangeRequestId(id).orElse(new ChangeImpactAssessment());
         ia.setChangeRequest(cr);
         ia.setProductQuality(ImpactRating.valueOf(request.getProductQuality()));
         ia.setPatientSafety(ImpactRating.valueOf(request.getPatientSafety()));
@@ -411,7 +411,7 @@ public class ChangeRequestService {
     }
 
     private ChangeRequestResponse toResponse(ChangeRequest cr) {
-        return ChangeRequestResponse.builder()
+        var builder = ChangeRequestResponse.builder()
                 .id(cr.getId()).changeNumber(cr.getChangeNumber()).title(cr.getTitle())
                 .description(cr.getDescription()).justification(cr.getJustification())
                 .type(cr.getType().name()).category(cr.getCategory().name())
@@ -431,7 +431,130 @@ public class ChangeRequestService {
                 .trainingRequired(cr.getTrainingRequired())
                 .relatedDeviations(cr.getRelatedDeviations()).relatedCapas(cr.getRelatedCapas())
                 .relatedChanges(cr.getRelatedChanges()).currentWorkflowStep(cr.getCurrentWorkflowStep())
-                .createdAt(cr.getCreatedAt()).updatedAt(cr.getUpdatedAt()).version(cr.getVersion())
-                .build();
+                .createdAt(cr.getCreatedAt()).updatedAt(cr.getUpdatedAt()).version(cr.getVersion());
+
+        // Impact Assessment
+        if (cr.getImpactAssessment() != null) {
+            var ia = cr.getImpactAssessment();
+            builder.impactAssessment(ChangeImpactResponse.builder()
+                    .id(ia.getId())
+                    .productQuality(ia.getProductQuality().name())
+                    .patientSafety(ia.getPatientSafety().name())
+                    .regulatoryCompliance(ia.getRegulatoryCompliance().name())
+                    .validationStatus(ia.getValidationStatus().name())
+                    .documentation(ia.getDocumentation().name())
+                    .training(ia.getTraining().name())
+                    .supplierQualification(ia.getSupplierQualification().name())
+                    .stability(ia.getStability().name())
+                    .overallRiskLevel(ia.getOverallRiskLevel().name())
+                    .assessmentSummary(ia.getAssessmentSummary())
+                    .assessedBy(toUserRef(ia.getAssessedBy()))
+                    .assessedDate(ia.getAssessedDate())
+                    .build());
+        }
+
+        // Regulatory Filing
+        if (cr.getRegulatoryFiling() != null) {
+            var rf = cr.getRegulatoryFiling();
+            builder.regulatoryFiling(RegulatoryFilingResponse.builder()
+                    .id(rf.getId())
+                    .filingRequired(rf.getFilingRequired())
+                    .filingType(rf.getFilingType() != null ? rf.getFilingType().name() : null)
+                    .markets(rf.getMarkets())
+                    .filingDetails(rf.getFilingDetails())
+                    .targetFilingDate(rf.getTargetFilingDate())
+                    .filingStatus(rf.getFilingStatus() != null ? rf.getFilingStatus().name() : null)
+                    .build());
+        }
+
+        // Affected Documents
+        if (cr.getAffectedDocuments() != null) {
+            builder.affectedDocuments(cr.getAffectedDocuments().stream()
+                    .map(d -> AffectedDocumentResponse.builder()
+                            .id(d.getId()).documentNumber(d.getDocumentNumber())
+                            .documentTitle(d.getDocumentTitle()).documentType(d.getDocumentType())
+                            .currentVersion(d.getCurrentVersion())
+                            .action(d.getAction() != null ? d.getAction().name() : null)
+                            .newVersion(d.getNewVersion())
+                            .status(d.getStatus() != null ? d.getStatus().name() : null)
+                            .build())
+                    .collect(Collectors.toList()));
+        }
+
+        // Affected Products
+        if (cr.getAffectedProducts() != null) {
+            builder.affectedProducts(cr.getAffectedProducts().stream()
+                    .map(p -> AffectedProductResponse.builder()
+                            .id(p.getId()).productName(p.getProductName())
+                            .productCode(p.getProductCode()).dosageForm(p.getDosageForm())
+                            .markets(p.getMarkets()).impactDescription(p.getImpactDescription())
+                            .build())
+                    .collect(Collectors.toList()));
+        }
+
+        // Implementation Tasks
+        if (cr.getImplementationTasks() != null) {
+            builder.implementationTasks(cr.getImplementationTasks().stream()
+                    .map(t -> ImplementationTaskResponse.builder()
+                            .id(t.getId()).taskNumber(t.getTaskNumber())
+                            .title(t.getTitle()).description(t.getDescription())
+                            .assignedTo(toUserRef(t.getAssignedTo()))
+                            .departmentName(t.getDepartment() != null ? t.getDepartment().getName() : null)
+                            .dueDate(t.getDueDate()).completedDate(t.getCompletedDate())
+                            .status(t.getStatus() != null ? t.getStatus().name() : null)
+                            .comments(t.getComments())
+                            .build())
+                    .collect(Collectors.toList()));
+        }
+
+        // Training Requirements
+        if (cr.getTrainingRequirements() != null) {
+            builder.trainingRequirements(cr.getTrainingRequirements().stream()
+                    .map(tr -> TrainingRequirementResponse.builder()
+                            .id(tr.getId()).trainingTitle(tr.getTrainingTitle())
+                            .targetAudience(tr.getTargetAudience())
+                            .departmentName(tr.getDepartment() != null ? tr.getDepartment().getName() : null)
+                            .trainingType(tr.getTrainingType() != null ? tr.getTrainingType().name() : null)
+                            .dueDate(tr.getDueDate())
+                            .completionStatus(tr.getCompletionStatus() != null ? tr.getCompletionStatus().name() : null)
+                            .completionPercentage(tr.getCompletionPercentage())
+                            .build())
+                    .collect(Collectors.toList()));
+        }
+
+        // Approvals
+        if (cr.getApprovals() != null) {
+            builder.approvals(cr.getApprovals().stream()
+                    .map(a -> ChangeApprovalResponse.builder()
+                            .id(a.getId()).approver(toUserRef(a.getApprover()))
+                            .role(a.getRole()).department(a.getDepartment())
+                            .decision(a.getDecision() != null ? a.getDecision().name() : null)
+                            .comments(a.getComments()).decisionDate(a.getDecisionDate())
+                            .approvalOrder(a.getApprovalOrder())
+                            .build())
+                    .collect(Collectors.toList()));
+        }
+
+        // Effectiveness Reviews
+        if (cr.getEffectivenessReviews() != null) {
+            builder.effectivenessReviews(cr.getEffectivenessReviews().stream()
+                    .map(r -> EffectivenessReviewResponse.builder()
+                            .id(r.getId()).reviewDate(r.getReviewDate())
+                            .reviewer(toUserRef(r.getReviewer()))
+                            .overallEffective(r.getOverallEffective())
+                            .summary(r.getSummary())
+                            .followUpRequired(r.getFollowUpRequired())
+                            .followUpActions(r.getFollowUpActions())
+                            .criteria(r.getCriteria() != null ? r.getCriteria().stream()
+                                    .map(c -> EffectivenessReviewResponse.CriteriaResponse.builder()
+                                            .id(c.getId()).criterion(c.getCriterion())
+                                            .met(c.getMet()).evidence(c.getEvidence())
+                                            .build())
+                                    .collect(Collectors.toList()) : null)
+                            .build())
+                    .collect(Collectors.toList()));
+        }
+
+        return builder.build();
     }
 }

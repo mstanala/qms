@@ -192,6 +192,42 @@ export class ChangeControlService {
       .pipe(map((item) => this.toChangeRequest(item)));
   }
 
+  submitImpactAssessment(id: string, payload: any): Observable<any> {
+    return this.http.post(`${this.apiUrl}/${id}/impact-assessment`, payload, { headers: this.authHeaders() });
+  }
+
+  addAffectedDocument(id: string, payload: any): Observable<any> {
+    return this.http.post(`${this.apiUrl}/${id}/affected-documents`, payload, { headers: this.authHeaders() });
+  }
+
+  addAffectedProduct(id: string, payload: any): Observable<any> {
+    return this.http.post(`${this.apiUrl}/${id}/affected-products`, payload, { headers: this.authHeaders() });
+  }
+
+  addImplementationTask(id: string, payload: any): Observable<any> {
+    return this.http.post(`${this.apiUrl}/${id}/implementation-tasks`, payload, { headers: this.authHeaders() });
+  }
+
+  updateImplementationTask(id: string, taskId: string, payload: any): Observable<any> {
+    return this.http.put(`${this.apiUrl}/${id}/implementation-tasks/${taskId}`, payload, { headers: this.authHeaders() });
+  }
+
+  addTrainingRequirement(id: string, payload: any): Observable<any> {
+    return this.http.post(`${this.apiUrl}/${id}/training-requirements`, payload, { headers: this.authHeaders() });
+  }
+
+  addApprover(id: string, payload: any): Observable<any> {
+    return this.http.post(`${this.apiUrl}/${id}/approvers`, payload, { headers: this.authHeaders() });
+  }
+
+  submitApprovalDecision(id: string, approvalId: string, payload: any): Observable<any> {
+    return this.http.patch(`${this.apiUrl}/${id}/approvals/${approvalId}`, payload, { headers: this.authHeaders() });
+  }
+
+  submitEffectivenessReview(id: string, payload: any): Observable<any> {
+    return this.http.post(`${this.apiUrl}/${id}/effectiveness-review`, payload, { headers: this.authHeaders() });
+  }
+
   getDashboardMetrics(): Observable<ChangeControlDashboardMetrics> {
     return this.http
       .get<Record<string, any>>(`${API_BASE_URL}/dashboard/change-control-metrics`, { headers: this.authHeaders() })

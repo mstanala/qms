@@ -273,3 +273,8 @@ table.data-table tbody tr:focus-within,
 .mat-mdc-select-panel .mat-mdc-option.mdc-list-item--disabled {
   opacity: 0.55;
 }
+
+/* Ensure datepicker calendar popup renders above dialogs */
+.cdk-overlay-connected-position-bounding-box {
+  z-index: 1100 !important;
+}

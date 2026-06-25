@@ -10,9 +10,14 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { ChangeControlService } from '../../services/change-control.service';
 import { ChangeRequest, ChangeStatus } from '../../models/change-control.model';
 import { ESignatureDialogComponent } from '../e-signature-dialog/e-signature-dialog.component';
+import { CcImpactDialogComponent } from '../cc-impact-dialog/cc-impact-dialog.component';
+import { CcTaskDialogComponent } from '../cc-task-dialog/cc-task-dialog.component';
+import { CcApproverDialogComponent } from '../cc-approver-dialog/cc-approver-dialog.component';
+import { CcEffectivenessDialogComponent } from '../cc-effectiveness-dialog/cc-effectiveness-dialog.component';
 
 function getUserRoleCodes(): string[] {
   const raw = localStorage.getItem('auth') || sessionStorage.getItem('auth');
@@ -47,6 +52,7 @@ interface WorkflowAction {
     MatTooltipModule,
     MatProgressBarModule,
     MatDialogModule,
+    MatSnackBarModule,
   ],
   template: `
     <div class="cc-detail" *ngIf="cr">
@@ -186,7 +192,12 @@ interface WorkflowAction {
         <mat-tab label="Impact Assessment">
           <div class="tab-content">
             <mat-card class="info-card">
-              <h3>Impact Assessment Matrix</h3>
+              <div class="section-header">
+                <h3>Impact Assessment Matrix</h3>
+                <button mat-raised-button color="primary" *ngIf="canEditImpactAssessment()" (click)="openImpactDialog()">
+                  <mat-icon>{{ hasImpactData() ? 'edit' : 'add' }}</mat-icon> {{ hasImpactData() ? 'Edit' : 'Create' }} Impact Assessment
+                </button>
+              </div>
               <div class="impact-matrix">
                 <div class="impact-row" *ngFor="let item of getImpactItems()">
                   <span class="impact-area">{{ item.label }}</span>
@@ -243,7 +254,12 @@ interface WorkflowAction {
         <mat-tab label="Implementation">
           <div class="tab-content">
             <mat-card class="info-card">
-              <h3>Implementation Plan ({{ cr.implementationPlan.length }} tasks)</h3>
+              <div class="section-header">
+                <h3>Implementation Plan ({{ cr.implementationPlan.length }} tasks)</h3>
+                <button mat-raised-button color="primary" *ngIf="canEditImplementation()" (click)="openTaskDialog()">
+                  <mat-icon>add</mat-icon> Add Task
+                </button>
+              </div>
               <div class="task-progress" *ngIf="cr.implementationPlan.length">
                 <mat-progress-bar mode="determinate" [value]="getImplementationProgress()"></mat-progress-bar>
                 <span class="progress-text">{{ getImplementationProgress() }}% Complete</span>
@@ -263,6 +279,10 @@ interface WorkflowAction {
                       <span>{{ task.assignedTo }} ({{ task.department }})</span>
                       <span>Due: {{ task.dueDate | date:'dd-MMM-yy' }}</span>
                       <span *ngIf="task.completedDate" class="completed-date">Done: {{ task.completedDate | date:'dd-MMM-yy' }}</span>
+                    </div>
+                    <div class="task-actions" *ngIf="cr.status === 'IMPLEMENTATION'">
+                      <button mat-stroked-button color="primary" *ngIf="task.status === 'NOT_STARTED'" (click)="updateTask(task, 'IN_PROGRESS')">Start</button>
+                      <button mat-stroked-button color="primary" *ngIf="task.status === 'IN_PROGRESS'" (click)="updateTask(task, 'COMPLETED')">Complete</button>
                     </div>
                   </div>
                 </div>
@@ -299,8 +319,13 @@ interface WorkflowAction {
         <mat-tab label="Approvals">
           <div class="tab-content">
             <mat-card class="info-card">
-              <h3>Approval History</h3>
-              <div class="approval-list">
+              <div class="section-header">
+                <h3>Approval History</h3>
+                <button mat-raised-button color="primary" *ngIf="canAddApprover()" (click)="openApproverDialog()">
+                  <mat-icon>person_add</mat-icon> Add Approver
+                </button>
+              </div>
+              <div class="approval-list" *ngIf="cr.approvals.length; else noApprovals">
                 <div class="approval-item" *ngFor="let approval of cr.approvals" [ngClass]="approval.decision.toLowerCase().replace('_', '-')">
                   <div class="approval-icon">
                     <mat-icon *ngIf="approval.decision === 'APPROVED'">check_circle</mat-icon>
@@ -313,12 +338,22 @@ interface WorkflowAction {
                     <div class="approval-role">{{ approval.role }} - {{ approval.department }}</div>
                     <div class="approval-date" *ngIf="approval.decisionDate">{{ approval.decisionDate | date:'dd-MMM-yyyy' }}</div>
                     <div class="approval-comment" *ngIf="approval.comments">{{ approval.comments }}</div>
+                    <div class="approval-actions" *ngIf="approval.decision === 'PENDING' && cr.status === 'PENDING_APPROVAL'">
+                      <button mat-stroked-button color="primary" (click)="submitApproval(approval, 'APPROVED')">Approve</button>
+                      <button mat-stroked-button color="warn" (click)="submitApproval(approval, 'REJECTED')">Reject</button>
+                    </div>
                   </div>
                   <div class="approval-decision">
                     <span class="decision-badge" [ngClass]="approval.decision.toLowerCase().replace('_', '-')">{{ formatDecision(approval.decision) }}</span>
                   </div>
                 </div>
               </div>
+              <ng-template #noApprovals>
+                <div class="empty-state">
+                  <mat-icon>how_to_reg</mat-icon>
+                  <p>No approvers added yet.</p>
+                </div>
+              </ng-template>
             </mat-card>
           </div>
         </mat-tab>
@@ -355,6 +390,9 @@ interface WorkflowAction {
                 <mat-icon>fact_check</mat-icon>
                 <h3>Effectiveness Review Pending</h3>
                 <p>Effectiveness review will be conducted after implementation is complete.</p>
+                <button mat-raised-button color="primary" *ngIf="cr.status === 'EFFECTIVENESS_CHECK'" (click)="openEffectivenessDialog()" style="margin-top: 16px;">
+                  <mat-icon>fact_check</mat-icon> Submit Effectiveness Review
+                </button>
               </mat-card>
             </ng-template>
           </div>
@@ -569,6 +607,10 @@ interface WorkflowAction {
     .ref-chip.dev { background: #fff3e0; color: #e65100; }
     .ref-chip.capa { background: #f3e5f5; color: #6a1b9a; }
 
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .section-header h3 { margin: 0; }
+    .task-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .approval-actions { display: flex; gap: 8px; margin-top: 8px; }
     .empty-state { text-align: center; padding: 48px 20px; }
     .empty-state mat-icon { font-size: 48px; width: 48px; height: 48px; color: #bbb; }
     .empty-state h3 { color: #666; }
@@ -586,7 +628,8 @@ export class CcDetailComponent implements OnInit {
     private route: ActivatedRoute,
     private router: Router,
     private ccService: ChangeControlService,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private snackBar: MatSnackBar
   ) {}
 
   ngOnInit(): void {
@@ -745,15 +788,127 @@ export class CcDetailComponent implements OnInit {
     this.ccService.updateStatus(this.cr.id, targetStatus, comments).subscribe({
       next: () => {
         this.actionInProgress = false;
-        this.ccService.getChangeRequestById(this.cr!.id).subscribe((full) => {
-          if (full) this.cr = full;
-        });
+        this.reloadCr();
       },
       error: (err) => {
         this.actionInProgress = false;
         console.error('Status change failed:', err);
         alert('Failed to update status. Please try again.');
       },
+    });
+  }
+
+  private reloadCr(): void {
+    if (!this.cr) return;
+    this.ccService.getChangeRequestById(this.cr.id).subscribe((full) => {
+      if (full) this.cr = full;
+    });
+  }
+
+  hasImpactData(): boolean {
+    return !!this.cr?.impactAssessment?.assessmentSummary;
+  }
+
+  canEditImpactAssessment(): boolean {
+    if (!this.cr) return false;
+    return [ChangeStatus.SUBMITTED, ChangeStatus.IMPACT_ASSESSMENT, ChangeStatus.DRAFT].includes(this.cr.status as ChangeStatus);
+  }
+
+  canEditImplementation(): boolean {
+    if (!this.cr) return false;
+    return [ChangeStatus.APPROVED, ChangeStatus.IMPLEMENTATION].includes(this.cr.status as ChangeStatus);
+  }
+
+  canAddApprover(): boolean {
+    if (!this.cr) return false;
+    return [ChangeStatus.QA_REVIEW, ChangeStatus.RA_REVIEW, ChangeStatus.PENDING_APPROVAL, ChangeStatus.IMPACT_ASSESSMENT].includes(this.cr.status as ChangeStatus);
+  }
+
+  openImpactDialog(): void {
+    if (!this.cr) return;
+    const dialogRef = this.dialog.open(CcImpactDialogComponent, {
+      width: '640px',
+      data: { changeRequestId: this.cr.id, existing: this.hasImpactData() ? this.cr.impactAssessment : undefined },
+    });
+    dialogRef.afterClosed().subscribe((result) => {
+      if (result?.saved) {
+        this.snackBar.open('Impact assessment saved', 'OK', { duration: 3000 });
+        this.reloadCr();
+      }
+    });
+  }
+
+  openTaskDialog(): void {
+    if (!this.cr) return;
+    const dialogRef = this.dialog.open(CcTaskDialogComponent, {
+      width: '520px',
+      data: { changeRequestId: this.cr.id },
+    });
+    dialogRef.afterClosed().subscribe((result) => {
+      if (result?.saved) {
+        this.snackBar.open('Implementation task added', 'OK', { duration: 3000 });
+        this.reloadCr();
+      }
+    });
+  }
+
+  updateTask(task: any, newStatus: string): void {
+    if (!this.cr) return;
+    const payload: any = { status: newStatus };
+    if (newStatus === 'COMPLETED') {
+      payload.completedDate = new Date().toISOString();
+    }
+    this.ccService.updateImplementationTask(this.cr.id, task.id, payload).subscribe({
+      next: () => {
+        this.snackBar.open(`Task ${newStatus === 'IN_PROGRESS' ? 'started' : 'completed'}`, 'OK', { duration: 3000 });
+        this.reloadCr();
+      },
+      error: (err) => { console.error(err); alert('Failed to update task.'); },
+    });
+  }
+
+  openApproverDialog(): void {
+    if (!this.cr) return;
+    const dialogRef = this.dialog.open(CcApproverDialogComponent, {
+      width: '480px',
+      data: { changeRequestId: this.cr.id },
+    });
+    dialogRef.afterClosed().subscribe((result) => {
+      if (result?.saved) {
+        this.snackBar.open('Approver added', 'OK', { duration: 3000 });
+        this.reloadCr();
+      }
+    });
+  }
+
+  submitApproval(approval: any, decision: string): void {
+    if (!this.cr) return;
+    let comments = '';
+    if (decision === 'REJECTED') {
+      const reason = prompt('Please provide a reason for rejection:');
+      if (reason === null || !reason.trim()) return;
+      comments = reason;
+    }
+    this.ccService.submitApprovalDecision(this.cr.id, approval.id, { decision, comments }).subscribe({
+      next: () => {
+        this.snackBar.open(`Approval ${decision.toLowerCase()}`, 'OK', { duration: 3000 });
+        this.reloadCr();
+      },
+      error: (err) => { console.error(err); alert('Failed to submit approval decision.'); },
+    });
+  }
+
+  openEffectivenessDialog(): void {
+    if (!this.cr) return;
+    const dialogRef = this.dialog.open(CcEffectivenessDialogComponent, {
+      width: '640px',
+      data: { changeRequestId: this.cr.id },
+    });
+    dialogRef.afterClosed().subscribe((result) => {
+      if (result?.saved) {
+        this.snackBar.open('Effectiveness review submitted', 'OK', { duration: 3000 });
+        this.reloadCr();
+      }
     });
   }
 }

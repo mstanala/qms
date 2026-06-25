@@ -11,9 +11,12 @@ import { MatStepperModule } from '@angular/material/stepper';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { CapaService } from '../../services/capa.service';
 import { Capa, CapaStatus } from '../../models/capa.model';
 import { ESignatureDialogComponent } from '../e-signature-dialog/e-signature-dialog.component';
+import { CapaActionDialogComponent } from '../capa-action-dialog/capa-action-dialog.component';
+import { CapaEffectivenessDialogComponent } from '../capa-effectiveness-dialog/capa-effectiveness-dialog.component';
 
 function getUserRoleCodes(): string[] {
   const raw = localStorage.getItem('auth') || sessionStorage.getItem('auth');
@@ -49,6 +52,7 @@ interface WorkflowAction {
     MatTableModule,
     MatTooltipModule,
     MatDialogModule,
+    MatSnackBarModule,
   ],
   template: `
     <div class="capa-detail" *ngIf="capa">
@@ -274,7 +278,12 @@ interface WorkflowAction {
         <mat-tab label="Actions">
           <div class="tab-content">
             <mat-card class="info-card">
-              <h3>Corrective Actions ({{ capa.correctiveActions.length }})</h3>
+              <div class="section-header">
+                <h3>Corrective Actions ({{ capa.correctiveActions.length }})</h3>
+                <button mat-raised-button color="primary" *ngIf="capa.status === 'ACTION_PLANNING'" (click)="openAddActionDialog('CORRECTIVE')">
+                  <mat-icon>add</mat-icon> Add Corrective Action
+                </button>
+              </div>
               <div class="actions-list" *ngIf="capa.correctiveActions.length; else noActions">
                 <div class="action-item" *ngFor="let action of capa.correctiveActions">
                   <div class="action-header">
@@ -291,12 +300,25 @@ interface WorkflowAction {
                       <mat-icon>check</mat-icon> Completed: {{ action.completedDate | date:'dd-MMM-yyyy' }}
                     </span>
                   </div>
+                  <div class="action-buttons" *ngIf="capa.status === 'ACTION_IN_PROGRESS'">
+                    <button mat-stroked-button color="primary" *ngIf="action.status === 'PENDING' || action.status === 'IN_PROGRESS'" (click)="completeAction(action)">
+                      <mat-icon>check_circle</mat-icon> Complete
+                    </button>
+                    <button mat-stroked-button color="accent" *ngIf="action.status === 'COMPLETED'" (click)="verifyAction(action)">
+                      <mat-icon>verified</mat-icon> Verify
+                    </button>
+                  </div>
                 </div>
               </div>
             </mat-card>
 
             <mat-card class="info-card">
-              <h3>Preventive Actions ({{ capa.preventiveActions.length }})</h3>
+              <div class="section-header">
+                <h3>Preventive Actions ({{ capa.preventiveActions.length }})</h3>
+                <button mat-raised-button color="primary" *ngIf="capa.status === 'ACTION_PLANNING'" (click)="openAddActionDialog('PREVENTIVE')">
+                  <mat-icon>add</mat-icon> Add Preventive Action
+                </button>
+              </div>
               <div class="actions-list" *ngIf="capa.preventiveActions.length; else noActions">
                 <div class="action-item" *ngFor="let action of capa.preventiveActions">
                   <div class="action-header">
@@ -312,6 +334,14 @@ interface WorkflowAction {
                     <span *ngIf="action.completedDate">
                       <mat-icon>check</mat-icon> Completed: {{ action.completedDate | date:'dd-MMM-yyyy' }}
                     </span>
+                  </div>
+                  <div class="action-buttons" *ngIf="capa.status === 'ACTION_IN_PROGRESS'">
+                    <button mat-stroked-button color="primary" *ngIf="action.status === 'PENDING' || action.status === 'IN_PROGRESS'" (click)="completeAction(action)">
+                      <mat-icon>check_circle</mat-icon> Complete
+                    </button>
+                    <button mat-stroked-button color="accent" *ngIf="action.status === 'COMPLETED'" (click)="verifyAction(action)">
+                      <mat-icon>verified</mat-icon> Verify
+                    </button>
                   </div>
                 </div>
               </div>
@@ -369,6 +399,9 @@ interface WorkflowAction {
                 <mat-icon>verified</mat-icon>
                 <h3>Effectiveness Check Not Yet Due</h3>
                 <p>The effectiveness verification will be available after all actions are completed.</p>
+                <button mat-raised-button color="primary" *ngIf="capa.status === 'EFFECTIVENESS_CHECK'" (click)="openEffectivenessDialog()">
+                  <mat-icon>fact_check</mat-icon> Submit Effectiveness Check
+                </button>
               </mat-card>
             </ng-template>
           </div>
@@ -866,6 +899,32 @@ interface WorkflowAction {
       margin-top: 4px;
     }
 
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .section-header h3 {
+      margin: 0;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    .action-buttons button mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      margin-right: 4px;
+    }
+
     .empty-state {
       text-align: center;
       padding: 48px 20px;
@@ -907,7 +966,8 @@ export class CapaDetailComponent implements OnInit {
     private route: ActivatedRoute,
     private router: Router,
     private capaService: CapaService,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private snackBar: MatSnackBar
   ) {}
 
   ngOnInit(): void {
@@ -1048,6 +1108,73 @@ export class CapaDetailComponent implements OnInit {
         console.error('Status change failed:', err);
         alert('Failed to update status. Please try again.');
       },
+    });
+  }
+
+  private reloadCapa(): void {
+    if (!this.capa) return;
+    this.capaService.getCapaById(this.capa.id).subscribe((full) => {
+      if (full) this.capa = full;
+    });
+  }
+
+  openAddActionDialog(type: 'CORRECTIVE' | 'PREVENTIVE'): void {
+    if (!this.capa) return;
+    const dialogRef = this.dialog.open(CapaActionDialogComponent, {
+      width: '520px',
+      data: { capaId: this.capa.id, actionType: type },
+    });
+    dialogRef.afterClosed().subscribe((result) => {
+      if (result?.saved) {
+        this.snackBar.open(`${type === 'CORRECTIVE' ? 'Corrective' : 'Preventive'} action added`, 'OK', { duration: 3000 });
+        this.reloadCapa();
+      }
+    });
+  }
+
+  completeAction(action: any): void {
+    if (!this.capa) return;
+    const evidence = prompt('Provide completion evidence:');
+    if (evidence === null || !evidence.trim()) return;
+    this.capaService.completeAction(this.capa.id, action.id, { evidence }).subscribe({
+      next: () => {
+        this.snackBar.open('Action marked as completed', 'OK', { duration: 3000 });
+        this.reloadCapa();
+      },
+      error: (err) => {
+        console.error('Complete action failed:', err);
+        alert('Failed to complete action.');
+      },
+    });
+  }
+
+  verifyAction(action: any): void {
+    if (!this.capa) return;
+    const comments = prompt('Provide verification comments:');
+    if (comments === null || !comments.trim()) return;
+    this.capaService.verifyAction(this.capa.id, action.id, { verificationComments: comments }).subscribe({
+      next: () => {
+        this.snackBar.open('Action verified', 'OK', { duration: 3000 });
+        this.reloadCapa();
+      },
+      error: (err) => {
+        console.error('Verify action failed:', err);
+        alert('Failed to verify action.');
+      },
+    });
+  }
+
+  openEffectivenessDialog(): void {
+    if (!this.capa) return;
+    const dialogRef = this.dialog.open(CapaEffectivenessDialogComponent, {
+      width: '560px',
+      data: { capaId: this.capa.id },
+    });
+    dialogRef.afterClosed().subscribe((result) => {
+      if (result?.saved) {
+        this.snackBar.open('Effectiveness check submitted', 'OK', { duration: 3000 });
+        this.reloadCapa();
+      }
     });
   }
 }
