@@ -52,10 +52,19 @@ jwt:
 cors:
   allowed-origins: http://localhost:4200,http://localhost:4201,http://localhost:4202,http://localhost:4203,http://localhost:4204,http://localhost:4205
 
+# Google Cloud Configuration
+google:
+  cloud:
+    project-id: ${GOOGLE_CLOUD_PROJECT_ID:long-way-476920-g7}
+    location: ${GOOGLE_CLOUD_LOCATION:europe-west1}
+    storage:
+      bucket-name: ${GOOGLE_CLOUD_STORAGE_BUCKET:mlabs-qms-bucket}
+
 # GCS Configuration
 gcs:
-  bucket-name: ${GCS_BUCKET:qms-pharma-attachments}
-  project-id: ${GCS_PROJECT_ID:qms-pharma}
+  bucket-name: ${GCS_BUCKET:${GOOGLE_CLOUD_STORAGE_BUCKET:mlabs-qms-bucket}}
+  project-id: ${GCS_PROJECT_ID:${GOOGLE_CLOUD_PROJECT_ID:long-way-476920-g7}}
+  location: ${GCS_LOCATION:${GOOGLE_CLOUD_LOCATION:europe-west1}}
   credentials-location: ${GCS_CREDENTIALS_LOCATION:}
   signed-url-duration-minutes: ${GCS_SIGNED_URL_DURATION_MINUTES:15}
 

@@ -26,8 +26,14 @@ public class GoogleCloudStorageConfig {
     @Lazy
     public Storage googleCloudStorage() throws IOException {
         StorageOptions.Builder builder = StorageOptions.newBuilder();
-        String projectId = environment.getProperty("gcs.project-id");
-        String credentialsLocation = environment.getProperty("gcs.credentials-location");
+        String projectId = firstText(
+                environment.getProperty("google.cloud.project-id"),
+                environment.getProperty("gcs.project-id")
+        );
+        String credentialsLocation = firstText(
+                environment.getProperty("google.cloud.credentials-location"),
+                environment.getProperty("gcs.credentials-location")
+        );
 
         if (StringUtils.hasText(projectId)) {
             builder.setProjectId(projectId);
@@ -35,11 +41,23 @@ public class GoogleCloudStorageConfig {
 
         if (StringUtils.hasText(credentialsLocation)) {
             Resource credentials = resourceLoader.getResource(credentialsLocation);
+            if (!credentials.exists() && !credentialsLocation.contains(":")) {
+                credentials = resourceLoader.getResource("file:" + credentialsLocation);
+            }
             try (InputStream inputStream = credentials.getInputStream()) {
                 builder.setCredentials(GoogleCredentials.fromStream(inputStream));
             }
         }
 
         return builder.build().getService();
+    }
+
+    private String firstText(String... values) {
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
     }
 }

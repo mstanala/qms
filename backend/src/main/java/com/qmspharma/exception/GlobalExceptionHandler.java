@@ -7,6 +7,7 @@ import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -66,7 +67,8 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler({InvalidDataAccessApiUsageException.class, PropertyReferenceException.class,
-            MethodArgumentTypeMismatchException.class, IllegalArgumentException.class})
+            MethodArgumentTypeMismatchException.class, HttpMessageNotReadableException.class,
+            IllegalArgumentException.class})
     public ResponseEntity<ErrorResponse> handleBadRequest(Exception ex, HttpServletRequest request) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.builder()
                 .timestamp(Instant.now()).status(400).error("Bad Request")

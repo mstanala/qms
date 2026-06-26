@@ -34,8 +34,9 @@ public class AttachmentController {
     }
 
     @GetMapping("/{id}/download")
-    public ResponseEntity<Map<String, String>> download(@PathVariable UUID id) {
-        return ResponseEntity.ok(Map.of("url", attachmentService.getDownloadUrl(id)));
+    public ResponseEntity<Map<String, String>> download(@PathVariable UUID id,
+                                                        @RequestParam(defaultValue = "false") boolean download) {
+        return ResponseEntity.ok(Map.of("url", attachmentService.getDownloadUrl(id, download)));
     }
 
     @DeleteMapping("/{id}")

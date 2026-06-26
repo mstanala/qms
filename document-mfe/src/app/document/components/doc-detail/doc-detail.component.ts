@@ -4,7 +4,7 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTabsModule } from '@angular/material/tabs';
-import { DocumentService } from '../../services/document.service';
+import { AttachmentFile, DocumentService } from '../../services/document.service';
 import { QmsDocument } from '../../models/document.model';
 
 @Component({
@@ -63,6 +63,40 @@ import { QmsDocument } from '../../models/document.model';
                 <p class="description">{{ doc.description }}</p>
               </div>
             </div>
+          </div>
+        </mat-tab>
+
+        <mat-tab label="Files ({{ attachments.length }})">
+          <div class="tab-content">
+            <table class="data-table" *ngIf="attachments.length">
+              <thead><tr><th>File Name</th><th>Type</th><th>Size</th><th>Category</th><th>Uploaded By</th><th>Uploaded</th><th>Actions</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let file of attachments">
+                  <td>
+                    <div class="file-name">
+                      <mat-icon>{{ fileIcon(file.fileType) }}</mat-icon>
+                      <span>{{ file.fileName }}</span>
+                    </div>
+                  </td>
+                  <td>{{ file.fileType || '-' }}</td>
+                  <td>{{ formatFileSize(file.fileSize) }}</td>
+                  <td>{{ formatStatus(file.category) }}</td>
+                  <td>{{ file.uploadedBy?.displayName || '-' }}</td>
+                  <td>{{ file.uploadedDate | date:'medium' }}</td>
+                  <td>
+                    <div class="file-actions">
+                      <button type="button" class="icon-action" title="View file" (click)="openAttachment(file, false)">
+                        <mat-icon>visibility</mat-icon>
+                      </button>
+                      <button type="button" class="icon-action" title="Download file" (click)="openAttachment(file, true)">
+                        <mat-icon>download</mat-icon>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="empty" *ngIf="!attachments.length">No files uploaded for this document</div>
           </div>
         </mat-tab>
 
@@ -186,6 +220,12 @@ import { QmsDocument } from '../../models/document.model';
     .data-table th { background: #fafbfc; padding: 8px 10px; text-align: left; font-weight: 600; color: #555; border-bottom: 1px solid #e5e7eb; }
     .data-table td { padding: 8px 10px; border-bottom: 1px solid #f5f5f5; }
     .ver-num { font-weight: 600; color: #5c6bc0; }
+    .file-name { display: flex; align-items: center; gap: 8px; font-weight: 600; color: #1B3A4B; }
+    .file-name mat-icon { color: #5c6bc0; font-size: 18px; width: 18px; height: 18px; }
+    .file-actions { display: flex; align-items: center; gap: 6px; }
+    .icon-action { width: 30px; height: 30px; border: 1px solid #d0d5dd; border-radius: 4px; background: #fff; color: #1B3A4B; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+    .icon-action:hover { background: #f0f4ff; border-color: #5c6bc0; color: #5c6bc0; }
+    .icon-action mat-icon { font-size: 17px; width: 17px; height: 17px; }
     .file-link { display: flex; align-items: center; gap: 4px; color: #5c6bc0; text-decoration: none; cursor: pointer; font-size: 11px; }
     .file-link mat-icon { font-size: 14px; width: 14px; height: 14px; }
     .ack { color: #388e3c; font-size: 18px; }
@@ -197,12 +237,16 @@ import { QmsDocument } from '../../models/document.model';
 })
 export class DocDetailComponent implements OnInit {
   doc: QmsDocument | null = null;
+  attachments: AttachmentFile[] = [];
 
   constructor(private route: ActivatedRoute, private router: Router, private docService: DocumentService) {}
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
-    if (id) this.docService.getDocumentById(id).subscribe(d => this.doc = d || null);
+    if (id) {
+      this.docService.getDocumentById(id).subscribe(d => this.doc = d || null);
+      this.loadAttachments(id);
+    }
   }
 
   backToList(): void {
@@ -218,5 +262,33 @@ export class DocDetailComponent implements OnInit {
 
   approve(): void {
     if (this.doc) this.docService.approveDocument(this.doc.id).subscribe(d => this.doc = d);
+  }
+
+  openAttachment(file: AttachmentFile, download: boolean): void {
+    this.docService.getAttachmentUrl(file.id, download).subscribe(url => {
+      window.open(url, '_blank', 'noopener');
+    });
+  }
+
+  formatFileSize(bytes?: number): string {
+    if (!bytes) return '-';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  fileIcon(fileType?: string): string {
+    if (!fileType) return 'insert_drive_file';
+    if (fileType.includes('pdf')) return 'picture_as_pdf';
+    if (fileType.includes('word') || fileType.includes('document')) return 'description';
+    if (fileType.includes('sheet') || fileType.includes('excel')) return 'table_chart';
+    return 'insert_drive_file';
+  }
+
+  private loadAttachments(documentId: string): void {
+    this.docService.getAttachments('DOCUMENT', documentId).subscribe({
+      next: files => this.attachments = files,
+      error: () => this.attachments = [],
+    });
   }
 }

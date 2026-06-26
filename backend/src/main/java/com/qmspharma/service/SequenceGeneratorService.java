@@ -7,6 +7,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Year;
+import java.util.Comparator;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -17,20 +19,40 @@ public class SequenceGeneratorService {
     @Transactional
     public String generateNumber(String sequenceName) {
         int year = Year.now().getValue();
-        SequenceCounter counter = sequenceCounterRepository
-                .findBySequenceNameAndYearForUpdate(sequenceName, year)
-                .orElseGet(() -> {
-                    SequenceCounter newCounter = new SequenceCounter();
-                    newCounter.setSequenceName(sequenceName);
-                    newCounter.setYear(year);
-                    newCounter.setCurrentValue(0);
-                    newCounter.setPrefix(getPrefix(sequenceName));
-                    newCounter.setFormatPattern("{PREFIX}-{YEAR}-{SEQ:3}");
-                    return sequenceCounterRepository.save(newCounter);
-                });
+        SequenceCounter counter = getOrCreateGlobalCounter(sequenceName, year);
         counter.setCurrentValue(counter.getCurrentValue() + 1);
         sequenceCounterRepository.save(counter);
         return String.format("%s-%d-%03d", counter.getPrefix(), year, counter.getCurrentValue());
+    }
+
+    private SequenceCounter getOrCreateGlobalCounter(String sequenceName, int year) {
+        List<SequenceCounter> counters = sequenceCounterRepository.findAllBySequenceNameAndYearForUpdate(sequenceName, year);
+        if (counters.isEmpty()) {
+            SequenceCounter newCounter = new SequenceCounter();
+            newCounter.setSequenceName(sequenceName);
+            newCounter.setYear(year);
+            newCounter.setCurrentValue(0);
+            newCounter.setPrefix(getPrefix(sequenceName));
+            newCounter.setFormatPattern("{PREFIX}-{YEAR}-{SEQ:3}");
+            return sequenceCounterRepository.save(newCounter);
+        }
+
+        SequenceCounter counter = counters.stream()
+                .max(Comparator.comparing(SequenceCounter::getCurrentValue))
+                .orElseThrow();
+        int currentValue = counters.stream()
+                .map(SequenceCounter::getCurrentValue)
+                .max(Integer::compareTo)
+                .orElse(counter.getCurrentValue());
+        counter.setCurrentValue(currentValue);
+
+        if (counters.size() > 1) {
+            counters.stream()
+                    .filter(duplicate -> !duplicate.getId().equals(counter.getId()))
+                    .forEach(sequenceCounterRepository::delete);
+        }
+
+        return counter;
     }
 
     private String getPrefix(String sequenceName) {

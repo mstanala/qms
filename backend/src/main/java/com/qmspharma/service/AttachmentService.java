@@ -24,6 +24,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -97,16 +98,24 @@ public class AttachmentService {
     }
 
     @Transactional(readOnly = true)
-    public String getDownloadUrl(UUID id) {
+    public String getDownloadUrl(UUID id, boolean forceDownload) {
         Attachment a = attachmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Attachment", "id", id));
         try {
+            var signOptions = new java.util.ArrayList<Storage.SignUrlOption>();
+            signOptions.add(Storage.SignUrlOption.httpMethod(HttpMethod.GET));
+            signOptions.add(Storage.SignUrlOption.withV4Signature());
+            if (forceDownload) {
+                signOptions.add(Storage.SignUrlOption.withQueryParams(Map.of(
+                        "response-content-disposition", "attachment; filename=\"" + sanitizeFileName(a.getFileName()) + "\""
+                )));
+            }
+
             return storage().signUrl(
                     BlobInfo.newBuilder(a.getGcsBucket(), a.getGcsObjectKey()).build(),
                     signedUrlDurationMinutes,
                     TimeUnit.MINUTES,
-                    Storage.SignUrlOption.httpMethod(HttpMethod.GET),
-                    Storage.SignUrlOption.withV4Signature()
+                    signOptions.toArray(Storage.SignUrlOption[]::new)
             ).toString();
         } catch (RuntimeException ex) {
             throw new BusinessRuleException("Unable to generate attachment download URL: " + ex.getMessage(), "GCS_SIGNED_URL_FAILED");
@@ -148,6 +157,13 @@ public class AttachmentService {
         } catch (NoSuchAlgorithmException ex) {
             throw new BusinessRuleException("Unable to calculate attachment checksum", "ATTACHMENT_CHECKSUM_FAILED");
         }
+    }
+
+    private String sanitizeFileName(String fileName) {
+        if (!StringUtils.hasText(fileName)) {
+            return "attachment";
+        }
+        return fileName.replace("\\", "_").replace("\"", "_").replace("\r", "_").replace("\n", "_");
     }
 
     private Storage storage() {

@@ -10,6 +10,35 @@ const API_BASE_URL = 'http://localhost:8082/api/v1';
 
 type ApiPage<T> = { content?: T[] };
 
+export interface AttachmentFile {
+  id: string;
+  recordType: string;
+  recordId: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  category: string;
+  description?: string;
+  uploadedBy?: { id: string; displayName: string; email: string };
+  uploadedDate: string;
+}
+
+export interface PlantSiteOption {
+  id: string;
+  name: string;
+  code: string;
+  isActive?: boolean;
+}
+
+export interface DepartmentOption {
+  id: string;
+  plantSiteId?: string;
+  plantSiteName?: string;
+  name: string;
+  code: string;
+  isActive?: boolean;
+}
+
 function daysAgo(days: number): Date {
   const d = new Date(); d.setDate(d.getDate() - days); d.setHours(9, 0, 0, 0); return d;
 }
@@ -21,6 +50,7 @@ function daysFromNow(days: number): Date {
 export class DocumentService {
   private readonly apiUrl = `${API_BASE_URL}/documents`;
   private readonly attachmentApiUrl = `${API_BASE_URL}/attachments`;
+  private readonly adminApiUrl = `${API_BASE_URL}/admin`;
 
   constructor(private http: HttpClient) {}
 
@@ -62,6 +92,16 @@ export class DocumentService {
       .pipe(map(item => this.toDocument(item)));
   }
 
+  getPlantSites(): Observable<PlantSiteOption[]> {
+    return this.http.get<PlantSiteOption[]>(`${this.adminApiUrl}/plant-sites`, { headers: this.authHeaders() });
+  }
+
+  getDepartments(plantSiteId?: string): Observable<DepartmentOption[]> {
+    let params = new HttpParams();
+    if (plantSiteId) params = params.set('plantSiteId', plantSiteId);
+    return this.http.get<DepartmentOption[]>(`${this.adminApiUrl}/departments`, { headers: this.authHeaders(), params });
+  }
+
   uploadAttachment(file: File, recordType: string, recordId: string, category = 'OTHER', description?: string): Observable<any> {
     const formData = new FormData();
     formData.append('file', file);
@@ -71,6 +111,18 @@ export class DocumentService {
     if (description) formData.append('description', description);
 
     return this.http.post<any>(this.attachmentApiUrl, formData, { headers: this.authHeaders() });
+  }
+
+  getAttachments(recordType: string, recordId: string): Observable<AttachmentFile[]> {
+    const params = new HttpParams().set('recordType', recordType).set('recordId', recordId);
+    return this.http.get<AttachmentFile[]>(this.attachmentApiUrl, { headers: this.authHeaders(), params });
+  }
+
+  getAttachmentUrl(id: string, download = false): Observable<string> {
+    const params = new HttpParams().set('download', String(download));
+    return this.http
+      .get<{ url: string }>(`${this.attachmentApiUrl}/${id}/download`, { headers: this.authHeaders(), params })
+      .pipe(map(response => response.url));
   }
 
   getDashboardMetrics(): Observable<DocumentDashboardMetrics> {

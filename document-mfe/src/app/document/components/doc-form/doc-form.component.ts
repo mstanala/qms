@@ -1,15 +1,15 @@
-import { Component, ViewChild } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule, NgForm } from '@angular/forms';
-import { of, switchMap, map } from 'rxjs';
+import { catchError, forkJoin, map, of, switchMap } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatCheckboxModule } from '@angular/material/checkbox';
-import { DocumentService } from '../../services/document.service';
+import { DepartmentOption, DocumentService, PlantSiteOption } from '../../services/document.service';
 import { DocumentType, ConfidentialityLevel } from '../../models/document.model';
 
 @Component({
@@ -67,22 +67,15 @@ import { DocumentType, ConfidentialityLevel } from '../../models/document.model'
           <div class="form-grid">
             <mat-form-field appearance="outline">
               <mat-label>Plant Site</mat-label>
-              <mat-select [(ngModel)]="doc.plantSiteId" name="plantSiteId" #plantSiteId="ngModel" required>
-                <mat-option value="site-hyd">Hyderabad Plant - Unit I</mat-option>
-                <mat-option value="site-viz">Visakhapatnam Plant</mat-option>
-                <mat-option value="site-blr">Bangalore R&D Center</mat-option>
+              <mat-select [(ngModel)]="doc.plantSiteId" name="plantSiteId" #plantSiteId="ngModel" required (selectionChange)="onPlantSiteChange($event.value)">
+                <mat-option *ngFor="let site of plantSites" [value]="site.id">{{ site.name }}</mat-option>
               </mat-select>
               <mat-error *ngIf="plantSiteId.invalid">Plant site is required</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Department</mat-label>
-              <mat-select [(ngModel)]="doc.departmentId" name="departmentId" #departmentId="ngModel" required>
-                <mat-option value="dept-prod">Production</mat-option>
-                <mat-option value="dept-qa">Quality Assurance</mat-option>
-                <mat-option value="dept-qc">Quality Control</mat-option>
-                <mat-option value="dept-eng">Engineering</mat-option>
-                <mat-option value="dept-wh">Warehouse</mat-option>
-                <mat-option value="dept-reg">Regulatory Affairs</mat-option>
+              <mat-select [(ngModel)]="doc.departmentId" name="departmentId" #departmentId="ngModel" required [disabled]="!departments.length">
+                <mat-option *ngFor="let dept of departments" [value]="dept.id">{{ dept.name }}</mat-option>
               </mat-select>
               <mat-error *ngIf="departmentId.invalid">Department is required</mat-error>
             </mat-form-field>
@@ -93,15 +86,15 @@ import { DocumentType, ConfidentialityLevel } from '../../models/document.model'
           <div class="form-grid">
             <mat-form-field appearance="outline">
               <mat-label>Review Period (months)</mat-label>
-              <input matInput type="number" [(ngModel)]="doc.reviewPeriodMonths" />
+              <input matInput type="number" [(ngModel)]="doc.reviewPeriodMonths" name="reviewPeriodMonths" />
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Regulatory Reference</mat-label>
-              <input matInput [(ngModel)]="doc.regulatoryReference" placeholder="e.g., Schedule M Sec 14.3, 21 CFR 211.186" />
+              <input matInput [(ngModel)]="doc.regulatoryReference" name="regulatoryReference" placeholder="e.g., Schedule M Sec 14.3, 21 CFR 211.186" />
             </mat-form-field>
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Keywords</mat-label>
-              <input matInput [(ngModel)]="doc.keywords" placeholder="Comma-separated keywords for search" />
+              <input matInput [(ngModel)]="doc.keywords" name="keywords" placeholder="Comma-separated keywords for search" />
             </mat-form-field>
           </div>
         </div>
@@ -116,7 +109,7 @@ import { DocumentType, ConfidentialityLevel } from '../../models/document.model'
           <div class="selected-file" *ngIf="selectedFile">
             <mat-icon>insert_drive_file</mat-icon>
             <span>{{ selectedFile.name }} ({{ (selectedFile.size / 1024 / 1024).toFixed(1) }} MB)</span>
-            <button class="remove-file" (click)="selectedFile = null"><mat-icon>close</mat-icon></button>
+            <button type="button" class="remove-file" (click)="selectedFile = null"><mat-icon>close</mat-icon></button>
           </div>
         </div>
         <div class="form-actions">
@@ -151,15 +144,36 @@ import { DocumentType, ConfidentialityLevel } from '../../models/document.model'
     .btn-primary:hover { background: #3f51b5; }
   `],
 })
-export class DocFormComponent {
+export class DocFormComponent implements OnInit {
   @ViewChild('docForm') docForm!: NgForm;
   doc: any = { reviewPeriodMonths: 24, confidentialityLevel: 'INTERNAL' };
   selectedFile: File | null = null;
+  plantSites: PlantSiteOption[] = [];
+  departments: DepartmentOption[] = [];
   typeOptions = Object.values(DocumentType);
   confidentialityOptions = Object.values(ConfidentialityLevel);
   categoryOptions = ['Production', 'Quality Control', 'Quality Assurance', 'Regulatory', 'Engineering', 'Warehouse', 'HSE'];
 
   constructor(private docService: DocumentService, private router: Router) {}
+
+  ngOnInit(): void {
+    forkJoin({
+      plantSites: this.docService.getPlantSites().pipe(catchError(() => of([] as PlantSiteOption[]))),
+      departments: this.docService.getDepartments().pipe(catchError(() => of([] as DepartmentOption[]))),
+    }).subscribe(({ plantSites, departments }) => {
+      this.plantSites = plantSites;
+      this.departments = departments;
+
+      if (!this.doc.plantSiteId && this.plantSites.length) {
+        this.doc.plantSiteId = this.plantSites[0].id;
+        this.departments = departments.filter(dept => !dept.plantSiteId || dept.plantSiteId === this.doc.plantSiteId);
+      }
+
+      if (!this.doc.departmentId && this.departments.length) {
+        this.doc.departmentId = this.departments[0].id;
+      }
+    });
+  }
 
   formatEnum(val: string): string { return val.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()); }
 
@@ -171,6 +185,14 @@ export class DocFormComponent {
   onDrop(event: DragEvent): void {
     event.preventDefault();
     if (event.dataTransfer?.files?.length) this.selectedFile = event.dataTransfer.files[0];
+  }
+
+  onPlantSiteChange(plantSiteId: string): void {
+    this.doc.departmentId = null;
+    this.docService.getDepartments(plantSiteId).pipe(catchError(() => of([] as DepartmentOption[]))).subscribe((departments) => {
+      this.departments = departments;
+      if (this.departments.length) this.doc.departmentId = this.departments[0].id;
+    });
   }
 
   saveDraft(): void {
