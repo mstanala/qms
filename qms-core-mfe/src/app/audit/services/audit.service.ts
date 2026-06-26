@@ -51,11 +51,16 @@ export interface AuditFinding {
   description: string;
   classification: string;
   area: string;
+  standardReference: string | null;
+  objectiveEvidence: string | null;
   status: string;
   responseDueDate: string;
   auditeeResponse: string;
   capaRequired: boolean;
   capaId: string | null;
+  verifiedBy: { id: string; displayName: string } | null;
+  verifiedDate: string | null;
+  verificationComments: string | null;
 }
 
 export interface Page<T> {
@@ -117,6 +122,20 @@ export class AuditService {
 
   updateFinding(id: string, request: Record<string, unknown>): Observable<AuditFinding> {
     return this.http.put<AuditFinding>(`${this.baseUrl}/findings/${id}`, request);
+  }
+
+  // Plan status
+  updatePlanStatus(id: string, status: string): Observable<AuditPlan> {
+    return this.http.patch<AuditPlan>(`${this.baseUrl}/plans/${id}/status`, { status });
+  }
+
+  // Finding actions
+  verifyFinding(id: string, verificationComments: string): Observable<AuditFinding> {
+    return this.http.patch<AuditFinding>(`${this.baseUrl}/findings/${id}/verify`, { verificationComments });
+  }
+
+  initiateCapaFromFinding(findingId: string): Observable<AuditFinding> {
+    return this.http.post<AuditFinding>(`${this.baseUrl}/findings/${findingId}/initiate-capa`, {});
   }
 
   // Dashboard

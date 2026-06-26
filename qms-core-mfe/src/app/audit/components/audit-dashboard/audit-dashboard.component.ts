@@ -15,7 +15,10 @@ import { AuditService } from '../../services/audit.service';
       <div class="dashboard-header">
         <h1>Audit Management Dashboard</h1>
         <div class="header-actions">
-          <button mat-raised-button color="primary" routerLink="../list">
+          <button mat-raised-button color="primary" routerLink="../new">
+            <mat-icon>add</mat-icon> Schedule Audit
+          </button>
+          <button mat-stroked-button routerLink="../list">
             <mat-icon>list</mat-icon> View Audits
           </button>
           <button mat-stroked-button routerLink="../plans">

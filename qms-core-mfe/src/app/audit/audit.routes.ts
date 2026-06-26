@@ -18,11 +18,25 @@ export const AUDIT_ROUTES: Routes = [
       import('./components/audit-list/audit-list.component').then((m) => m.AuditListComponent),
   },
   {
+    path: 'new',
+    canActivate: [permissionGuard],
+    data: { permission: { module: 'AUDIT', action: 'CREATE', resource: 'audit' } },
+    loadComponent: () =>
+      import('./components/audit-form/audit-form.component').then((m) => m.AuditFormComponent),
+  },
+  {
     path: 'plans',
     canActivate: [permissionGuard],
     data: { permission: { module: 'AUDIT', action: 'READ', resource: 'audit' } },
     loadComponent: () =>
       import('./components/audit-plan-list/audit-plan-list.component').then((m) => m.AuditPlanListComponent),
+  },
+  {
+    path: 'plans/new',
+    canActivate: [permissionGuard],
+    data: { permission: { module: 'AUDIT', action: 'CREATE', resource: 'audit' } },
+    loadComponent: () =>
+      import('./components/audit-plan-form/audit-plan-form.component').then((m) => m.AuditPlanFormComponent),
   },
   {
     path: ':id',

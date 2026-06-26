@@ -22,6 +22,7 @@ import { AuditService, Audit } from '../../services/audit.service';
           <span class="record-count">{{ total }} records</span>
         </div>
         <div class="header-actions">
+          <button mat-raised-button color="primary" routerLink="../new"><mat-icon>add</mat-icon> Schedule Audit</button>
           <button mat-stroked-button routerLink="../plans"><mat-icon>event_note</mat-icon> Audit Plans</button>
         </div>
       </div>

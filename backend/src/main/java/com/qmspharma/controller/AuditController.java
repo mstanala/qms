@@ -75,6 +75,11 @@ public class AuditController {
         return ResponseEntity.ok(auditService.transitionStatus(id, request.get("status")));
     }
 
+    @PatchMapping("/plans/{id}/status")
+    public ResponseEntity<AuditPlan> updatePlanStatus(@PathVariable UUID id, @RequestBody Map<String, String> request) {
+        return ResponseEntity.ok(auditService.updatePlanStatus(id, request.get("status")));
+    }
+
     // ─── Findings ────────────────────────────────────────────────────────────────
 
     @GetMapping("/{auditId}/findings")
@@ -90,6 +95,16 @@ public class AuditController {
     @PutMapping("/findings/{id}")
     public ResponseEntity<AuditFinding> updateFinding(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
         return ResponseEntity.ok(auditService.updateFinding(id, request));
+    }
+
+    @PatchMapping("/findings/{id}/verify")
+    public ResponseEntity<AuditFinding> verifyFinding(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+        return ResponseEntity.ok(auditService.verifyFinding(id, request));
+    }
+
+    @PostMapping("/findings/{id}/initiate-capa")
+    public ResponseEntity<AuditFinding> initiateCapaFromFinding(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(auditService.initiateCapaFromFinding(id, request));
     }
 
     // ─── Dashboard ───────────────────────────────────────────────────────────────
