@@ -32,6 +32,7 @@ public class TrainingService {
     private final DocumentRepository documentRepository;
     private final UserRepository userRepository;
     private final SequenceGeneratorService sequenceGenerator;
+    private final DocumentDistributionRepository distributionRepository;
     private final AuditTrailService auditTrailService;
     private final CurrentUserProvider currentUserProvider;
 
@@ -141,6 +142,18 @@ public class TrainingService {
     }
 
     @Transactional
+    public TrainingAssignmentResponse startTraining(UUID id) {
+        TrainingAssignment assignment = assignmentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Assignment", "id", id));
+        assignment.setStatus(TrainingAssignmentStatus.IN_PROGRESS);
+        assignment.setAttempts(assignment.getAttempts() + 1);
+        TrainingAssignment saved = assignmentRepository.save(assignment);
+        auditTrailService.logAction("TRAINING", saved.getId(), null, "STARTED",
+                "status", "ASSIGNED", "IN_PROGRESS", null);
+        return toAssignmentResponse(saved);
+    }
+
+    @Transactional
     public TrainingAssignmentResponse completeAssignment(UUID id, CompleteAssignmentRequest request) {
         TrainingAssignment assignment = assignmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Assignment", "id", id));
@@ -155,6 +168,18 @@ public class TrainingService {
         TrainingAssignment saved = assignmentRepository.save(assignment);
         auditTrailService.logAction("TRAINING_ASSIGNMENT", saved.getId(), null, "COMPLETED",
                 "status", "IN_PROGRESS", "COMPLETED", "Score: " + saved.getScore());
+
+        // Auto-mark document distribution training as complete
+        if ("DOCUMENT".equals(saved.getSourceRecordType()) && saved.getSourceRecordId() != null) {
+            distributionRepository.findByRecipientId(saved.getAssignedTo().getId()).stream()
+                    .filter(d -> d.getTrainingRequired() && !d.getTrainingCompleted()
+                            && d.getDocumentVersion().getDocument().getId().equals(saved.getSourceRecordId()))
+                    .forEach(d -> {
+                        d.setTrainingCompleted(true);
+                        distributionRepository.save(d);
+                    });
+        }
+
         return toAssignmentResponse(saved);
     }
 

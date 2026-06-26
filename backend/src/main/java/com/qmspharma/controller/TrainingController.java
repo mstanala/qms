@@ -62,6 +62,11 @@ public class TrainingController {
         return ResponseEntity.status(HttpStatus.CREATED).body(trainingService.createAssignment(request));
     }
 
+    @PatchMapping("/assignments/{id}/start")
+    public ResponseEntity<TrainingAssignmentResponse> startTraining(@PathVariable UUID id) {
+        return ResponseEntity.ok(trainingService.startTraining(id));
+    }
+
     @PatchMapping("/assignments/{id}/complete")
     public ResponseEntity<TrainingAssignmentResponse> completeAssignment(
             @PathVariable UUID id, @RequestBody CompleteAssignmentRequest request) {

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
-import { Observable, of, map, catchError } from 'rxjs';
+import { Observable, of, map, catchError, tap } from 'rxjs';
 import {
   TrainingCurriculum, TrainingAssignment, TrainingMatrix, TrainingSession,
   TrainingDashboardMetrics, CurriculumStatus, TrainingCategory, TrainingType,
@@ -52,15 +52,39 @@ export class TrainingService {
   }
 
   getMyAssignments(): Observable<TrainingAssignment[]> {
+    const params = new HttpParams().set('page', '0').set('size', '100');
     return this.http
-      .get<ApiPage<any>>(`${this.assignmentsUrl}/my`, { headers: this.authHeaders() })
-      .pipe(map(p => (p.content || []).map((i: any) => this.toAssignment(i))), catchError(() => of(this.mockAssignments())));
+      .get<ApiPage<any>>(`${this.assignmentsUrl}/my`, { headers: this.authHeaders(), params })
+      .pipe(
+        map(p => (p.content || []).map((i: any) => this.toAssignment(i))),
+        catchError(err => { console.error('Failed to fetch my assignments:', err); return of([]); })
+      );
   }
 
-  completeAssignment(id: string, score?: number): Observable<TrainingAssignment> {
+  startTraining(id: string): Observable<TrainingAssignment> {
     return this.http
-      .patch<any>(`${this.assignmentsUrl}/${id}/complete`, { score }, { headers: this.authHeaders() })
+      .patch<any>(`${this.assignmentsUrl}/${id}/start`, {}, { headers: this.authHeaders() })
       .pipe(map(i => this.toAssignment(i)));
+  }
+
+  completeAssignment(id: string, score?: number, traineeComments?: string): Observable<TrainingAssignment> {
+    return this.http
+      .patch<any>(`${this.assignmentsUrl}/${id}/complete`, { score, traineeComments }, { headers: this.authHeaders() })
+      .pipe(map(i => this.toAssignment(i)));
+  }
+
+  getDocumentAttachments(documentId: string): Observable<any[]> {
+    const params = new HttpParams().set('recordType', 'DOCUMENT').set('recordId', documentId);
+    return this.http
+      .get<any[]>(`${API_BASE_URL}/attachments`, { headers: this.authHeaders(), params })
+      .pipe(catchError(() => of([])));
+  }
+
+  getAttachmentContent(attachmentId: string): Observable<Blob> {
+    return this.http.get(`${API_BASE_URL}/attachments/${attachmentId}/content`, {
+      headers: this.authHeaders(),
+      responseType: 'blob',
+    });
   }
 
   getMatrix(): Observable<TrainingMatrix[]> {
@@ -87,11 +111,30 @@ export class TrainingService {
   }
 
   private toCurriculum(api: any): TrainingCurriculum {
-    return { ...api, effectiveDate: api.effectiveDate ? new Date(api.effectiveDate) : undefined, createdAt: new Date(api.createdAt), updatedAt: new Date(api.updatedAt) };
+    return {
+      ...api,
+      curriculumNumber: api.curriculumNumber || api.curriculumCode,
+      effectiveDate: api.effectiveDate ? new Date(api.effectiveDate) : undefined,
+      createdAt: new Date(api.createdAt),
+      updatedAt: new Date(api.updatedAt),
+    };
   }
 
   private toAssignment(api: any): TrainingAssignment {
-    return { ...api, assignedDate: new Date(api.assignedDate), dueDate: new Date(api.dueDate), completedDate: api.completedDate ? new Date(api.completedDate) : undefined };
+    return {
+      ...api,
+      curriculumNumber: api.curriculumNumber || api.curriculumCode,
+      trainee: api.trainee || api.assignedTo,
+      reason: api.reason || api.assignmentReason,
+      assignedDate: new Date(api.assignedDate || api.createdAt),
+      dueDate: new Date(api.dueDate),
+      completedDate: api.completedDate ? new Date(api.completedDate) : undefined,
+      trainerName: api.trainerName || (api.trainer ? api.trainer.displayName : undefined),
+      comments: api.comments || api.traineeComments,
+      relatedRecordId: api.relatedRecordId || api.sourceRecordId,
+      relatedRecordType: api.relatedRecordType || api.sourceRecordType,
+      relatedRecordNumber: api.relatedRecordNumber || api.sourceRecordNumber,
+    };
   }
 
   private toSession(api: any): TrainingSession {

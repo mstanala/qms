@@ -46,7 +46,7 @@ export const TRAINING_ROUTES: Routes = [
   {
     path: 'assignments',
     canActivate: [permissionGuard],
-    data: { permission: { module: 'TRAINING', action: 'ASSIGN', resource: 'training_record' } },
+    data: { permission: { module: 'TRAINING', action: 'READ', resource: 'training_record' } },
     loadComponent: () =>
       import('./components/assignment-list/assignment-list.component').then(
         (m) => m.AssignmentListComponent

@@ -52,6 +52,16 @@ public class DocumentController {
         return ResponseEntity.ok(documentService.transitionStatus(id, request));
     }
 
+    @PatchMapping("/distributions/{distributionId}/acknowledge")
+    public ResponseEntity<DocumentDistributionResponse> acknowledge(@PathVariable UUID distributionId) {
+        return ResponseEntity.ok(documentService.acknowledgeDistribution(distributionId));
+    }
+
+    @PatchMapping("/distributions/{distributionId}/training-complete")
+    public ResponseEntity<DocumentDistributionResponse> markTrainingComplete(@PathVariable UUID distributionId) {
+        return ResponseEntity.ok(documentService.markTrainingComplete(distributionId));
+    }
+
     @GetMapping("/dashboard")
     public ResponseEntity<DocumentDashboardResponse> dashboard() {
         return ResponseEntity.ok(documentService.getDashboard());

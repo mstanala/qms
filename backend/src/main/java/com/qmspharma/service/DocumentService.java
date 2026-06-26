@@ -40,6 +40,8 @@ public class DocumentService {
     private final WorkflowService workflowService;
     private final NotificationService notificationService;
     private final CurrentUserProvider currentUserProvider;
+    private final TrainingCurriculumRepository curriculumRepository;
+    private final TrainingAssignmentRepository trainingAssignmentRepository;
 
     @Transactional(readOnly = true)
     public Page<DocumentResponse> list(List<String> statuses, List<String> documentTypes,
@@ -460,6 +462,8 @@ public class DocumentService {
             recipients.addAll(userRepository.findByDepartmentIdAndIsActiveTrue(doc.getDepartment().getId()));
         }
 
+        boolean trainingRequired = isTrainingRequired(doc.getDocumentType());
+
         for (User recipient : recipients) {
             if (distributionRepository.existsByDocumentVersionIdAndRecipientId(version.getId(), recipient.getId())) {
                 continue;
@@ -470,10 +474,108 @@ public class DocumentService {
             distribution.setDepartment(recipient.getDepartment() != null ? recipient.getDepartment() : doc.getDepartment());
             distribution.setDistributionDate(Instant.now());
             distribution.setAcknowledged(false);
-            distribution.setTrainingRequired(false);
+            distribution.setTrainingRequired(trainingRequired);
             distribution.setTrainingCompleted(false);
             distributionRepository.save(distribution);
         }
+    }
+
+    @Transactional
+    public DocumentDistributionResponse acknowledgeDistribution(UUID distributionId) {
+        DocumentDistribution dist = distributionRepository.findById(distributionId)
+                .orElseThrow(() -> new ResourceNotFoundException("DocumentDistribution", "id", distributionId));
+        dist.setAcknowledged(true);
+        dist.setAcknowledgedDate(Instant.now());
+        distributionRepository.save(dist);
+
+        Document doc = dist.getDocumentVersion().getDocument();
+        auditTrailService.logAction(RECORD_TYPE, doc.getId(), doc.getDocumentNumber(),
+                "DISTRIBUTION_ACKNOWLEDGED", null, null, null, null);
+
+        if (dist.getTrainingRequired()) {
+            createTrainingAssignmentForDistribution(dist, doc);
+        }
+
+        return toDistributionResponse(dist);
+    }
+
+    private void createTrainingAssignmentForDistribution(DocumentDistribution dist, Document doc) {
+        User currentUser = currentUserProvider.getCurrentUser();
+        User trainee = dist.getRecipient();
+
+        // Find or create a curriculum linked to this document
+        TrainingCurriculum curriculum = curriculumRepository.findByRelatedDocumentId(doc.getId())
+                .orElseGet(() -> {
+                    TrainingCurriculum cur = new TrainingCurriculum();
+                    cur.setCurriculumCode(sequenceGenerator.generateNumber("TRAINING"));
+                    cur.setTitle("Read & Understand: " + doc.getDocumentNumber() + " - " + doc.getTitle());
+                    cur.setDescription("Training on document " + doc.getDocumentNumber() + " v" + doc.getCurrentVersion());
+                    cur.setCategory(TrainingCategory.SOP);
+                    cur.setTrainingType(TrainingType.SELF_STUDY);
+                    cur.setDepartment(doc.getDepartment());
+                    cur.setPlantSite(doc.getPlantSite());
+                    cur.setOwner(doc.getOwner() != null ? doc.getOwner() : currentUser);
+                    cur.setStatus(CurriculumStatus.ACTIVE);
+                    cur.setEffectiveDate(Instant.now());
+                    cur.setIsMandatory(true);
+                    cur.setRelatedDocument(doc);
+                    cur.setCreatedBy(currentUser);
+                    cur.setUpdatedBy(currentUser);
+                    return curriculumRepository.save(cur);
+                });
+
+        // Skip if trainee already has a pending/in-progress assignment for this curriculum
+        if (trainingAssignmentRepository.existsByCurriculumIdAndAssignedToIdAndStatusIn(
+                curriculum.getId(), trainee.getId(),
+                List.of(TrainingAssignmentStatus.ASSIGNED, TrainingAssignmentStatus.IN_PROGRESS))) {
+            return;
+        }
+
+        TrainingAssignment assignment = new TrainingAssignment();
+        assignment.setCurriculum(curriculum);
+        assignment.setAssignedTo(trainee);
+        assignment.setAssignedBy(currentUser);
+        assignment.setAssignmentReason(AssignmentReason.SOP_REVISION);
+        assignment.setDueDate(Instant.now().plus(30, ChronoUnit.DAYS));
+        assignment.setPriority(TrainingPriority.MEDIUM);
+        assignment.setStatus(TrainingAssignmentStatus.ASSIGNED);
+        assignment.setSourceRecordType("DOCUMENT");
+        assignment.setSourceRecordId(doc.getId());
+        assignment.setSourceRecordNumber(doc.getDocumentNumber());
+        trainingAssignmentRepository.save(assignment);
+
+        notificationService.send(trainee.getId(),
+                "Training Assigned: " + doc.getDocumentNumber(),
+                "You have been assigned training on " + doc.getTitle() + ". Please complete within 30 days.",
+                NotificationType.TASK_ASSIGNED,
+                "TRAINING_ASSIGNMENT", assignment.getId(), curriculum.getCurriculumCode());
+
+        auditTrailService.logAction("TRAINING_ASSIGNMENT", assignment.getId(), curriculum.getCurriculumCode(),
+                "CREATED", null, null, null,
+                "Auto-assigned from document distribution: " + doc.getDocumentNumber());
+    }
+
+    @Transactional
+    public DocumentDistributionResponse markTrainingComplete(UUID distributionId) {
+        DocumentDistribution dist = distributionRepository.findById(distributionId)
+                .orElseThrow(() -> new ResourceNotFoundException("DocumentDistribution", "id", distributionId));
+        if (!dist.getTrainingRequired()) {
+            throw new IllegalStateException("Training is not required for this distribution");
+        }
+        dist.setTrainingCompleted(true);
+        distributionRepository.save(dist);
+
+        Document doc = dist.getDocumentVersion().getDocument();
+        auditTrailService.logAction(RECORD_TYPE, doc.getId(), doc.getDocumentNumber(),
+                "TRAINING_COMPLETED", null, null, null, null);
+        return toDistributionResponse(dist);
+    }
+
+    private boolean isTrainingRequired(DocumentType documentType) {
+        return switch (documentType) {
+            case SOP, WORK_INSTRUCTION, BATCH_RECORD, PROTOCOL, VALIDATION_PROTOCOL, MANUAL -> true;
+            case POLICY, FORM, SPECIFICATION, REPORT, STANDARD, GUIDELINE -> false;
+        };
     }
 
     private int parseMajorVersion(String version) {

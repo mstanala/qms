@@ -8,12 +8,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface TrainingCurriculumRepository extends JpaRepository<TrainingCurriculum, UUID>, JpaSpecificationExecutor<TrainingCurriculum> {
 
     long countByStatus(CurriculumStatus status);
+
+    Optional<TrainingCurriculum> findByRelatedDocumentId(UUID documentId);
 
     @Query("SELECT c.category AS cat, COUNT(c) AS cnt FROM TrainingCurriculum c WHERE c.status = 'ACTIVE' GROUP BY c.category")
     List<Object[]> countByCategory();

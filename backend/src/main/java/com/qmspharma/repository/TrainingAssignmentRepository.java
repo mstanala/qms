@@ -21,6 +21,10 @@ public interface TrainingAssignmentRepository extends JpaRepository<TrainingAssi
 
     List<TrainingAssignment> findByCurriculumId(UUID curriculumId);
 
+    boolean existsByCurriculumIdAndAssignedToIdAndStatusNot(UUID curriculumId, UUID assignedToId, TrainingAssignmentStatus status);
+
+    boolean existsByCurriculumIdAndAssignedToIdAndStatusIn(UUID curriculumId, UUID assignedToId, List<TrainingAssignmentStatus> statuses);
+
     @Query("SELECT a.status AS s, COUNT(a) AS cnt FROM TrainingAssignment a GROUP BY a.status")
     List<Object[]> countByStatus();
 }

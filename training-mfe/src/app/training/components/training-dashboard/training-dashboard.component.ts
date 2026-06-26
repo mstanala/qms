@@ -76,9 +76,9 @@ import { hasStoredPermission } from '../../../permission.guard';
         <div class="panel full-width">
           <div class="panel-head"><mat-icon>bolt</mat-icon><span>Quick Actions</span></div>
           <div class="quick-grid">
-            <button class="qa-btn" routerLink="../curricula/create" [disabled]="!canCreateTraining"><mat-icon>add_circle</mat-icon><span>New Curriculum</span></button>
-            <button class="qa-btn" routerLink="../assignments"><mat-icon>assignment</mat-icon><span>View Assignments</span></button>
-            <button class="qa-btn" routerLink="../matrix"><mat-icon>grid_on</mat-icon><span>Training Matrix</span></button>
+            <button class="qa-btn" routerLink="../curricula/create" *ngIf="canCreateTraining"><mat-icon>add_circle</mat-icon><span>New Curriculum</span></button>
+            <button class="qa-btn" routerLink="../assignments" *ngIf="canViewAssignments"><mat-icon>assignment</mat-icon><span>View Assignments</span></button>
+            <button class="qa-btn" routerLink="../matrix" *ngIf="canViewMatrix"><mat-icon>grid_on</mat-icon><span>Training Matrix</span></button>
             <button class="qa-btn" routerLink="../my-training"><mat-icon>school</mat-icon><span>My Training</span></button>
           </div>
         </div>
@@ -144,6 +144,8 @@ export class TrainingDashboardComponent implements OnInit {
   overdueAssignments: TrainingAssignment[] = [];
   upcomingSessions: TrainingSession[] = [];
   canCreateTraining = hasStoredPermission('TRAINING', 'CREATE', 'training_record');
+  canViewAssignments = hasStoredPermission('TRAINING', 'READ', 'training_record');
+  canViewMatrix = hasStoredPermission('TRAINING', 'READ', 'training_record');
 
   constructor(private trainingService: TrainingService) {}
 

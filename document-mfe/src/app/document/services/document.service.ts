@@ -158,6 +158,20 @@ export class DocumentService {
       .pipe(map(item => this.toDocument(item)));
   }
 
+  acknowledgeDistribution(distributionId: string): Observable<any> {
+    return this.http.patch<any>(
+      `${this.apiUrl}/distributions/${distributionId}/acknowledge`, {},
+      { headers: this.authHeaders() }
+    );
+  }
+
+  markTrainingComplete(distributionId: string): Observable<any> {
+    return this.http.patch<any>(
+      `${this.apiUrl}/distributions/${distributionId}/training-complete`, {},
+      { headers: this.authHeaders() }
+    );
+  }
+
   private authHeaders(): HttpHeaders {
     const token = localStorage.getItem('auth_token') || '';
     return new HttpHeaders({ Authorization: `Bearer ${token}` });

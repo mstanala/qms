@@ -191,9 +191,23 @@ import { QmsDocument } from '../../models/document.model';
                   <td>{{ d.recipient?.displayName }}</td>
                   <td>{{ d.departmentName }}</td>
                   <td>{{ d.distributionDate | date:'mediumDate' }}</td>
-                  <td><mat-icon [class.ack]="d.acknowledged">{{ d.acknowledged ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon></td>
+                  <td>
+                    <mat-icon *ngIf="d.acknowledged" class="ack">check_circle</mat-icon>
+                    <button *ngIf="!d.acknowledged && isCurrentRecipient(d)" class="icon-action clickable" title="Acknowledge receipt" (click)="acknowledgeDistribution(d)">
+                      <mat-icon>radio_button_unchecked</mat-icon>
+                    </button>
+                    <mat-icon *ngIf="!d.acknowledged && !isCurrentRecipient(d)">radio_button_unchecked</mat-icon>
+                  </td>
                   <td>{{ d.trainingRequired ? 'Yes' : 'No' }}</td>
-                  <td><mat-icon [class.done]="d.trainingCompleted" *ngIf="d.trainingRequired">{{ d.trainingCompleted ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon></td>
+                  <td>
+                    <ng-container *ngIf="d.trainingRequired">
+                      <mat-icon *ngIf="d.trainingCompleted" class="done">check_circle</mat-icon>
+                      <button *ngIf="!d.trainingCompleted && d.acknowledged && isCurrentRecipient(d)" class="icon-action clickable" title="Mark training complete" (click)="markTrainingComplete(d)">
+                        <mat-icon>radio_button_unchecked</mat-icon>
+                      </button>
+                      <mat-icon *ngIf="!d.trainingCompleted && (!d.acknowledged || !isCurrentRecipient(d))">radio_button_unchecked</mat-icon>
+                    </ng-container>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -274,6 +288,10 @@ import { QmsDocument } from '../../models/document.model';
     .ack { color: #388e3c; font-size: 18px; }
     .done { color: #388e3c; font-size: 18px; }
     mat-icon:not(.ack):not(.done) { color: #ccc; }
+    .clickable { cursor: pointer; border: 1px solid #d0d5dd; border-radius: 4px; background: #fff; padding: 2px; display: inline-flex; align-items: center; }
+    .clickable:hover { border-color: #388e3c; background: #e8f5e9; }
+    .clickable mat-icon { color: #888; font-size: 18px; }
+    .clickable:hover mat-icon { color: #388e3c; }
     .empty { text-align: center; padding: 24px; color: #888; font-size: 12px; }
     .loading { text-align: center; padding: 40px; color: #888; }
   `],
@@ -331,6 +349,41 @@ export class DocDetailComponent implements OnInit {
     this.actionInProgress = true;
     this.docService.approveDocument(this.doc.id, comments).subscribe({
       next: d => this.doc = d,
+      complete: () => this.actionInProgress = false,
+      error: () => this.actionInProgress = false,
+    });
+  }
+
+  isCurrentRecipient(d: any): boolean {
+    const user = this.getCurrentUser();
+    if (!user) return false;
+    if (d.recipient?.id === user.id) return true;
+    if (this.isSystemAdmin()) return true;
+    if (this.hasAnyRole(['QA_APPROVER', 'QA_REVIEWER', 'TRAINING_COORDINATOR', 'DOC_CONTROLLER'])) return true;
+    if (this.doc?.owner?.id === user.id) return true;
+    return false;
+  }
+
+  acknowledgeDistribution(d: any): void {
+    if (this.actionInProgress) return;
+    this.actionInProgress = true;
+    this.docService.acknowledgeDistribution(d.id).subscribe({
+      next: updated => {
+        d.acknowledged = updated.acknowledged;
+        d.acknowledgedDate = updated.acknowledgedDate;
+      },
+      complete: () => this.actionInProgress = false,
+      error: () => this.actionInProgress = false,
+    });
+  }
+
+  markTrainingComplete(d: any): void {
+    if (this.actionInProgress) return;
+    this.actionInProgress = true;
+    this.docService.markTrainingComplete(d.id).subscribe({
+      next: updated => {
+        d.trainingCompleted = updated.trainingCompleted;
+      },
       complete: () => this.actionInProgress = false,
       error: () => this.actionInProgress = false,
     });
