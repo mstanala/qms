@@ -1,0 +1,72 @@
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2C5F7C', 'primaryTextColor': '#fff', 'primaryBorderColor': '#1B3A4B', 'lineColor': '#333', 'secondaryColor': '#ED8B00', 'tertiaryColor': '#f5f7fa'}}}%%
+
+%% =====================================================================
+%% PHARMA QMS - INTEGRATED CROSS-MODULE FLOW (all 11 modules)
+%% Shows connecting points / triggers between module BPMN processes.
+%% Generated as an integration overview of the individual module diagrams.
+%% =====================================================================
+
+flowchart LR
+    %% ---- Event & detection sources ----
+    COMP["Complaint Mgmt<br/>(complaintProcess)"]
+    NC["Nonconformance Mgmt<br/>(ncProcess)"]
+    AUD["Audit Mgmt<br/>(auditProcess)"]
+    EQ["Equipment Mgmt<br/>(equipmentProcess)"]
+
+    %% ---- Core investigation & corrective hub ----
+    DEV["Deviation Mgmt<br/>(deviationProcess)"]
+    CAPA(["CAPA &#9733; hub<br/>(capaProcess)"])
+
+    %% ---- Governance ----
+    RISK["Risk Mgmt<br/>(riskProcess)"]
+    CC["Change Control<br/>(changeControlProcess)"]
+
+    %% ---- Knowledge, people & supply ----
+    DOC["Document Mgmt<br/>(documentProcess)"]
+    TRN["Training Mgmt<br/>(trainingProcess)"]
+    SUP["Supplier Quality<br/>(supplierProcess)"]
+
+    %% ---- Triggers into CAPA ----
+    DEV  -->|capaRequired| CAPA
+    COMP -->|CAPA_FROM_COMPLAINT| CAPA
+    NC   -->|CAPA_FROM_NC| CAPA
+    AUD  -->|CAPA_FROM_FINDING| CAPA
+    EQ   -->|OOS / breakdown| CAPA
+    RISK -->|unacceptable risk| CAPA
+
+    %% ---- Triggers into Deviation ----
+    COMP -->|DEVIATION_FROM_COMPLAINT| DEV
+    NC   -->|deviation identified| DEV
+    AUD  -->|finding| DEV
+    EQ   -->|calibration fail / malfunction| DEV
+
+    %% ---- Triggers into Risk ----
+    DEV  -->|HIGH impact| RISK
+    CAPA -->|risk step| RISK
+    COMP -->|product risk| RISK
+    NC   -->|risk update| RISK
+
+    %% ---- Triggers into Change Control ----
+    RISK -->|process change| CC
+    NC   -->|non-standard rework| CC
+    AUD  -->|finding| CC
+    SUP  -->|alternate sourcing| CC
+    EQ   -->|install / decommission| CC
+
+    %% ---- Document & Training propagation ----
+    CC   -->|document revision| DOC
+    DOC  -->|SOP revision| TRN
+    CC   -->|implementation training| TRN
+    CAPA -->|preventive training| TRN
+    DEV  -->|retraining on closure| TRN
+    EQ   -->|operator qualification| TRN
+    TRN  -.->|training_completed| DOC
+    TRN  -.->|milestone complete| CC
+
+    %% ---- Supplier links ----
+    NC  -->|SCAR / material return| SUP
+    SUP -->|supplier / re-qual audit| AUD
+    SUP -->|incoming material NC| NC
+
+    classDef hub fill:#4db6ac,stroke:#00695c,color:#fff,stroke-width:3px;
+    class CAPA hub;
