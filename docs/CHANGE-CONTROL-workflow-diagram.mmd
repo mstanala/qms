@@ -1,0 +1,81 @@
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2C5F7C', 'primaryTextColor': '#fff', 'primaryBorderColor': '#1B3A4B', 'lineColor': '#333', 'secondaryColor': '#ED8B00', 'tertiaryColor': '#f5f7fa'}}}%%
+
+flowchart TD
+    Start([Start Event<br/>Change Request Created]) --> submitChange
+
+    subgraph SUBMIT_PHASE ["Step 1: Submit Change Request"]
+        submitChange[/"<b>Submit Change Request</b><br/>Assignee: Change Owner<br/>Form: cc-submit"/]
+    end
+
+    submitChange --> impactAssessment
+
+    subgraph IMPACT_PHASE ["Step 2: Impact Assessment"]
+        impactAssessment[/"<b>Impact Assessment</b><br/>Assignee: Change Owner<br/>Form: cc-impact<br/>8-Dimension Matrix"/]
+    end
+
+    impactAssessment --> qaReview
+
+    subgraph REVIEW_PHASE ["Step 3: QA Review"]
+        qaReview[/"<b>QA Review</b><br/>Assignee: QA Reviewer<br/>Form: cc-qa-review"/]
+    end
+
+    qaReview --> raGW{{"Regulatory Filing<br/>Required?"}}
+
+    raGW -->|"regulatoryFilingRequired<br/>= true"| raReview
+    raGW -->|"regulatoryFilingRequired<br/>= false"| pendingApproval
+
+    subgraph RA_PHASE ["Step 3a: RA Review (Conditional)"]
+        raReview[/"<b>RA Review</b><br/>Candidate: QA_REVIEWER<br/>Form: cc-ra-review"/]
+    end
+
+    raReview --> pendingApproval
+
+    subgraph APPROVAL_PHASE ["Step 4: Approval"]
+        pendingApproval[/"<b>Pending Approval</b><br/>Candidate: QA_APPROVER, APPROVER<br/>Form: cc-approval<br/>E-Signature Required"/]
+    end
+
+    pendingApproval --> approvalGW{{"Approval<br/>Decision?"}}
+
+    approvalGW -->|"approvalDecision<br/>= REJECTED"| rejectedEnd([Rejected End<br/>Change Rejected])
+    approvalGW -->|"approvalDecision<br/>= APPROVED"| implementation
+
+    subgraph IMPL_PHASE ["Step 5: Implementation"]
+        implementation[/"<b>Implementation</b><br/>Assignee: Change Owner<br/>Form: cc-implement<br/>Due: targetImplementationDate"/]
+        implTimer>"Boundary Timer<br/>P30D (30 days)<br/>Non-interrupting"] -.- implementation
+        implTimer --> escalateImpl["Escalation Delegate<br/>IMPLEMENTATION_OVERDUE"]
+    end
+
+    implementation --> verification
+
+    subgraph VERIFY_PHASE ["Step 6: Verification"]
+        verification[/"<b>Verification</b><br/>Candidate: QA_REVIEWER<br/>Form: cc-verify<br/>E-Signature Required"/]
+    end
+
+    verification --> effectivenessCheck
+
+    subgraph EFFECTIVENESS_PHASE ["Step 7: Effectiveness Check"]
+        effectivenessCheck[/"<b>Effectiveness Check</b><br/>Candidate: QA_APPROVER<br/>Form: cc-effectiveness<br/>E-Signature Required"/]
+    end
+
+    effectivenessCheck --> notifyClosed
+
+    subgraph CLOSURE_PHASE ["Closure"]
+        notifyClosed["Notify Closure<br/>(notificationDelegate)<br/>Send to: Requested By"]
+    end
+
+    notifyClosed --> closedEnd([End Event<br/>Change Closed])
+
+    %% Styling
+    classDef startEnd fill:#2C5F7C,stroke:#1B3A4B,color:#fff,stroke-width:2px
+    classDef userTask fill:#fff,stroke:#2C5F7C,color:#333,stroke-width:2px
+    classDef gateway fill:#ED8B00,stroke:#D4760A,color:#fff,stroke-width:2px
+    classDef serviceTask fill:#f5f7fa,stroke:#667085,color:#333,stroke-width:1px
+    classDef timer fill:#fff3e0,stroke:#ED8B00,color:#333,stroke-width:1px
+    classDef rejected fill:#c62828,stroke:#b71c1c,color:#fff,stroke-width:2px
+
+    class Start,closedEnd startEnd
+    class rejectedEnd rejected
+    class submitChange,impactAssessment,qaReview,raReview,pendingApproval,implementation,verification,effectivenessCheck userTask
+    class raGW,approvalGW gateway
+    class notifyClosed,escalateImpl serviceTask
+    class implTimer timer

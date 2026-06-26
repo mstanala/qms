@@ -1,0 +1,114 @@
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#1565c0', 'primaryTextColor': '#fff', 'primaryBorderColor': '#0d47a1', 'lineColor': '#333', 'secondaryColor': '#ED8B00', 'tertiaryColor': '#f5f7fa'}}}%%
+
+flowchart TD
+    Start([Start Event<br/>Equipment Registered]) --> qualification
+
+    subgraph QUALIFICATION_PHASE ["Step 1: Equipment Qualification (IQ/OQ/PQ)"]
+        qualification[/"<b>Equipment Qualification</b><br/>Assignee: Equipment Owner<br/>Form: equipment-qualify<br/>IQ → OQ → PQ sequence"/]
+    end
+
+    qualification --> qualGW{{"GxP<br/>Relevant?"}}
+
+    qualGW -->|"gxpRelevant<br/>= true"| ccForInstall
+    qualGW -->|"gxpRelevant<br/>= false"| operational
+
+    subgraph CC_CROSS_MODULE ["Cross-Module: Change Control"]
+        ccForInstall["Create Change Request<br/>(changeInitiationDelegate)<br/>Category: EQUIPMENT<br/>New Installation"]
+    end
+
+    ccForInstall --> trainingGW{{"Training<br/>Required?"}}
+
+    trainingGW -->|Yes| trainingAssign
+    trainingGW -->|No| operational
+
+    subgraph TRAINING_CROSS_MODULE ["Cross-Module: Training"]
+        trainingAssign["Create Training Assignment<br/>(trainingDelegate)<br/>sourceType: EQUIPMENT<br/>Operator qualification"]
+    end
+
+    trainingAssign --> operational
+
+    operational([Equipment Operational<br/>Status: ACTIVE])
+
+    operational --> calibrationDue
+
+    subgraph CALIBRATION_PHASE ["Step 2: Calibration Cycle"]
+        calibrationDue[/"<b>Perform Calibration</b><br/>Assignee: Calibration Tech<br/>Form: equipment-calibrate<br/>As-found/As-left readings"/]
+        calibrationTimer>"Boundary Timer<br/>calibrationFrequencyDays<br/>Non-interrupting"] -.- operational
+        calibrationTimer --> calibrationReminder["Calibration Reminder<br/>(notificationDelegate)<br/>CALIBRATION_DUE"]
+        calibrationReminder --> calibrationDue
+    end
+
+    calibrationDue --> calibrationReview
+
+    subgraph REVIEW_PHASE ["Step 3: Calibration Review"]
+        calibrationReview[/"<b>Calibration Review</b><br/>Candidate: QA_REVIEWER<br/>Form: calibration-review"/]
+    end
+
+    calibrationReview --> resultGW{{"Calibration<br/>Result?"}}
+
+    resultGW -->|"result = PASS"| operational
+    resultGW -->|"result = FAIL"| oosAction
+
+    subgraph OOS_PHASE ["Out-of-Tolerance Actions"]
+        oosAction["Impact Assessment<br/>on affected batches/products"]
+        oosAction --> createDeviation["Create Deviation<br/>(deviationDelegate)<br/>Type: EQUIPMENT<br/>Category: CALIBRATION_FAILURE"]
+    end
+
+    createDeviation --> capaGW{{"CAPA<br/>Required?"}}
+    capaGW -->|Yes| createCapa["Create CAPA<br/>sourceType: EQUIPMENT"]
+    capaGW -->|No| repairAction
+    createCapa --> repairAction
+
+    repairAction[/"<b>Repair & Re-calibrate</b><br/>Assignee: Calibration Tech"/]
+    repairAction --> calibrationDue
+
+    subgraph MAINTENANCE_PHASE ["Step 4: Preventive Maintenance"]
+        maintenanceTimer>"Boundary Timer<br/>maintenanceFrequencyDays<br/>Non-interrupting"] -.- operational
+        maintenanceTimer --> maintenanceReminder["Maintenance Reminder<br/>(notificationDelegate)<br/>MAINTENANCE_DUE"]
+        maintenanceReminder --> performMaintenance[/"<b>Perform Maintenance</b><br/>Assignee: Equipment Owner<br/>Form: equipment-maintain"/]
+    end
+
+    performMaintenance --> maintResultGW{{"Maintenance<br/>Outcome?"}}
+    maintResultGW -->|"Completed<br/>Successfully"| operational
+    maintResultGW -->|"Breakdown<br/>Detected"| breakdownDeviation
+
+    subgraph BREAKDOWN_PHASE ["Equipment Breakdown"]
+        breakdownDeviation["Create Deviation<br/>Type: EQUIPMENT<br/>Category: EQUIPMENT_MALFUNCTION"]
+    end
+
+    breakdownDeviation --> repairAction
+
+    subgraph REQUALIFICATION_PHASE ["Step 5: Periodic Re-qualification"]
+        requalTimer>"Boundary Timer<br/>12 months<br/>Non-interrupting"] -.- operational
+        requalTimer --> requalReminder["Re-qualification Reminder<br/>(notificationDelegate)<br/>REQUALIFICATION_DUE"]
+        requalReminder --> requalification[/"<b>Re-qualification</b><br/>Assignee: Equipment Owner<br/>Form: equipment-requalify"/]
+    end
+
+    requalification --> operational
+
+    subgraph DECOMMISSION_PHASE ["Step 6: Decommission"]
+        decommission[/"<b>Decommission Equipment</b><br/>Candidate: QA_APPROVER<br/>E-Signature Required"/]
+        decommission --> ccForDecommission["Create Change Request<br/>(changeInitiationDelegate)<br/>Category: EQUIPMENT<br/>Decommission"]
+    end
+
+    operational -->|"End of Life"| decommission
+    ccForDecommission --> decommissionEnd([End Event<br/>Equipment Decommissioned])
+
+    %% Styling
+    classDef startEnd fill:#1565c0,stroke:#0d47a1,color:#fff,stroke-width:2px
+    classDef operational fill:#2e7d32,stroke:#1b5e20,color:#fff,stroke-width:2px
+    classDef userTask fill:#fff,stroke:#1565c0,color:#333,stroke-width:2px
+    classDef gateway fill:#ED8B00,stroke:#D4760A,color:#fff,stroke-width:2px
+    classDef serviceTask fill:#f5f7fa,stroke:#667085,color:#333,stroke-width:1px
+    classDef timer fill:#fff3e0,stroke:#ED8B00,color:#333,stroke-width:1px
+    classDef crossModule fill:#e8eaf6,stroke:#5c6bc0,color:#333,stroke-width:1px
+    classDef deviation fill:#ffebee,stroke:#c62828,color:#333,stroke-width:1px
+
+    class Start,decommissionEnd startEnd
+    class operational operational
+    class qualification,calibrationDue,calibrationReview,performMaintenance,requalification,decommission,repairAction userTask
+    class qualGW,trainingGW,resultGW,capaGW,maintResultGW gateway
+    class calibrationReminder,maintenanceReminder,requalReminder,oosAction serviceTask
+    class calibrationTimer,maintenanceTimer,requalTimer timer
+    class ccForInstall,ccForDecommission,trainingAssign,createCapa crossModule
+    class createDeviation,breakdownDeviation deviation

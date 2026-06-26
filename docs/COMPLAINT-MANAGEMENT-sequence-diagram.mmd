@@ -1,0 +1,214 @@
+%%{init: {'theme': 'base', 'themeVariables': {'actorBkg': '#6a1b9a', 'actorTextColor': '#fff', 'actorBorder': '#4a148c', 'signalColor': '#333', 'noteBkgColor': '#fff8e1', 'noteBorderColor': '#ED8B00'}}}%%
+
+sequenceDiagram
+    autonumber
+
+    participant CS as Customer Service<br/>(END_USER)
+    participant API as Spring Boot API<br/>(ComplaintService)
+    participant FL as Flowable Engine<br/>(complaintProcess)
+    participant DB as PostgreSQL<br/>(Database)
+    participant QR as QA Reviewer<br/>(QA_REVIEWER)
+    participant IN as Investigator<br/>(OWNER)
+    participant QA as QA Approver<br/>(QA_APPROVER)
+    participant RA as Regulatory Affairs<br/>(RA_REVIEWER)
+    participant NS as Notification<br/>Service
+    participant CP as CAPA<br/>(Cross-Module)
+    participant DV as Deviation<br/>(Cross-Module)
+    participant RM as Risk Management<br/>(Cross-Module)
+
+    rect rgb(232, 244, 248)
+        Note over CS,NS: Step 1: Log Complaint (RECEIVED)
+        CS->>API: POST /api/v1/complaints<br/>{title, description, complaintType,<br/>source, reporterName, reporterContact,<br/>reporterType, receivedDate, productName,<br/>productCode, batchNumber, expiryDate,<br/>quantityAffected, ownerId,<br/>departmentId, plantSiteId}
+        API->>DB: Generate complaint number (COMP-2026-001)
+        API->>DB: INSERT complaints (status=RECEIVED)
+        API->>FL: startProcess("complaintProcess", vars)<br/>{recordId, complaintNumber, ownerId,<br/>complaintType, source, productCode}
+        FL-->>FL: Create initialAssessment task<br/>(candidateGroups: QA_REVIEWER)
+        API->>DB: Workflow: "Received" COMPLETED
+        API->>DB: Workflow: "Initial Assessment" CURRENT
+        API->>DB: Audit trail: CREATED
+        NS->>DB: INSERT notification (TASK_ASSIGNED)
+        NS-->>QR: "Complaint Received" notification
+        API-->>CS: 201 Created (ComplaintResponse)
+    end
+
+    rect rgb(255, 248, 225)
+        Note over QR,NS: Step 2: Initial Assessment & Classification (RECEIVED -> CLASSIFIED)
+        QR->>API: GET /api/v1/tasks/inbox
+        API->>FL: Query tasks for QA_REVIEWER
+        FL-->>API: initialAssessment task for COMP-2026-001
+        API-->>QR: Task list
+
+        QR->>API: PUT /api/v1/complaints/{id}<br/>{classification: "CRITICAL",<br/>investigationRequired: true,<br/>isAdverseEvent: true/false,<br/>regulatoryReportable: true/false,<br/>fieldAlertRequired: true/false,<br/>investigatorId}
+
+        alt Investigation Required
+            QR->>API: PATCH /api/v1/complaints/{id}/status<br/>{status: "UNDER_INVESTIGATION"}
+            API->>FL: completeTask("initialAssessment",<br/>{investigationRequired: true,<br/>isAdverseEvent: false})
+            FL-->>FL: assessmentGateway -> investigation task<br/>(assignee: investigatorId)
+            API->>DB: Status = UNDER_INVESTIGATION
+            API->>DB: Workflow: "Initial Assessment" COMPLETED
+            API->>DB: Workflow: "Investigation" CURRENT
+            API->>DB: Audit trail: CLASSIFIED
+            NS-->>IN: "Investigation Assigned" notification
+        else No Investigation (Minor Complaint)
+            QR->>API: PATCH /api/v1/complaints/{id}/status<br/>{status: "RESPONSE_PENDING"}
+            API->>FL: completeTask("initialAssessment",<br/>{investigationRequired: false})
+            FL-->>FL: assessmentGateway -> responsePrep task<br/>(assignee: ownerId)
+            API->>DB: Status = RESPONSE_PENDING
+        end
+
+        opt Adverse Event Detected
+            Note over QR,RA: Regulatory reporting timeline starts
+            QR->>API: Flag isAdverseEvent = true
+            API->>DB: reportingDeadline = receivedDate + 15 days
+            API->>DB: Audit trail: ADVERSE_EVENT_FLAGGED
+            NS-->>RA: "Adverse Event - Regulatory Reporting Required"
+        end
+    end
+
+    rect rgb(232, 244, 248)
+        Note over IN,NS: Step 3: Investigation (UNDER_INVESTIGATION)
+        IN->>API: PUT /api/v1/complaints/{id}<br/>{rootCause: "...",<br/>conclusion: "...",<br/>investigationStart: now()}
+        API->>DB: UPDATE complaints (rootCause, conclusion)
+        API->>DB: investigationComplete = now()
+
+        Note over IN: Determine if CAPA, Deviation,<br/>or risk actions are needed
+
+        IN->>API: PUT /api/v1/complaints/{id}<br/>{capaRequired: true/false,<br/>recallAssessment: "NO_RECALL/VOLUNTARY/MANDATORY"}
+        API->>DB: UPDATE complaints
+
+        IN->>API: PATCH /api/v1/complaints/{id}/status<br/>{status: "INVESTIGATION_COMPLETE"}
+        API->>FL: completeTask("investigation",<br/>{capaRequired: true/false})
+        FL-->>FL: Create dispositionReview task<br/>(candidateGroups: QA_APPROVER)
+        API->>DB: Status = INVESTIGATION_COMPLETE
+        API->>DB: Workflow: "Investigation" COMPLETED
+        API->>DB: Workflow: "Disposition Review" CURRENT
+        API->>DB: Audit trail: INVESTIGATION_COMPLETED
+        API-->>IN: 200 OK
+
+        opt After 20 days (boundary timer P20D)
+            FL->>NS: escalationDelegate<br/>INVESTIGATION_OVERDUE
+            NS-->>IN: Overdue escalation notification
+            NS-->>QR: Overdue escalation to QA
+        end
+    end
+
+    rect rgb(243, 229, 245)
+        Note over CP,RM: Cross-Module: CAPA & Deviation Initiation
+        Note over CP: For complaints where capaRequired = true
+
+        alt CAPA Required
+            QR->>API: POST /api/v1/capas<br/>{sourceType: "COMPLAINT",<br/>sourceId: complaintId,<br/>title: complaint.title,<br/>description: complaint.rootCause}
+            API->>DB: INSERT capas (linked to complaint)
+            API->>DB: UPDATE complaints SET capa_id = newCapaId
+            API->>DB: Audit trail: CAPA_INITIATED_FROM_COMPLAINT
+            Note over CP: CAPA follows its own<br/>workflow lifecycle
+        end
+
+        alt Manufacturing Issue Identified
+            Note over DV: Complaint investigation reveals<br/>manufacturing deviation
+            QR->>API: POST /api/v1/deviations<br/>{title, description,<br/>sourceType: "COMPLAINT",<br/>sourceId: complaintId}
+            API->>DB: INSERT deviations<br/>(linked to complaint)
+            API->>DB: UPDATE complaints SET deviation_id = newDevId
+            API->>DB: Audit trail: DEVIATION_INITIATED_FROM_COMPLAINT
+        end
+
+        opt Risk Register Update
+            Note over RM: Product/process risk identified<br/>from complaint pattern
+            QR->>API: POST /api/v1/risks/registers/{registerId}/assessments<br/>{hazardDescription: complaint.rootCause,<br/>linkedComplaintId: complaintId}
+            API->>DB: INSERT risk_assessments<br/>(linked to complaint source)
+        end
+    end
+
+    rect rgb(255, 248, 225)
+        Note over QA,NS: Step 4: Disposition Review (INVESTIGATION_COMPLETE -> RESPONSE_PENDING)
+        QA->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        Note over QA: Review investigation findings,<br/>root cause, and corrective actions
+        Note over QA: E-Signature Dialog opens
+
+        alt Disposition Approved
+            QA->>API: PATCH /api/v1/complaints/{id}/status<br/>{status: "RESPONSE_PENDING"}<br/>(with e-signature)
+            API->>FL: completeTask("dispositionReview",<br/>{dispositionDecision: "APPROVED"})
+            FL-->>FL: Create responsePrep task<br/>(assignee: ownerId)
+            API->>DB: Status = RESPONSE_PENDING
+            API->>DB: Workflow: "Disposition Review" COMPLETED
+            API->>DB: Workflow: "Response Preparation" CURRENT
+        else Requires Further Investigation
+            QA->>API: PATCH /api/v1/complaints/{id}/status<br/>{status: "UNDER_INVESTIGATION",<br/>comments: "additional investigation needed"}
+            API->>FL: completeTask("dispositionReview",<br/>{dispositionDecision: "FURTHER_INVESTIGATION"})
+            FL-->>FL: Loop back to investigation task
+            NS-->>IN: "Additional Investigation Required"
+        end
+        API-->>QA: 200 OK
+    end
+
+    rect rgb(232, 244, 248)
+        Note over IN,NS: Step 5: Response Preparation (RESPONSE_PENDING)
+        IN->>API: PUT /api/v1/complaints/{id}<br/>{responseText: "formal response to complainant",<br/>responseDueDate: deadline}
+
+        alt Field Alert Required
+            Note over RA: Regulatory field alert filing
+            RA->>API: PUT /api/v1/complaints/{id}<br/>{fieldAlertRequired: true}
+            API->>DB: Audit trail: FIELD_ALERT_FILED
+        end
+
+        alt Recall Assessment Needed
+            Note over QA,RA: Recall decision committee review
+            QA->>API: PUT /api/v1/complaints/{id}<br/>{recallAssessment: "VOLUNTARY"}
+            API->>DB: Audit trail: RECALL_ASSESSMENT_RECORDED
+        end
+
+        IN->>API: PATCH /api/v1/complaints/{id}/status<br/>{status: "RESPONSE_SENT"}
+        API->>DB: responseSentDate = now()
+        API->>FL: completeTask("responsePrep")
+        FL-->>FL: Create closureReview task<br/>(candidateGroups: QA_APPROVER)
+        API->>DB: Status = RESPONSE_SENT
+        API->>DB: Workflow: "Response Preparation" COMPLETED
+        API->>DB: Workflow: "Closure Review" CURRENT
+        API-->>IN: 200 OK
+    end
+
+    rect rgb(255, 248, 225)
+        Note over RA,NS: Step 5a: Regulatory Reporting [Conditional] (Parallel)
+        opt Adverse Event (regulatoryReportable = true)
+            RA->>API: File adverse event report<br/>with regulatory authority (CDSCO/FDA)
+            API->>DB: adverseEventReported = true
+            API->>DB: Audit trail: ADVERSE_EVENT_REPORTED
+
+            opt Reporting Deadline Timer (P15D)
+                FL->>NS: escalationDelegate<br/>REGULATORY_REPORTING_OVERDUE
+                NS-->>RA: "Regulatory Reporting Deadline" alert
+                NS-->>QA: Escalation to QA Head
+            end
+        end
+    end
+
+    rect rgb(232, 244, 248)
+        Note over QA,NS: Step 6: Final Review & Closure (RESPONSE_SENT -> CLOSED)
+        QA->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        Note over QA: Review all investigation,<br/>response, CAPA linkage,<br/>and regulatory reporting
+        Note over QA: E-Signature Dialog opens
+
+        QA->>API: PATCH /api/v1/complaints/{id}/status<br/>{status: "CLOSED"}<br/>(with e-signature)
+
+        API->>API: validateClosureRules()<br/>- Investigation complete?<br/>- Response sent?<br/>- CAPA linked (if required)?<br/>- Adverse event reported (if applicable)?<br/>- Recall assessment done (if applicable)?
+
+        API->>DB: closedDate = now()
+        API->>FL: completeTask("closureReview")
+        FL-->>FL: notifyClosed service task fires
+        FL->>NS: notificationDelegate<br/>"Complaint Closed: COMP-2026-001"
+        NS->>DB: INSERT notification (STATUS_CHANGE)
+        NS-->>CS: "Complaint Closed" notification
+        NS-->>IN: "Complaint Closed" notification
+
+        API->>DB: Status = CLOSED
+        API->>DB: Workflow: "Closure Review" COMPLETED
+        API->>DB: Workflow: "Closed" COMPLETED
+        API->>DB: Audit trail: STATUS_CHANGED -> CLOSED
+        FL-->>FL: Process ends
+
+        API-->>QA: 200 OK
+    end

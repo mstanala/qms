@@ -1,0 +1,166 @@
+%%{init: {'theme': 'base', 'themeVariables': {'actorBkg': '#00695c', 'actorTextColor': '#fff', 'actorBorder': '#004d40', 'signalColor': '#333', 'noteBkgColor': '#fff8e1', 'noteBorderColor': '#ED8B00'}}}%%
+
+sequenceDiagram
+    autonumber
+
+    participant TC as Training Coordinator<br/>(TRAINING_COORDINATOR)
+    participant API as Spring Boot API<br/>(TrainingService)
+    participant FL as Flowable Engine<br/>(trainingProcess)
+    participant DB as PostgreSQL<br/>(Database)
+    participant TR as Trainer<br/>(TRAINER)
+    participant TE as Trainee<br/>(END_USER)
+    participant QA as QA Approver<br/>(QA_APPROVER)
+    participant NS as Notification<br/>Service
+    participant DM as Document Mgmt<br/>(Cross-Module)
+    participant CC as Change Control<br/>(Cross-Module)
+    participant DV as Deviation<br/>(Cross-Module)
+    participant CP as CAPA<br/>(Cross-Module)
+
+    rect rgb(232, 244, 248)
+        Note over TC,NS: Step 1: Create Training Curriculum (DRAFT)
+        TC->>API: POST /api/v1/training/curricula<br/>{title, description, category,<br/>trainingType, departmentId, plantSiteId,<br/>durationHours, passingScore, maxAttempts,<br/>validityMonths, isMandatory,<br/>regulatoryRequirement, relatedDocumentId}
+        API->>DB: Generate curriculum code (TC-2026-001)
+        API->>DB: INSERT training_curricula (status=DRAFT)
+        API->>DB: Audit trail: CREATED
+        API-->>TC: 201 Created (CurriculumResponse)
+
+        opt Training Matrix Setup
+            TC->>API: POST /api/v1/training/matrix<br/>{roleId, curriculumId, departmentId,<br/>isMandatory, frequencyMonths}
+            API->>DB: INSERT training_matrix
+        end
+    end
+
+    rect rgb(255, 248, 225)
+        Note over TC,NS: Step 2: Activate Curriculum (DRAFT -> ACTIVE)
+        TC->>API: PATCH /api/v1/training/curricula/{id}/status<br/>{status: "ACTIVE"}
+        API->>DB: Status = ACTIVE, effectiveDate = now()
+        API->>DB: Audit trail: STATUS_CHANGED
+        API-->>TC: 200 OK
+    end
+
+    rect rgb(243, 229, 245)
+        Note over DM,CP: Cross-Module Triggers: Training Assignment Sources
+        Note over DM: Document becomes EFFECTIVE<br/>(SOP revision triggers training)
+        DM->>API: POST /api/v1/training/assignments<br/>{curriculumId, assignedToId,<br/>assignmentReason: "SOP_REVISION",<br/>sourceRecordType: "DOCUMENT",<br/>sourceRecordId, sourceRecordNumber:<br/>"DOC-2026-001"}
+
+        Note over CC: Change Control IMPLEMENTATION<br/>phase requires training
+        CC->>API: POST /api/v1/training/assignments<br/>{curriculumId, assignedToId,<br/>assignmentReason: "CHANGE_CONTROL",<br/>sourceRecordType: "CHANGE_CONTROL",<br/>sourceRecordId, sourceRecordNumber:<br/>"CC-2026-001"}
+
+        Note over DV: Deviation closure requires<br/>retraining on affected SOP
+        DV->>API: POST /api/v1/training/assignments<br/>{curriculumId, assignedToId,<br/>assignmentReason: "DEVIATION",<br/>sourceRecordType: "DEVIATION",<br/>sourceRecordId, sourceRecordNumber:<br/>"DEV-2026-001"}
+
+        Note over CP: CAPA preventive action<br/>includes training requirement
+        CP->>API: POST /api/v1/training/assignments<br/>{curriculumId, assignedToId,<br/>assignmentReason: "CAPA_ACTION",<br/>sourceRecordType: "CAPA",<br/>sourceRecordId, sourceRecordNumber:<br/>"CAPA-2026-001"}
+    end
+
+    rect rgb(232, 244, 248)
+        Note over TC,NS: Step 3: Create Training Assignment (ASSIGNED)
+        API->>DB: INSERT training_assignments<br/>(status=ASSIGNED, priority, dueDate)
+        API->>FL: startProcess("trainingProcess", vars)<br/>{recordId, assignmentReason,<br/>sourceRecordType, sourceRecordId,<br/>traineeId, trainerId, dueDate}
+        FL-->>FL: Create completeTraining task<br/>(assignee: traineeId)
+        API->>DB: Audit trail: TRAINING_ASSIGNED
+        NS->>DB: INSERT notification (TASK_ASSIGNED)
+        NS-->>TE: "Training Assigned" notification<br/>with source record reference
+
+        opt After dueDate (boundary timer)
+            FL->>NS: escalationDelegate<br/>TRAINING_OVERDUE
+            NS-->>TE: Overdue escalation notification
+            NS-->>TC: Overdue escalation to coordinator
+            API->>DB: Status = OVERDUE
+        end
+    end
+
+    rect rgb(255, 248, 225)
+        Note over TR,NS: Step 4: Schedule Training Session (Optional)
+        TC->>API: POST /api/v1/training/sessions<br/>{curriculumId, title, scheduledDate,<br/>endDate, location, trainerId,<br/>maxParticipants}
+        API->>DB: Generate session code (TS-2026-001)
+        API->>DB: INSERT training_sessions (status=SCHEDULED)
+
+        TC->>API: POST /api/v1/training/sessions/{id}/attendees<br/>{attendeeId, assignmentId}
+        API->>DB: INSERT training_session_attendees<br/>(attendanceStatus=REGISTERED)
+
+        NS->>DB: INSERT notification (SESSION_SCHEDULED)
+        NS-->>TE: "Training Session Scheduled" notification
+    end
+
+    rect rgb(232, 244, 248)
+        Note over TR,NS: Step 5: Conduct Training (IN_PROGRESS)
+        TE->>API: PATCH /api/v1/training/assignments/{id}<br/>{status: "IN_PROGRESS"}
+        API->>DB: Status = IN_PROGRESS
+        API->>FL: Update process variable (status)
+
+        alt Classroom / OJT / Workshop
+            TR->>API: PATCH /api/v1/training/sessions/{id}/attendees/{attendeeId}<br/>{attendanceStatus: "ATTENDED", score, passed}
+            API->>DB: UPDATE training_session_attendees
+        else E-Learning / Self-Study / SOP Read
+            TE->>API: Complete online training module
+            API->>DB: Record completion data
+        end
+    end
+
+    rect rgb(255, 248, 225)
+        Note over TE,NS: Step 6: Complete Training (IN_PROGRESS -> COMPLETED)
+        TE->>API: PATCH /api/v1/training/assignments/{id}/complete<br/>{score, evidencePath}
+        API->>API: validateCompletion()<br/>- Score >= passingScore?<br/>- Attempts <= maxAttempts?
+
+        alt Passed
+            API->>DB: Status = COMPLETED
+            API->>DB: completedDate = now()
+            API->>DB: certificateNumber generated
+            API->>DB: expiryDate = now() + validityMonths
+            API->>FL: completeTask("completeTraining",<br/>{trainingResult: "PASSED"})
+            FL-->>FL: Create verifyTraining task<br/>(candidateGroups: QA_APPROVER,<br/>TRAINING_COORDINATOR)
+            API->>DB: Audit trail: TRAINING_COMPLETED
+        else Failed (attempts remaining)
+            API->>DB: attempts incremented
+            API->>DB: Audit trail: TRAINING_ATTEMPT_FAILED
+            Note over TE: Trainee retakes training
+        else Failed (max attempts reached)
+            API->>DB: Status = CANCELLED
+            API->>FL: completeTask("completeTraining",<br/>{trainingResult: "FAILED"})
+            NS-->>TC: "Training Failed - Escalation" notification
+        end
+    end
+
+    rect rgb(232, 244, 248)
+        Note over QA,NS: Step 7: Verify Training Effectiveness (COMPLETED -> VERIFIED)
+        QA->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        Note over QA: Review training evidence,<br/>score, and completion data
+
+        QA->>API: PATCH /api/v1/training/assignments/{id}/verify<br/>{verified: true, comments}
+        API->>FL: completeTask("verifyTraining")
+        API->>DB: verifiedBy, verifiedDate recorded
+        API->>DB: Audit trail: TRAINING_VERIFIED
+
+        FL-->>FL: notifyComplete service task fires
+        FL->>NS: notificationDelegate<br/>"Training Completed: TC-2026-001"
+        NS->>DB: INSERT notification (TRAINING_COMPLETED)
+        NS-->>TC: "Training Verified" notification
+
+        FL-->>FL: Process ends
+    end
+
+    rect rgb(240, 240, 240)
+        Note over DM,CP: Cross-Module: Update Source Records
+        Note over API: After training verification,<br/>update the triggering module
+
+        opt Source: Document Management
+            API->>DM: UPDATE document_distribution<br/>SET training_completed = true
+        end
+
+        opt Source: Change Control
+            API->>CC: Training milestone completed<br/>for CC-2026-001 implementation
+        end
+
+        opt Source: CAPA
+            API->>CP: Training action completed<br/>for CAPA-2026-001
+        end
+
+        opt Periodic Retraining (boundary timer)
+            FL->>NS: notificationDelegate<br/>"Retraining Due: TC-2026-001"<br/>(triggered by validityMonths expiry)
+            NS-->>TE: Retraining reminder notification
+            NS-->>TC: Retraining due notification
+        end
+    end

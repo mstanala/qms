@@ -1,0 +1,160 @@
+%%{init: {'theme': 'base', 'themeVariables': {'actorBkg': '#2C5F7C', 'actorTextColor': '#fff', 'actorBorder': '#1B3A4B', 'signalColor': '#333', 'noteBkgColor': '#fff8e1', 'noteBorderColor': '#ED8B00'}}}%%
+
+sequenceDiagram
+    autonumber
+
+    participant PE as Production Engineer<br/>(END_USER)
+    participant API as Spring Boot API<br/>(DeviationService)
+    participant FL as Flowable Engine<br/>(deviationProcess)
+    participant DB as PostgreSQL<br/>(Database)
+    participant QR as QA Reviewer<br/>(QA_REVIEWER)
+    participant IN as Investigator<br/>(OWNER/REVIEWER)
+    participant QA as QA Approver<br/>(QA_APPROVER)
+    participant NS as Notification<br/>Service
+
+    rect rgb(232, 244, 248)
+        Note over PE,NS: Step 1: Report Deviation (REPORTED)
+        PE->>API: POST /api/v1/deviations<br/>{title, description, type, category,<br/>classification, occurredDate, detectedDate,<br/>sourceArea, plantSiteId, departmentId,<br/>assignedToId, targetClosureDate...}
+        API->>DB: Generate DEV number (DEV-2026-001)
+        API->>DB: INSERT deviations (status=REPORTED)
+        API->>FL: startProcess("deviationProcess", vars)
+        FL-->>FL: Create qaReview task<br/>(candidateGroups: QA_REVIEWER)
+        API->>DB: Record workflow step: "Reported" COMPLETED
+        API->>DB: Record workflow step: "QA Review" CURRENT
+        API->>DB: Audit trail: CREATED
+        API-->>PE: 201 Created
+    end
+
+    rect rgb(255, 248, 225)
+        Note over QR,NS: Step 2: QA Review & Classification (REPORTED -> CLASSIFIED)
+        QR->>API: GET /api/v1/tasks/inbox
+        API->>FL: Query tasks for QA_REVIEWER
+        FL-->>API: qaReview task for DEV-2026-001
+        API-->>QR: Task list
+
+        QR->>API: PATCH /api/v1/deviations/{id}/classify<br/>{classification: "CRITICAL",<br/>assignedToId: investigatorUserId}
+        API->>FL: completeTask("qaReview")
+        FL-->>FL: Execute notifyInvestigator service task
+        FL->>NS: notificationDelegate<br/>"Investigation Assigned: DEV-2026-001"
+        NS->>DB: INSERT notification (TASK_ASSIGNED)
+        NS-->>IN: "Investigation Assigned" notification
+        FL-->>FL: Create investigation task<br/>(assignee: assignedToId)
+        API->>DB: Status = CLASSIFIED
+        API->>DB: Workflow: "QA Review" COMPLETED
+        API->>DB: Workflow: "Investigation" CURRENT
+        API->>DB: Audit trail: STATUS_CHANGED, CLASSIFICATION_SET
+        API-->>QR: 200 OK
+
+        alt Rejected
+            QR->>API: PATCH /api/v1/deviations/{id}/status<br/>{status: "REJECTED", comments: "reason"}
+            API->>DB: Status = REJECTED
+            Note over QR,NS: Process ends
+        end
+    end
+
+    rect rgb(232, 244, 248)
+        Note over IN,NS: Step 3: Root Cause Investigation (INVESTIGATION)
+        IN->>API: POST /api/v1/deviations/{id}/investigation<br/>{investigatorId, probableCause,<br/>rootCause, method: "5 Why Analysis",<br/>immediateActions: [...],<br/>findings, conclusion}
+        API->>DB: INSERT deviation_investigations
+        API->>DB: INSERT deviation_immediate_actions
+        API->>FL: completeTask("investigation")
+        FL-->>FL: Create impactAssessment task<br/>(candidateGroups: QA_REVIEWER, QA_APPROVER)
+        API->>DB: Status = IMPACT_ASSESSMENT
+        API->>DB: Workflow: "Investigation" COMPLETED
+        API->>DB: Workflow: "Impact Assessment" CURRENT
+        API->>DB: Audit trail: INVESTIGATION_SUBMITTED
+        API-->>IN: 200 OK
+
+        opt After 25 days (boundary timer P25D)
+            FL->>NS: escalationDelegate<br/>INVESTIGATION_OVERDUE
+            NS-->>IN: Overdue escalation notification
+        end
+    end
+
+    rect rgb(255, 248, 225)
+        Note over QR,NS: Step 4: Impact Assessment (IMPACT_ASSESSMENT)
+        QR->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        QR->>API: POST /api/v1/deviations/{id}/impact-assessment<br/>{productQualityImpact: HIGH,<br/>patientSafetyImpact: MEDIUM,<br/>regulatoryImpact: HIGH,<br/>businessImpact: HIGH,<br/>overallRiskLevel: CRITICAL,<br/>justification: "..."}
+        API->>DB: INSERT deviation_impact_assessments
+        API->>FL: completeTask("impactAssessment")
+        FL-->>FL: Create disposition task<br/>(candidateGroups: QA_APPROVER)
+        API->>DB: Status = DISPOSITION
+        API->>DB: Workflow: "Impact Assessment" COMPLETED
+        API->>DB: Workflow: "Disposition" CURRENT
+        API->>DB: Audit trail: IMPACT_ASSESSMENT_SUBMITTED
+        API-->>QR: 200 OK
+    end
+
+    rect rgb(232, 244, 248)
+        Note over QA,NS: Step 5: Disposition Decision (DISPOSITION)
+        QA->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        QA->>API: POST /api/v1/deviations/{id}/disposition<br/>{decision: "RELEASE_WITH_CONDITIONS",<br/>justification: "...",<br/>conditions: "...",<br/>qaReviewComments: "...",<br/>capaRequired: true}
+        API->>DB: INSERT deviation_dispositions
+        API->>FL: completeTask("disposition",<br/>{capaRequired: true})
+        FL-->>FL: capaGateway evaluates capaRequired
+
+        alt CAPA Required (capaRequired = true)
+            FL-->>FL: Create capaInitiation task<br/>(candidateGroups: QA_REVIEWER, OWNER)
+            API->>DB: Status = CAPA_INITIATED
+            API->>DB: Workflow: "Disposition" COMPLETED
+            API->>DB: Workflow: "CAPA Initiation" CURRENT
+        else No CAPA Required (capaRequired = false)
+            FL-->>FL: Create pendingClosure task<br/>(candidateGroups: QA_APPROVER)
+            API->>DB: Status = PENDING_CLOSURE
+            API->>DB: Workflow: "Disposition" COMPLETED
+            API->>DB: Workflow: "Pending Closure" CURRENT
+        end
+        API->>DB: Audit trail: DISPOSITION_SUBMITTED
+        API-->>QA: 200 OK
+    end
+
+    rect rgb(243, 229, 245)
+        Note over QR,NS: Step 5a: CAPA Initiation [Conditional] (CAPA_INITIATED)
+        QR->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        Note over QR: Create linked CAPA record
+        QR->>API: POST /api/v1/capas<br/>{sourceType: "DEVIATION",<br/>sourceId: deviationId, ...}
+        API->>DB: INSERT capas (linked to deviation)
+        API->>DB: UPDATE deviations SET capa_id = newCapaId
+
+        QR->>API: PATCH /api/v1/deviations/{id}/status<br/>{status: "PENDING_CLOSURE"}
+        API->>FL: completeTask("capaInitiation")
+        FL-->>FL: Create pendingClosure task<br/>(candidateGroups: QA_APPROVER)
+        API->>DB: Status = PENDING_CLOSURE
+        API->>DB: Workflow: "CAPA Initiation" COMPLETED
+        API->>DB: Workflow: "Pending Closure" CURRENT
+        API-->>QR: 200 OK
+    end
+
+    rect rgb(255, 248, 225)
+        Note over QA,NS: Step 6: Final QA Review & Closure (PENDING_CLOSURE -> CLOSED)
+        QA->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        Note over QA: Review all investigation, impact,<br/>disposition, and CAPA data
+        Note over QA: E-Signature Dialog opens
+
+        QA->>API: PATCH /api/v1/deviations/{id}/status<br/>{status: "CLOSED"}<br/>(with e-signature)
+
+        API->>API: validateClosureRules()<br/>- Investigation exists?<br/>- Impact assessment exists?<br/>- Disposition exists?<br/>- CAPA linked (if required)?
+
+        API->>DB: actualClosureDate = now()
+        API->>FL: completeTask("pendingClosure")
+        FL-->>FL: notifyClosed service task fires
+        FL->>NS: notificationDelegate<br/>"Deviation Closed: DEV-2026-001"
+        NS->>DB: INSERT notification (STATUS_CHANGE)
+        NS-->>PE: "Deviation Closed" notification
+
+        API->>DB: Status = CLOSED
+        API->>DB: Workflow: "Pending Closure" COMPLETED
+        API->>DB: Workflow: "Closed" COMPLETED
+        API->>DB: Audit trail: STATUS_CHANGED -> CLOSED
+        FL-->>FL: Process ends
+
+        API-->>QA: 200 OK
+    end

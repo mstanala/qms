@@ -1,0 +1,70 @@
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#37474f', 'primaryTextColor': '#fff', 'primaryBorderColor': '#263238', 'lineColor': '#333', 'secondaryColor': '#ED8B00', 'tertiaryColor': '#f5f7fa'}}}%%
+
+flowchart TD
+    Start([Start Event<br/>Audit Scheduled]) --> conductAudit
+
+    subgraph CONDUCT_PHASE ["Step 1: Conduct Audit"]
+        conductAudit[/"<b>Conduct Audit</b><br/>Assignee: leadAuditorId<br/>Form: audit-conduct<br/>Due: scheduledEndDate"/]
+        reportTimer>"Boundary Timer<br/>reportDueDate<br/>Non-interrupting"] -.- conductAudit
+        reportTimer --> escalateOverdue["Escalation Delegate<br/>AUDIT_REPORT_OVERDUE"]
+    end
+
+    conductAudit --> auditeeResponse
+
+    subgraph RESPONSE_PHASE ["Step 2: Auditee Response"]
+        auditeeResponse[/"<b>Auditee Response</b><br/>Assignee: auditeeContactId<br/>Form: audit-response<br/>Due: responseDueDate"/]
+    end
+
+    auditeeResponse --> reviewResponse
+
+    subgraph REVIEW_PHASE ["Step 3: Review Response"]
+        reviewResponse[/"<b>Review Auditee Response</b><br/>Candidate: QA_REVIEWER, AUDITOR<br/>Form: audit-review-response"/]
+    end
+
+    reviewResponse --> responseGW{{"Response<br/>Decision?"}}
+
+    responseGW -->|"responseDecision<br/>= ACCEPTED"| capaGW
+    responseGW -->|"responseDecision<br/>= REVISION_REQUIRED"| auditeeResponse
+
+    capaGW{{"CAPA<br/>Required?"}}
+
+    capaGW -->|"capaRequired<br/>= true<br/>(any finding)"| capaInitiation
+    capaGW -->|"capaRequired<br/>= false"| verifyFindings
+
+    subgraph CAPA_CROSS_MODULE ["Cross-Module: CAPA Initiation"]
+        capaInitiation["Create CAPA Records<br/>(capaInitiationDelegate)<br/>sourceType: AUDIT_FINDING"]
+        capaInitiation --> linkDeviation{{"Deviation<br/>Required?"}}
+        linkDeviation -->|Yes| createDeviation["Create Deviation<br/>sourceType: AUDIT_FINDING"]
+        linkDeviation -->|No| linkCC{{"Change<br/>Required?"}}
+        createDeviation --> linkCC
+        linkCC -->|Yes| createCC["Create Change Request<br/>sourceType: AUDIT_FINDING"]
+        linkCC -->|No| verifyFindings
+        createCC --> verifyFindings
+    end
+
+    subgraph VERIFY_PHASE ["Step 4: Verify Finding Closure"]
+        verifyFindings[/"<b>Verify Findings</b><br/>Candidate: AUDITOR, QA_REVIEWER<br/>Form: audit-verify-findings"/]
+    end
+
+    verifyFindings --> closeAudit
+
+    subgraph CLOSURE_PHASE ["Step 5: Close Audit"]
+        closeAudit[/"<b>Close Audit</b><br/>Candidate: QA_APPROVER<br/>Form: audit-close<br/>E-Signature Required"/]
+        closeAudit --> notifyClosed["Notify Audit Closed<br/>(notificationDelegate)<br/>STATUS_CHANGE to:<br/>Lead Auditor, Auditee"]
+    end
+
+    notifyClosed --> closedEnd([End Event<br/>Audit Closed])
+
+    %% Styling
+    classDef startEnd fill:#37474f,stroke:#263238,color:#fff,stroke-width:2px
+    classDef userTask fill:#fff,stroke:#37474f,color:#333,stroke-width:2px
+    classDef gateway fill:#ED8B00,stroke:#D4760A,color:#fff,stroke-width:2px
+    classDef serviceTask fill:#f5f7fa,stroke:#667085,color:#333,stroke-width:1px
+    classDef timer fill:#fff3e0,stroke:#ED8B00,color:#333,stroke-width:1px
+    classDef crossModule fill:#e8eaf6,stroke:#5c6bc0,color:#333,stroke-width:1px
+
+    class Start,closedEnd startEnd
+    class conductAudit,auditeeResponse,reviewResponse,verifyFindings,closeAudit userTask
+    class responseGW,capaGW,linkDeviation,linkCC gateway
+    class notifyClosed,escalateOverdue,capaInitiation,createDeviation,createCC serviceTask
+    class reportTimer timer

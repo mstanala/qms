@@ -1,0 +1,90 @@
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#6a1b9a', 'primaryTextColor': '#fff', 'primaryBorderColor': '#4a148c', 'lineColor': '#333', 'secondaryColor': '#ED8B00', 'tertiaryColor': '#f5f7fa'}}}%%
+
+flowchart TD
+    Start([Start Event<br/>Complaint Received]) --> initialAssessment
+
+    subgraph ASSESSMENT_PHASE ["Step 1: Initial Assessment & Classification"]
+        initialAssessment[/"<b>Initial Assessment</b><br/>Candidate: QA_REVIEWER<br/>Form: complaint-assess<br/>Classify severity, adverse event,<br/>regulatory reportability"/]
+    end
+
+    initialAssessment --> assessmentGW{{"Investigation<br/>Required?"}}
+
+    assessmentGW -->|"investigationRequired<br/>= true"| adverseGW
+    assessmentGW -->|"investigationRequired<br/>= false"| responsePrep
+
+    adverseGW{{"Adverse<br/>Event?"}}
+    adverseGW -->|"isAdverseEvent<br/>= true"| regulatoryReport
+    adverseGW -->|"isAdverseEvent<br/>= false"| investigation
+
+    subgraph REGULATORY_PHASE ["Regulatory Reporting (Parallel)"]
+        regulatoryReport["File Regulatory Report<br/>(regulatoryDelegate)<br/>CDSCO/FDA notification<br/>Within 15 days"]
+        reportingTimer>"Boundary Timer<br/>P15D<br/>Non-interrupting"] -.- regulatoryReport
+        reportingTimer --> escalateRegulatory["Escalation Delegate<br/>REGULATORY_REPORTING_OVERDUE"]
+    end
+
+    regulatoryReport --> investigation
+
+    subgraph INVESTIGATION_PHASE ["Step 2: Investigation"]
+        investigation[/"<b>Root Cause Investigation</b><br/>Assignee: investigatorId<br/>Form: complaint-investigate<br/>Root cause, conclusion,<br/>recall assessment"/]
+        investigationTimer>"Boundary Timer<br/>P20D (20 days)<br/>Non-interrupting"] -.- investigation
+        investigationTimer --> escalateOverdue["Escalation Delegate<br/>INVESTIGATION_OVERDUE"]
+    end
+
+    investigation --> dispositionReview
+
+    subgraph DISPOSITION_PHASE ["Step 3: Disposition Review"]
+        dispositionReview[/"<b>Disposition Review</b><br/>Candidate: QA_APPROVER<br/>Form: complaint-disposition<br/>E-Signature Required"/]
+    end
+
+    dispositionReview --> dispositionGW{{"Disposition<br/>Decision?"}}
+
+    dispositionGW -->|"dispositionDecision<br/>= APPROVED"| capaGW
+    dispositionGW -->|"dispositionDecision<br/>= FURTHER_INVESTIGATION"| investigation
+
+    capaGW{{"CAPA<br/>Required?"}}
+
+    capaGW -->|"capaRequired<br/>= true"| capaInitiation
+    capaGW -->|"capaRequired<br/>= false"| recallGW
+
+    subgraph CROSS_MODULE ["Cross-Module Actions"]
+        capaInitiation["Create CAPA<br/>(capaInitiationDelegate)<br/>sourceType: COMPLAINT"]
+        capaInitiation --> deviationGW{{"Deviation<br/>Identified?"}}
+        deviationGW -->|Yes| createDeviation["Create Deviation<br/>sourceType: COMPLAINT"]
+        deviationGW -->|No| recallGW
+        createDeviation --> recallGW
+    end
+
+    recallGW{{"Recall<br/>Required?"}}
+    recallGW -->|"recallAssessment<br/>= VOLUNTARY/MANDATORY"| recallAction["Initiate Recall Process<br/>(recallDelegate)<br/>Field alert + recall coordination"]
+    recallGW -->|"NO_RECALL"| responsePrep
+    recallAction --> responsePrep
+
+    subgraph RESPONSE_PHASE ["Step 4: Response Preparation"]
+        responsePrep[/"<b>Prepare & Send Response</b><br/>Assignee: ownerId<br/>Form: complaint-response<br/>Formal response to complainant"/]
+    end
+
+    responsePrep --> closureReview
+
+    subgraph CLOSURE_PHASE ["Step 5: Final Review & Closure"]
+        closureReview[/"<b>QA Final Review & Closure</b><br/>Candidate: QA_APPROVER<br/>Form: complaint-close<br/>E-Signature Required"/]
+        closureReview --> notifyClosed["Notify Closure<br/>(notificationDelegate)<br/>STATUS_CHANGE to:<br/>Reporter, Owner, Investigator"]
+    end
+
+    notifyClosed --> closedEnd([End Event<br/>Complaint Closed])
+
+    %% Styling
+    classDef startEnd fill:#6a1b9a,stroke:#4a148c,color:#fff,stroke-width:2px
+    classDef userTask fill:#fff,stroke:#6a1b9a,color:#333,stroke-width:2px
+    classDef gateway fill:#ED8B00,stroke:#D4760A,color:#fff,stroke-width:2px
+    classDef serviceTask fill:#f5f7fa,stroke:#667085,color:#333,stroke-width:1px
+    classDef timer fill:#fff3e0,stroke:#ED8B00,color:#333,stroke-width:1px
+    classDef crossModule fill:#e8eaf6,stroke:#5c6bc0,color:#333,stroke-width:1px
+    classDef regulatory fill:#ffebee,stroke:#c62828,color:#333,stroke-width:1px
+
+    class Start,closedEnd startEnd
+    class initialAssessment,investigation,dispositionReview,responsePrep,closureReview userTask
+    class assessmentGW,adverseGW,dispositionGW,capaGW,deviationGW,recallGW gateway
+    class notifyClosed,escalateOverdue,escalateRegulatory,recallAction serviceTask
+    class investigationTimer,reportingTimer timer
+    class capaInitiation,createDeviation crossModule
+    class regulatoryReport regulatory

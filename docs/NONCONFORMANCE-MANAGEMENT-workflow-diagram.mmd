@@ -1,0 +1,119 @@
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#ad1457', 'primaryTextColor': '#fff', 'primaryBorderColor': '#880e4f', 'lineColor': '#333', 'secondaryColor': '#ED8B00', 'tertiaryColor': '#f5f7fa'}}}%%
+
+flowchart TD
+    Start([Start Event<br/>NC Identified]) --> holdGW
+
+    holdGW{{"Immediate<br/>Hold Required?"}}
+    holdGW -->|Yes| materialHold
+    holdGW -->|No| initialReview
+
+    subgraph HOLD_PHASE ["Material Hold"]
+        materialHold["Place Material ON HOLD<br/>holdStatus: ON_HOLD<br/>Quarantine area assigned"]
+    end
+
+    materialHold --> initialReview
+
+    subgraph REVIEW_PHASE ["Step 1: Initial Review & Classification"]
+        initialReview[/"<b>Initial Review</b><br/>Candidate: QA_REVIEWER<br/>Form: nc-review<br/>Classify: CRITICAL/MAJOR/MINOR"/]
+    end
+
+    initialReview --> reviewGW{{"Review<br/>Decision?"}}
+
+    reviewGW -->|"reviewDecision<br/>= VOID"| releaseHold1{{"Hold<br/>Active?"}}
+    reviewGW -->|"reviewDecision<br/>= VALID"| investigation
+
+    releaseHold1 -->|Yes| releaseForVoid["Release Hold"]
+    releaseHold1 -->|No| voidEnd
+    releaseForVoid --> voidEnd([Void End<br/>NC Voided])
+
+    subgraph INVESTIGATION_PHASE ["Step 2: Investigation"]
+        investigation[/"<b>Investigation</b><br/>Assignee: NC Owner<br/>Form: nc-investigate<br/>Root cause analysis"/]
+    end
+
+    investigation --> supplierGW{{"Supplier<br/>Related?"}}
+
+    supplierGW -->|"supplierId<br/>is set"| supplierNotify
+    supplierGW -->|No| deviationGW
+
+    subgraph SUPPLIER_CROSS_MODULE ["Cross-Module: Supplier Quality"]
+        supplierNotify["Notify Supplier<br/>Issue SCAR<br/>Update supplier scores"]
+    end
+
+    supplierNotify --> deviationGW
+
+    deviationGW{{"Deviation<br/>Identified?"}}
+    deviationGW -->|Yes| createDeviation
+    deviationGW -->|No| dispositionReview
+
+    subgraph DEVIATION_CROSS_MODULE ["Cross-Module: Deviation"]
+        createDeviation["Create Deviation<br/>(deviationDelegate)<br/>sourceType: NONCONFORMANCE"]
+    end
+
+    createDeviation --> dispositionReview
+
+    subgraph DISPOSITION_PHASE ["Step 3: Disposition Decision"]
+        dispositionReview[/"<b>Disposition Review</b><br/>Candidate: QA_APPROVER<br/>Form: nc-disposition<br/>E-Signature Required<br/>USE_AS_IS / REWORK /<br/>REPROCESS / RETURN /<br/>SCRAP / REJECT"/]
+    end
+
+    dispositionReview --> returnGW{{"Disposition<br/>Type?"}}
+
+    returnGW -->|"RETURN_TO_SUPPLIER"| supplierReturn
+    returnGW -->|"REWORK/<br/>REPROCESS"| reworkGW
+    returnGW -->|"USE_AS_IS/<br/>SCRAP/REJECT"| capaGW
+
+    subgraph RETURN_PHASE ["Supplier Return"]
+        supplierReturn["Process Supplier Return<br/>Update supplier quality score<br/>Cross-Module: Supplier Quality"]
+    end
+
+    supplierReturn --> capaGW
+
+    reworkGW{{"Non-Standard<br/>Rework?"}}
+    reworkGW -->|Yes| createCC
+    reworkGW -->|No| capaGW
+
+    subgraph CC_CROSS_MODULE ["Cross-Module: Change Control"]
+        createCC["Create Change Request<br/>(changeInitiationDelegate)<br/>Non-standard rework approval"]
+    end
+
+    createCC --> capaGW
+
+    capaGW{{"CAPA<br/>Required?"}}
+
+    capaGW -->|"capaRequired<br/>= true"| capaInitiation
+    capaGW -->|"capaRequired<br/>= false"| closureReview
+
+    subgraph CAPA_CROSS_MODULE ["Cross-Module: CAPA & Risk"]
+        capaInitiation["Create CAPA<br/>(capaInitiationDelegate)<br/>sourceType: NONCONFORMANCE"]
+        capaInitiation --> riskGW{{"Risk Update<br/>Required?"}}
+        riskGW -->|Yes| updateRisk["Update Risk Register<br/>Cross-Module: Risk Mgmt"]
+        riskGW -->|No| closureReview
+        updateRisk --> closureReview
+    end
+
+    subgraph CLOSURE_PHASE ["Step 4: Final Review & Closure"]
+        closureReview[/"<b>QA Final Review & Closure</b><br/>Candidate: QA_APPROVER<br/>Form: nc-close<br/>E-Signature Required<br/>Release material hold"/]
+        closureReview --> releaseHold2{{"Hold<br/>Active?"}}
+        releaseHold2 -->|Yes| releaseForClose["Release Hold<br/>holdStatus: RELEASED"]
+        releaseHold2 -->|No| notifyClosed
+        releaseForClose --> notifyClosed
+        notifyClosed["Notify Closure<br/>(notificationDelegate)<br/>STATUS_CHANGE to:<br/>Reporter, Owner"]
+    end
+
+    notifyClosed --> closedEnd([End Event<br/>NC Closed])
+
+    %% Styling
+    classDef startEnd fill:#ad1457,stroke:#880e4f,color:#fff,stroke-width:2px
+    classDef userTask fill:#fff,stroke:#ad1457,color:#333,stroke-width:2px
+    classDef gateway fill:#ED8B00,stroke:#D4760A,color:#fff,stroke-width:2px
+    classDef serviceTask fill:#f5f7fa,stroke:#667085,color:#333,stroke-width:1px
+    classDef crossModule fill:#e8eaf6,stroke:#5c6bc0,color:#333,stroke-width:1px
+    classDef hold fill:#ffebee,stroke:#c62828,color:#333,stroke-width:2px
+    classDef void fill:#9e9e9e,stroke:#616161,color:#fff,stroke-width:2px
+
+    class Start,closedEnd startEnd
+    class voidEnd void
+    class initialReview,investigation,dispositionReview,closureReview userTask
+    class holdGW,reviewGW,supplierGW,deviationGW,returnGW,reworkGW,capaGW,riskGW,releaseHold1,releaseHold2 gateway
+    class notifyClosed,supplierNotify,supplierReturn serviceTask
+    class materialHold,releaseForVoid,releaseForClose hold
+    class createDeviation,capaInitiation,updateRisk,createCC crossModule

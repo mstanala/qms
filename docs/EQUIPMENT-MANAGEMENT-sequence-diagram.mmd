@@ -1,0 +1,143 @@
+%%{init: {'theme': 'base', 'themeVariables': {'actorBkg': '#1565c0', 'actorTextColor': '#fff', 'actorBorder': '#0d47a1', 'signalColor': '#333', 'noteBkgColor': '#fff8e1', 'noteBorderColor': '#ED8B00'}}}%%
+
+sequenceDiagram
+    autonumber
+
+    participant EO as Equipment Owner<br/>(OWNER)
+    participant API as Spring Boot API<br/>(EquipmentService)
+    participant FL as Flowable Engine<br/>(equipmentProcess)
+    participant DB as PostgreSQL<br/>(Database)
+    participant CT as Calibration Tech<br/>(CALIBRATION_TECH)
+    participant QR as QA Reviewer<br/>(QA_REVIEWER)
+    participant QA as QA Approver<br/>(QA_APPROVER)
+    participant NS as Notification<br/>Service
+    participant DV as Deviation<br/>(Cross-Module)
+    participant CC as Change Control<br/>(Cross-Module)
+    participant TM as Training<br/>(Cross-Module)
+
+    rect rgb(232, 244, 248)
+        Note over EO,NS: Step 1: Register Equipment (ACTIVE)
+        EO->>API: POST /api/v1/equipment<br/>{name, description, equipmentType,<br/>category, manufacturer, modelNumber,<br/>serialNumber, assetTag, plantSiteId,<br/>departmentId, area, roomNumber,<br/>installationDate, gxpRelevant,<br/>computerizedSystem, dataIntegrityClass,<br/>calibrationRequired, calibrationFrequencyDays,<br/>maintenanceFrequencyDays, ownerId}
+        API->>DB: Generate equipment number (EQ-2026-001)
+        API->>DB: INSERT equipment (status=ACTIVE)
+        API->>DB: Calculate nextCalibrationDate<br/>= installationDate + calibrationFrequencyDays
+        API->>DB: Calculate nextMaintenanceDate<br/>= installationDate + maintenanceFrequencyDays
+        API->>DB: Audit trail: CREATED
+        API-->>EO: 201 Created (EquipmentResponse)
+    end
+
+    rect rgb(255, 248, 225)
+        Note over EO,NS: Step 2: Equipment Qualification (IQ/OQ/PQ)
+        EO->>API: PUT /api/v1/equipment/{id}<br/>{qualificationStatus: "IQ_COMPLETE"}
+        API->>DB: UPDATE equipment
+        API->>DB: Audit trail: QUALIFICATION_IQ
+
+        EO->>API: PUT /api/v1/equipment/{id}<br/>{qualificationStatus: "OQ_COMPLETE"}
+        API->>DB: Audit trail: QUALIFICATION_OQ
+
+        EO->>API: PUT /api/v1/equipment/{id}<br/>{qualificationStatus: "PQ_COMPLETE",<br/>qualificationDate: now(),<br/>nextQualificationDate: now() + 12 months}
+        API->>DB: Audit trail: QUALIFICATION_PQ
+
+        opt Cross-Module: Training for Equipment Operation
+            Note over TM: New equipment requires<br/>operator training
+            EO->>API: POST /api/v1/training/assignments<br/>{curriculumId, assignedToIds: [operators],<br/>assignmentReason: "NEW_EQUIPMENT",<br/>sourceRecordType: "EQUIPMENT",<br/>sourceRecordId, sourceRecordNumber:<br/>"EQ-2026-001"}
+            Note over TM: Training follows its own<br/>workflow lifecycle
+        end
+
+        opt Cross-Module: Change Control for New Equipment
+            Note over CC: GxP-relevant equipment installation<br/>requires Change Control
+            EO->>API: POST /api/v1/change-requests<br/>{title: "New Equipment Installation",<br/>category: "EQUIPMENT",<br/>sourceType: "EQUIPMENT",<br/>sourceId: equipmentId}
+            Note over CC: Change Control follows<br/>its own workflow
+        end
+    end
+
+    rect rgb(232, 244, 248)
+        Note over CT,NS: Step 3: Calibration Scheduling & Execution
+        Note over NS: Automatic notification when<br/>nextCalibrationDate approaches
+
+        opt Calibration Due Reminder (boundary timer)
+            FL->>NS: notificationDelegate<br/>"Calibration Due: EQ-2026-001"
+            NS-->>CT: Calibration due notification
+            NS-->>EO: Calibration due notification
+        end
+
+        CT->>API: POST /api/v1/equipment/{equipmentId}/calibrations<br/>{calibrationType: "PERIODIC/INITIAL/REPAIR",<br/>scheduledDate, standardUsed,<br/>standardCertificate, tolerance}
+        API->>DB: Generate calibration number (CAL-2026-001)
+        API->>DB: INSERT calibration_records (status=SCHEDULED)
+        API->>DB: Audit trail: CALIBRATION_SCHEDULED
+
+        CT->>API: PUT /api/v1/equipment/calibrations/{id}<br/>{status: "IN_PROGRESS",<br/>performedDate: now(),<br/>performedById,<br/>asFoundReading: "measured values",<br/>asLeftReading: "adjusted values",<br/>uncertainty, adjustmentMade: true/false,<br/>adjustmentDetails}
+        API->>DB: UPDATE calibration_records (status=IN_PROGRESS)
+    end
+
+    rect rgb(255, 248, 225)
+        Note over CT,NS: Step 4: Calibration Result & Review
+        alt Calibration PASSED (Within Tolerance)
+            CT->>API: PUT /api/v1/equipment/calibrations/{id}<br/>{status: "COMPLETED", result: "PASS",<br/>nextCalibrationDate, certificatePath}
+            API->>DB: UPDATE calibration_records
+            API->>DB: UPDATE equipment<br/>(lastCalibrationDate, nextCalibrationDate,<br/>calibrationStatus=CALIBRATED)
+            API->>DB: Audit trail: CALIBRATION_PASSED
+        else Calibration FAILED (Out of Tolerance)
+            CT->>API: PUT /api/v1/equipment/calibrations/{id}<br/>{status: "FAILED", result: "FAIL",<br/>impactAssessmentRequired: true,<br/>impactOnResults: "assessment of impact<br/>on products tested/manufactured"}
+            API->>DB: UPDATE calibration_records
+            API->>DB: UPDATE equipment<br/>(calibrationStatus=OUT_OF_CALIBRATION)
+            API->>DB: Audit trail: CALIBRATION_FAILED
+
+            Note over DV: Cross-Module: Deviation for OOT
+            CT->>API: POST /api/v1/deviations<br/>{title: "Equipment Out of Tolerance",<br/>description: "EQ-2026-001 calibration failed",<br/>type: "EQUIPMENT",<br/>category: "CALIBRATION_FAILURE",<br/>sourceArea: equipment.area}
+            API->>DB: INSERT deviations<br/>(linked to calibration failure)
+            API->>DB: UPDATE calibration_records<br/>SET deviation_id = newDeviationId
+            API->>DB: Audit trail: DEVIATION_FROM_CALIBRATION
+            Note over DV: Deviation follows its own<br/>workflow (may trigger CAPA)
+        end
+
+        QR->>API: PUT /api/v1/equipment/calibrations/{id}<br/>{reviewedById, reviewDate: now()}
+        API->>DB: UPDATE calibration_records<br/>(reviewed_by, review_date)
+        API->>DB: Audit trail: CALIBRATION_REVIEWED
+    end
+
+    rect rgb(232, 244, 248)
+        Note over EO,NS: Step 5: Preventive Maintenance
+        Note over NS: Automatic notification when<br/>nextMaintenanceDate approaches
+
+        opt Maintenance Due Reminder (boundary timer)
+            FL->>NS: notificationDelegate<br/>"Maintenance Due: EQ-2026-001"
+            NS-->>EO: Maintenance due notification
+        end
+
+        EO->>API: PUT /api/v1/equipment/{id}<br/>{lastMaintenanceDate: now(),<br/>nextMaintenanceDate: now() + maintenanceFrequencyDays}
+        API->>DB: UPDATE equipment
+        API->>DB: Audit trail: MAINTENANCE_COMPLETED
+
+        opt Unplanned Maintenance (Breakdown)
+            Note over DV: Equipment breakdown triggers<br/>Deviation report
+            EO->>API: POST /api/v1/deviations<br/>{title: "Equipment Breakdown",<br/>type: "EQUIPMENT",<br/>category: "EQUIPMENT_MALFUNCTION"}
+            Note over DV: Investigation of impact<br/>on in-process batches
+        end
+    end
+
+    rect rgb(255, 248, 225)
+        Note over EO,NS: Step 6: Re-qualification (Periodic)
+        opt Re-qualification Due (boundary timer)
+            FL->>NS: notificationDelegate<br/>"Re-qualification Due: EQ-2026-001"
+            NS-->>EO: Re-qualification reminder
+        end
+
+        EO->>API: PUT /api/v1/equipment/{id}<br/>{qualificationStatus: "REQUALIFICATION_IN_PROGRESS"}
+        API->>DB: Audit trail: REQUALIFICATION_STARTED
+
+        EO->>API: PUT /api/v1/equipment/{id}<br/>{qualificationStatus: "QUALIFIED",<br/>qualificationDate: now(),<br/>nextQualificationDate: now() + 12 months}
+        API->>DB: Audit trail: REQUALIFICATION_COMPLETED
+    end
+
+    rect rgb(240, 240, 240)
+        Note over EO,NS: Step 7: Decommission (ACTIVE -> DECOMMISSIONED)
+        opt Cross-Module: Change Control for Decommission
+            EO->>API: POST /api/v1/change-requests<br/>{title: "Equipment Decommission: EQ-2026-001",<br/>category: "EQUIPMENT"}
+            Note over CC: Requires impact assessment<br/>on processes and products
+        end
+
+        EO->>API: PUT /api/v1/equipment/{id}<br/>{status: "DECOMMISSIONED",<br/>decommissionDate: now()}
+        API->>DB: UPDATE equipment
+        API->>DB: Audit trail: DECOMMISSIONED
+    end
