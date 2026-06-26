@@ -112,6 +112,7 @@ public class TaskInboxService {
             case "deviationProcess" -> "DEVIATION";
             case "capaProcess" -> "CAPA";
             case "changeControlProcess" -> "CHANGE_CONTROL";
+            case "documentProcess" -> "DOCUMENT";
             default -> "SYSTEM";
         };
     }
@@ -121,6 +122,7 @@ public class TaskInboxService {
             case "DEVIATION" -> "deviationProcess";
             case "CAPA" -> "capaProcess";
             case "CHANGE_CONTROL" -> "changeControlProcess";
+            case "DOCUMENT" -> "documentProcess";
             default -> null;
         };
     }
@@ -130,6 +132,7 @@ public class TaskInboxService {
         if ("deviationProcess".equals(processDefKey)) return (String) vars.get("deviationNumber");
         if ("capaProcess".equals(processDefKey)) return (String) vars.get("capaNumber");
         if ("changeControlProcess".equals(processDefKey)) return (String) vars.get("changeNumber");
+        if ("documentProcess".equals(processDefKey)) return (String) vars.get("documentNumber");
         return null;
     }
 }

@@ -25,7 +25,8 @@ import { QmsDocument } from '../../models/document.model';
           <span class="status-badge" [ngClass]="doc.status.toLowerCase()">{{ formatStatus(doc.status) }}</span>
           <span class="version-badge">v{{ doc.currentVersion }}</span>
           <button class="action-btn primary" *ngIf="doc.status === 'DRAFT'" (click)="submitForReview()">Submit for Review</button>
-          <button class="action-btn primary" *ngIf="doc.status === 'PENDING_APPROVAL'" (click)="approve()">Approve</button>
+          <button class="action-btn primary" *ngIf="canReviewDocument()" (click)="markReviewed()">Mark Reviewed</button>
+          <button class="action-btn primary" *ngIf="canApproveDocument()" (click)="approve()">Approve Document</button>
           <button class="action-btn secondary" *ngIf="doc.status === 'EFFECTIVE'">Create New Version</button>
           <button class="action-btn warn" *ngIf="doc.status === 'EFFECTIVE'">Obsolete</button>
         </div>
@@ -57,6 +58,29 @@ import { QmsDocument } from '../../models/document.model';
                 <div class="info-row"><span class="lbl">Review Period</span><span>{{ doc.reviewPeriodMonths }} months</span></div>
                 <div class="info-row"><span class="lbl">Created</span><span>{{ doc.createdAt | date:'medium' }}</span></div>
                 <div class="info-row"><span class="lbl">Updated</span><span>{{ doc.updatedAt | date:'medium' }}</span></div>
+              </div>
+              <div class="info-card full-width">
+                <h4>Review & Approval Routing</h4>
+                <div class="info-row">
+                  <span class="lbl">Current Step</span>
+                  <span>{{ doc.currentWorkflowStep || formatStatus(doc.status) }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="lbl">Current Candidate Roles</span>
+                  <span>{{ formatRoles(doc.currentCandidateRoles) }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="lbl">Current Candidate Users</span>
+                  <span>{{ formatUsers(doc.currentCandidateUsers) }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="lbl">Reviewers</span>
+                  <span>{{ formatUsers(doc.reviewCandidateUsers) }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="lbl">Final Approvers</span>
+                  <span>{{ formatUsers(doc.approvalCandidateUsers) }}</span>
+                </div>
               </div>
               <div class="info-card full-width" *ngIf="doc.description">
                 <h4>Description</h4>
@@ -117,6 +141,25 @@ import { QmsDocument } from '../../models/document.model';
               </tbody>
             </table>
             <div class="empty" *ngIf="!doc.versions?.length">No versions recorded</div>
+          </div>
+        </mat-tab>
+
+        <mat-tab label="Approvals ({{ doc.approvals?.length || 0 }})">
+          <div class="tab-content">
+            <table class="data-table" *ngIf="doc.approvals?.length">
+              <thead><tr><th>Order</th><th>Role</th><th>Approver</th><th>Decision</th><th>Date</th><th>Comments</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let approval of doc.approvals">
+                  <td>{{ approval.approvalOrder }}</td>
+                  <td>{{ approval.role }}</td>
+                  <td>{{ approval.approver?.displayName || '-' }}</td>
+                  <td><span class="status-badge" [ngClass]="approval.decision.toLowerCase()">{{ formatStatus(approval.decision) }}</span></td>
+                  <td>{{ approval.decisionDate | date:'medium' }}</td>
+                  <td>{{ approval.comments || '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="empty" *ngIf="!doc.approvals?.length">No approval decisions recorded</div>
           </div>
         </mat-tab>
 
@@ -238,6 +281,7 @@ import { QmsDocument } from '../../models/document.model';
 export class DocDetailComponent implements OnInit {
   doc: QmsDocument | null = null;
   attachments: AttachmentFile[] = [];
+  actionInProgress = false;
 
   constructor(private route: ActivatedRoute, private router: Router, private docService: DocumentService) {}
 
@@ -254,19 +298,68 @@ export class DocDetailComponent implements OnInit {
   }
 
   formatStatus(val: string): string { return val?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || ''; }
+  formatRoles(roles?: string[]): string { return roles?.length ? roles.map(role => this.formatStatus(role)).join(', ') : '-'; }
+  formatUsers(users?: { displayName: string }[]): string { return users?.length ? users.map(user => user.displayName).join(', ') : '-'; }
   isReviewOverdue(): boolean { return this.doc?.nextReviewDate ? new Date(this.doc.nextReviewDate) < new Date() : false; }
 
   submitForReview(): void {
-    if (this.doc) this.docService.submitForReview(this.doc.id).subscribe(d => this.doc = d);
+    if (!this.doc || this.actionInProgress) return;
+    this.actionInProgress = true;
+    this.docService.submitForReview(this.doc.id).subscribe({
+      next: d => this.doc = d,
+      complete: () => this.actionInProgress = false,
+      error: () => this.actionInProgress = false,
+    });
+  }
+
+  markReviewed(): void {
+    if (!this.doc || this.actionInProgress) return;
+    const comments = window.prompt('Review comments', 'Reviewed and ready for QA approval');
+    if (comments === null) return;
+    this.actionInProgress = true;
+    this.docService.markReviewed(this.doc.id, comments).subscribe({
+      next: d => this.doc = d,
+      complete: () => this.actionInProgress = false,
+      error: () => this.actionInProgress = false,
+    });
   }
 
   approve(): void {
-    if (this.doc) this.docService.approveDocument(this.doc.id).subscribe(d => this.doc = d);
+    if (!this.doc || this.actionInProgress) return;
+    const comments = window.prompt('Approval comments', 'Approved for release');
+    if (comments === null) return;
+    this.actionInProgress = true;
+    this.docService.approveDocument(this.doc.id, comments).subscribe({
+      next: d => this.doc = d,
+      complete: () => this.actionInProgress = false,
+      error: () => this.actionInProgress = false,
+    });
+  }
+
+  canReviewDocument(): boolean {
+    if (!this.doc || !['PENDING_REVIEW', 'UNDER_REVIEW'].includes(this.doc.status)) return false;
+    return this.isCurrentCandidateUser() || this.hasAnyRole(['DOC_CONTROLLER', 'QA_REVIEWER', 'VAULT_ADMIN']) || this.isSystemAdmin();
+  }
+
+  canApproveDocument(): boolean {
+    if (!this.doc || this.doc.status !== 'PENDING_APPROVAL') return false;
+    return this.isCurrentCandidateUser() || this.hasAnyRole(['QA_APPROVER', 'VAULT_ADMIN']) || this.isSystemAdmin();
   }
 
   openAttachment(file: AttachmentFile, download: boolean): void {
-    this.docService.getAttachmentUrl(file.id, download).subscribe(url => {
-      window.open(url, '_blank', 'noopener');
+    this.docService.getAttachmentContent(file.id, download).subscribe(blob => {
+      const url = URL.createObjectURL(blob);
+      if (download) {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = file.fileName || 'attachment';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } else {
+        window.open(url, '_blank', 'noopener');
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
     });
   }
 
@@ -290,5 +383,32 @@ export class DocDetailComponent implements OnInit {
       next: files => this.attachments = files,
       error: () => this.attachments = [],
     });
+  }
+
+  private isCurrentCandidateUser(): boolean {
+    const userId = this.getCurrentUser()?.id;
+    return !!userId && !!this.doc?.currentCandidateUsers?.some(user => user.id === userId);
+  }
+
+  private hasAnyRole(roleCodes: string[]): boolean {
+    const roles = this.getCurrentUser()?.roles || [];
+    return roles
+      .map((role: any) => typeof role === 'string' ? role : role.code)
+      .filter(Boolean)
+      .some((code: string) => roleCodes.includes(code));
+  }
+
+  private isSystemAdmin(): boolean {
+    return this.getCurrentUser()?.userType === 'SYSTEM_ADMIN';
+  }
+
+  private getCurrentUser(): any {
+    const raw = localStorage.getItem('auth') || sessionStorage.getItem('auth');
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw)?.user || null;
+    } catch {
+      return null;
+    }
   }
 }

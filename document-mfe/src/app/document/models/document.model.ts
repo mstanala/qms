@@ -22,8 +22,15 @@ export interface QmsDocument {
   keywords?: string;
   isTemplate: boolean;
   currentWorkflowStep?: string;
+  currentCandidateRoles?: string[];
+  currentCandidateUsers?: UserRef[];
+  reviewCandidateRoles?: string[];
+  reviewCandidateUsers?: UserRef[];
+  approvalCandidateRoles?: string[];
+  approvalCandidateUsers?: UserRef[];
   versions?: DocumentVersion[];
   reviews?: DocumentReview[];
+  approvals?: DocumentApproval[];
   distributions?: DocumentDistribution[];
   references?: DocumentReference[];
   auditTrail?: AuditEntry[];

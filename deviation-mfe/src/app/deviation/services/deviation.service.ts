@@ -300,6 +300,15 @@ export class DeviationService {
       .pipe(map((response) => response.url));
   }
 
+  getAttachmentContent(attachmentId: string, download = true): Observable<Blob> {
+    const params = new HttpParams().set('download', String(download));
+    return this.http.get(`${API_BASE_URL}/attachments/${attachmentId}/content`, {
+      headers: this.authHeaders(),
+      params,
+      responseType: 'blob',
+    });
+  }
+
   deleteAttachment(attachmentId: string): Observable<void> {
     return this.http.delete<void>(`${API_BASE_URL}/attachments/${attachmentId}`, { headers: this.authHeaders() });
   }

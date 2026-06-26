@@ -16,7 +16,7 @@
 
         <!-- Step 1: Draft Review -->
         <userTask id="draftReview" name="Document Draft Review"
-                  flowable:candidateGroups="DOC_REVIEWER,QA_REVIEWER"
+                  flowable:candidateGroups="DOC_CONTROLLER,QA_REVIEWER"
                   flowable:formKey="document-review">
             <documentation>Review document draft for technical accuracy and compliance</documentation>
         </userTask>

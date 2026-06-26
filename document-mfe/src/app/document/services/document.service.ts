@@ -125,6 +125,15 @@ export class DocumentService {
       .pipe(map(response => response.url));
   }
 
+  getAttachmentContent(id: string, download = false): Observable<Blob> {
+    const params = new HttpParams().set('download', String(download));
+    return this.http.get(`${this.attachmentApiUrl}/${id}/content`, {
+      headers: this.authHeaders(),
+      params,
+      responseType: 'blob',
+    });
+  }
+
   getDashboardMetrics(): Observable<DocumentDashboardMetrics> {
     return this.http
       .get<DocumentDashboardMetrics>(`${this.apiUrl}/dashboard`, { headers: this.authHeaders() })
@@ -134,6 +143,12 @@ export class DocumentService {
   submitForReview(id: string): Observable<QmsDocument> {
     return this.http
       .patch<any>(`${this.apiUrl}/${id}/status`, { status: 'PENDING_REVIEW' }, { headers: this.authHeaders() })
+      .pipe(map(item => this.toDocument(item)));
+  }
+
+  markReviewed(id: string, comments?: string): Observable<QmsDocument> {
+    return this.http
+      .patch<any>(`${this.apiUrl}/${id}/status`, { status: 'PENDING_APPROVAL', comments }, { headers: this.authHeaders() })
       .pipe(map(item => this.toDocument(item)));
   }
 
@@ -153,6 +168,22 @@ export class DocumentService {
       ...api,
       effectiveDate: api.effectiveDate ? new Date(api.effectiveDate) : undefined,
       nextReviewDate: api.nextReviewDate ? new Date(api.nextReviewDate) : undefined,
+      distributions: (api.distributions || []).map((item: any) => ({
+        ...item,
+        distributionDate: item.distributionDate ? new Date(item.distributionDate) : undefined,
+        acknowledgedDate: item.acknowledgedDate ? new Date(item.acknowledgedDate) : undefined,
+      })),
+      auditTrail: (api.auditTrail || []).map((item: any) => ({
+        id: item.id,
+        timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
+        userId: item.userId,
+        userName: item.userName,
+        action: item.action,
+        field: item.fieldName,
+        oldValue: item.oldValue,
+        newValue: item.newValue,
+        comments: item.comments || item.reasonForChange,
+      })),
       createdAt: new Date(api.createdAt), updatedAt: new Date(api.updatedAt),
     };
   }

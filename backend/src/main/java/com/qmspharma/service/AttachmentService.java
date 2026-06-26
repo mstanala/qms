@@ -1,6 +1,7 @@
 package com.qmspharma.service;
 
 import com.google.cloud.storage.BlobInfo;
+import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.HttpMethod;
 import com.google.cloud.storage.Storage;
 import com.qmspharma.exception.ResourceNotFoundException;
@@ -122,6 +123,27 @@ public class AttachmentService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public AttachmentContent getContent(UUID id) {
+        Attachment a = attachmentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Attachment", "id", id));
+        if (Boolean.TRUE.equals(a.getIsDeleted())) {
+            throw new ResourceNotFoundException("Attachment", "id", id);
+        }
+
+        try {
+            Blob blob = storage().get(a.getGcsBucket(), a.getGcsObjectKey());
+            if (blob == null || !blob.exists()) {
+                throw new ResourceNotFoundException("Attachment object", "id", id);
+            }
+            return new AttachmentContent(blob.getContent(), a.getFileName(), a.getFileType());
+        } catch (ResourceNotFoundException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            throw new BusinessRuleException("Unable to read attachment from Google Cloud Storage: " + ex.getMessage(), "GCS_DOWNLOAD_FAILED");
+        }
+    }
+
     @Transactional
     public void softDelete(UUID id) {
         Attachment a = attachmentRepository.findById(id)
@@ -169,4 +191,6 @@ public class AttachmentService {
     private Storage storage() {
         return storageProvider.getObject();
     }
+
+    public record AttachmentContent(byte[] bytes, String fileName, String contentType) {}
 }

@@ -11,4 +11,5 @@ import java.util.UUID;
 public interface DocumentDistributionRepository extends JpaRepository<DocumentDistribution, UUID> {
     List<DocumentDistribution> findByDocumentVersionId(UUID versionId);
     List<DocumentDistribution> findByRecipientId(UUID recipientId);
+    boolean existsByDocumentVersionIdAndRecipientId(UUID documentVersionId, UUID recipientId);
 }

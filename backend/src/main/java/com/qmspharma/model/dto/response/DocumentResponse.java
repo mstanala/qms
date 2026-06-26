@@ -33,9 +33,17 @@ public class DocumentResponse {
     private String keywords;
     private Boolean isTemplate;
     private String currentWorkflowStep;
+    private List<String> currentCandidateRoles;
+    private List<UserRef> currentCandidateUsers;
+    private List<String> reviewCandidateRoles;
+    private List<UserRef> reviewCandidateUsers;
+    private List<String> approvalCandidateRoles;
+    private List<UserRef> approvalCandidateUsers;
     private List<DocumentVersionResponse> versions;
     private List<DocumentReviewResponse> reviews;
+    private List<DocumentApprovalResponse> approvals;
     private List<DocumentDistributionResponse> distributions;
+    private List<AuditTrailResponse> auditTrail;
     private Instant createdAt;
     private Instant updatedAt;
     private Integer version;

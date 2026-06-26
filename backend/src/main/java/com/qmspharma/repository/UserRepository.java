@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,10 +21,19 @@ public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificat
     boolean existsByUsername(String username);
     boolean existsByEmail(String email);
     boolean existsByEmployeeId(String employeeId);
+    List<User> findByDepartmentIdAndIsActiveTrue(UUID departmentId);
 
     @Query("SELECT u FROM User u WHERE u.isActive = true AND " +
            "(:search IS NULL OR LOWER(u.displayName) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%'))) AND " +
            "(:departmentId IS NULL OR u.department.id = :departmentId) AND " +
            "(:userType IS NULL OR u.userType = :userType)")
     Page<User> findUsersFiltered(@Param("search") String search, @Param("departmentId") UUID departmentId, @Param("userType") UserType userType, Pageable pageable);
+
+    @Query("SELECT DISTINCT u FROM User u JOIN u.userRoles ur JOIN ur.role r " +
+           "WHERE u.isActive = true AND u.isLocked = false " +
+           "AND ur.isActive = true AND (ur.validUntil IS NULL OR ur.validUntil > CURRENT_TIMESTAMP) " +
+           "AND r.isActive = true AND r.code IN :roleCodes " +
+           "AND (:plantSiteId IS NULL OR ur.plantSite IS NULL OR ur.plantSite.id = :plantSiteId OR u.plantSite.id = :plantSiteId) " +
+           "ORDER BY u.displayName")
+    List<User> findActiveUsersByRoleCodes(@Param("roleCodes") Collection<String> roleCodes, @Param("plantSiteId") UUID plantSiteId);
 }

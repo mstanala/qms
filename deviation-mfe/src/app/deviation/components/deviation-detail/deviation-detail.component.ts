@@ -592,13 +592,16 @@ function getUserId(): string {
                   <thead><tr><th>File Name</th><th>Category</th><th>Uploaded By</th><th>Date</th><th>Size</th><th>Description</th><th>Actions</th></tr></thead>
                   <tbody>
                     <tr *ngFor="let att of deviation.attachments">
-                      <td><button type="button" class="vault-link link-button" (click)="downloadAttachment(att.id)">{{ att.fileName }}</button></td>
+                      <td><button type="button" class="vault-link link-button" (click)="viewAttachment(att.id)">{{ att.fileName }}</button></td>
                       <td>{{ formatStatus(att.category || 'OTHER') }}</td>
                       <td>{{ att.uploadedBy }}</td>
                       <td>{{ att.uploadedDate | date:'dd-MMM-yyyy' }}</td>
                       <td>{{ formatFileSize(att.fileSize) }}</td>
                       <td>{{ att.description || '-' }}</td>
                       <td>
+                        <button type="button" class="table-icon-btn" matTooltip="View" (click)="viewAttachment(att.id)">
+                          <mat-icon>visibility</mat-icon>
+                        </button>
                         <button type="button" class="table-icon-btn" matTooltip="Download" (click)="downloadAttachment(att.id)">
                           <mat-icon>download</mat-icon>
                         </button>
@@ -1648,9 +1651,30 @@ export class DeviationDetailComponent implements OnInit {
       });
   }
 
+  viewAttachment(attachmentId: string): void {
+    this.deviationService.getAttachmentContent(attachmentId, false).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank', 'noopener');
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      },
+      error: () => this.snackBar.open('Unable to open attachment', 'Close', { duration: 4000 }),
+    });
+  }
+
   downloadAttachment(attachmentId: string): void {
-    this.deviationService.getAttachmentDownloadUrl(attachmentId).subscribe({
-      next: (url) => window.open(url, '_blank', 'noopener'),
+    const attachment = this.deviation?.attachments.find((item) => item.id === attachmentId);
+    this.deviationService.getAttachmentContent(attachmentId, true).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = attachment?.fileName || 'attachment';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      },
       error: () => this.snackBar.open('Unable to download attachment', 'Close', { duration: 4000 }),
     });
   }
