@@ -14,13 +14,19 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class TrainingService {
+
+    private static final String PROCESS_KEY = "trainingProcess";
+    private static final String RECORD_TYPE = "TRAINING";
 
     private final TrainingCurriculumRepository curriculumRepository;
     private final TrainingAssignmentRepository assignmentRepository;
@@ -34,6 +40,7 @@ public class TrainingService {
     private final SequenceGeneratorService sequenceGenerator;
     private final DocumentDistributionRepository distributionRepository;
     private final AuditTrailService auditTrailService;
+    private final WorkflowService workflowService;
     private final CurrentUserProvider currentUserProvider;
 
     // ─── Curricula ────────────────────────────────────────────────
@@ -136,6 +143,38 @@ public class TrainingService {
         assignment.setSourceRecordNumber(request.getSourceRecordNumber());
 
         TrainingAssignment saved = assignmentRepository.save(assignment);
+
+        // Start Flowable workflow process
+        try {
+            Map<String, Object> vars = new HashMap<>();
+            vars.put("recordId", saved.getId().toString());
+            vars.put("traineeId", trainee.getId().toString());
+            vars.put("trainingType", curriculum.getTrainingType().name());
+            vars.put("assessmentRequired", curriculum.getPassingScore() != null && curriculum.getPassingScore() > 0);
+            if (saved.getDueDate() != null) {
+                vars.put("dueDate", saved.getDueDate().toString());
+            }
+            if (curriculum.getDepartment() != null) {
+                vars.put("departmentId", curriculum.getDepartment().getId().toString());
+            }
+            if (curriculum.getRelatedDocument() != null) {
+                vars.put("documentId", curriculum.getRelatedDocument().getId().toString());
+            }
+            // Use assignedBy as trainer if no explicit trainer
+            vars.put("trainerId", currentUser.getId().toString());
+
+            String processId = workflowService.startProcess(PROCESS_KEY, saved.getId().toString(), vars);
+            saved.setFlowableProcessId(processId);
+            saved = assignmentRepository.save(saved);
+
+            workflowService.recordStep(RECORD_TYPE, saved.getId(), "Assigned",
+                    WorkflowStepStatus.COMPLETED, currentUser, "Training assigned to " + trainee.getDisplayName(), 1);
+            workflowService.recordStep(RECORD_TYPE, saved.getId(), "Training Completion",
+                    WorkflowStepStatus.CURRENT, currentUser, null, 2);
+        } catch (Exception e) {
+            log.warn("Failed to start training workflow for assignment {}: {}", saved.getId(), e.getMessage());
+        }
+
         auditTrailService.logAction("TRAINING_ASSIGNMENT", saved.getId(), null, "CREATED", null, null, null,
                 "Assigned to " + trainee.getFirstName() + " " + trainee.getLastName());
         return toAssignmentResponse(saved);
@@ -145,9 +184,14 @@ public class TrainingService {
     public TrainingAssignmentResponse startTraining(UUID id) {
         TrainingAssignment assignment = assignmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Assignment", "id", id));
+        User currentUser = currentUserProvider.getCurrentUser();
         assignment.setStatus(TrainingAssignmentStatus.IN_PROGRESS);
         assignment.setAttempts(assignment.getAttempts() + 1);
         TrainingAssignment saved = assignmentRepository.save(assignment);
+
+        workflowService.recordStep(RECORD_TYPE, saved.getId(), "Training In Progress",
+                WorkflowStepStatus.CURRENT, currentUser, "Trainee started training (attempt " + saved.getAttempts() + ")", 2);
+
         auditTrailService.logAction("TRAINING", saved.getId(), null, "STARTED",
                 "status", "ASSIGNED", "IN_PROGRESS", null);
         return toAssignmentResponse(saved);
@@ -166,6 +210,34 @@ public class TrainingService {
         assignment.setAttempts(assignment.getAttempts() + 1);
 
         TrainingAssignment saved = assignmentRepository.save(assignment);
+
+        // Complete Flowable workflow tasks
+        if (saved.getFlowableProcessId() != null) {
+            try {
+                // Complete trainingCompletion task
+                Map<String, Object> taskVars = new HashMap<>();
+                taskVars.put("assessmentRequired", false);
+                workflowService.completeCurrentTask(saved.getFlowableProcessId(), taskVars);
+
+                // Complete trainerVerification task (flows to this after assessmentRequired=false)
+                try {
+                    Map<String, Object> verifyVars = new HashMap<>();
+                    verifyVars.put("trainingEffective", true);
+                    workflowService.completeCurrentTask(saved.getFlowableProcessId(), verifyVars);
+                } catch (Exception e) {
+                    log.debug("Trainer verification task may not be active yet: {}", e.getMessage());
+                }
+
+                workflowService.recordStep(RECORD_TYPE, saved.getId(), "Training Completion",
+                        WorkflowStepStatus.COMPLETED, currentUser,
+                        "Training completed. Score: " + saved.getScore(), 3);
+                workflowService.recordStep(RECORD_TYPE, saved.getId(), "Completed",
+                        WorkflowStepStatus.COMPLETED, currentUser, "Training workflow complete", 4);
+            } catch (Exception e) {
+                log.warn("Failed to complete training workflow task for {}: {}", saved.getId(), e.getMessage());
+            }
+        }
+
         auditTrailService.logAction("TRAINING_ASSIGNMENT", saved.getId(), null, "COMPLETED",
                 "status", "IN_PROGRESS", "COMPLETED", "Score: " + saved.getScore());
 

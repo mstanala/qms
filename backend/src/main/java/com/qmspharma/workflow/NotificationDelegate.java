@@ -56,7 +56,9 @@ public class NotificationDelegate implements JavaDelegate {
 
     private String resolveTemplate(String template, DelegateExecution execution) {
         String result = template;
-        for (String varName : new String[]{"deviationNumber", "capaNumber", "changeNumber", "recordId"}) {
+        for (String varName : new String[]{"deviationNumber", "capaNumber", "changeNumber",
+                "trainingNumber", "auditNumber", "calibrationNumber", "equipmentName",
+                "registerNumber", "recordId", "dueDate"}) {
             Object val = execution.getVariable(varName);
             if (val != null) {
                 result = result.replace("{" + varName + "}", val.toString());
@@ -69,11 +71,16 @@ public class NotificationDelegate implements JavaDelegate {
         if (processDefinitionId.startsWith("deviationProcess")) return "DEVIATION";
         if (processDefinitionId.startsWith("capaProcess")) return "CAPA";
         if (processDefinitionId.startsWith("changeControlProcess")) return "CHANGE_CONTROL";
+        if (processDefinitionId.startsWith("trainingProcess")) return "TRAINING";
+        if (processDefinitionId.startsWith("auditProcess")) return "AUDIT";
+        if (processDefinitionId.startsWith("equipmentCalibration")) return "EQUIPMENT";
+        if (processDefinitionId.startsWith("riskRegister")) return "RISK_REGISTER";
         return "SYSTEM";
     }
 
     private String getRecordNumber(DelegateExecution execution) {
-        for (String varName : new String[]{"deviationNumber", "capaNumber", "changeNumber"}) {
+        for (String varName : new String[]{"deviationNumber", "capaNumber", "changeNumber",
+                "trainingNumber", "auditNumber", "calibrationNumber", "registerNumber"}) {
             Object val = execution.getVariable(varName);
             if (val != null) return val.toString();
         }

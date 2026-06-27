@@ -496,9 +496,14 @@ export class AuditDetailComponent implements OnInit {
 
   changeStatus(status: string): void {
     if (!this.audit) return;
-    this.auditService.transitionStatus(this.audit.id, status).subscribe(a => {
-      this.audit = a;
-      this.snackBar.open(`Status changed to ${this.formatEnum(status)}`, 'OK', { duration: 3000 });
+    this.auditService.transitionStatus(this.audit.id, status).subscribe({
+      next: (a) => {
+        this.audit = a;
+        this.snackBar.open(`Status changed to ${this.formatEnum(status)}`, 'OK', { duration: 3000 });
+      },
+      error: (err) => {
+        this.snackBar.open(err.error?.message || err.error?.error || 'Status change failed', 'Dismiss', { duration: 5000 });
+      }
     });
   }
 

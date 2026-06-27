@@ -259,6 +259,33 @@ public class EquipmentService {
 
         cr = calibrationRepository.save(cr);
 
+        // Start Flowable calibration workflow process
+        try {
+            Map<String, Object> vars = new HashMap<>();
+            vars.put("recordId", cr.getId().toString());
+            vars.put("calibrationNumber", cr.getCalibrationNumber());
+            vars.put("equipmentId", equip.getId().toString());
+            vars.put("equipmentName", equip.getName());
+            if (equip.getOwner() != null) {
+                vars.put("technicianId", equip.getOwner().getId().toString());
+            }
+            vars.put("calibrationDueDate", cr.getScheduledDate().toString());
+            if (equip.getDepartment() != null) {
+                vars.put("departmentId", equip.getDepartment().getId().toString());
+            }
+
+            String processId = workflowService.startProcess(PROCESS_KEY, cr.getId().toString(), vars);
+            log.info("Started calibration workflow {} for {}", processId, cr.getCalibrationNumber());
+
+            workflowService.recordStep(RECORD_TYPE, equip.getId(), "Calibration Scheduled",
+                    WorkflowStepStatus.COMPLETED, currentUser,
+                    "Calibration " + cr.getCalibrationNumber() + " scheduled", 7);
+            workflowService.recordStep(RECORD_TYPE, equip.getId(), "Calibration Execution",
+                    WorkflowStepStatus.CURRENT, currentUser, null, 8);
+        } catch (Exception e) {
+            log.warn("Failed to start calibration workflow for {}: {}", cr.getCalibrationNumber(), e.getMessage());
+        }
+
         auditTrailService.logAction(RECORD_TYPE, equip.getId(), equip.getEquipmentNumber(),
                 "CALIBRATION_SCHEDULED", "calibration", null, cr.getCalibrationNumber(),
                 "Calibration " + cr.getCalibrationNumber() + " scheduled for " + cr.getScheduledDate());
@@ -292,6 +319,15 @@ public class EquipmentService {
         // Set performedBy to current user when recording results
         if (request.containsKey("performedDate") && cr.getPerformedBy() == null) {
             cr.setPerformedBy(currentUser);
+        }
+
+        // Record calibration execution step
+        if ("COMPLETED".equals(cr.getStatus()) || "FAILED".equals(cr.getStatus())) {
+            workflowService.recordStep(RECORD_TYPE, equip.getId(), "Calibration Execution",
+                    WorkflowStepStatus.COMPLETED, currentUser,
+                    "Calibration " + cr.getCalibrationNumber() + " executed. Result: " + cr.getResult(), 8);
+            workflowService.recordStep(RECORD_TYPE, equip.getId(), "Calibration QA Review",
+                    WorkflowStepStatus.CURRENT, currentUser, null, 9);
         }
 
         // Handle result-based updates on equipment
@@ -340,6 +376,10 @@ public class EquipmentService {
         if (request.containsKey("comments")) {
             // Store review comments in adjustment details if needed
         }
+
+        workflowService.recordStep(RECORD_TYPE, equip.getId(), "Calibration QA Review",
+                WorkflowStepStatus.COMPLETED, currentUser,
+                "Calibration " + cr.getCalibrationNumber() + " reviewed by QA", 9);
 
         auditTrailService.logAction(RECORD_TYPE, equip.getId(), equip.getEquipmentNumber(),
                 "CALIBRATION_REVIEWED", "calibration", null, cr.getCalibrationNumber(),

@@ -12,14 +12,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.qmspharma.model.enums.*;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.time.Instant;
 import java.util.*;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuditService {
 
     private static final String RECORD_TYPE = "AUDIT";
+    private static final String PROCESS_KEY = "auditProcess";
 
     private final AuditRepository auditRepository;
     private final AuditPlanRepository auditPlanRepository;
@@ -125,7 +129,36 @@ public class AuditService {
         audit.setUpdatedBy(currentUser);
 
         Audit saved = auditRepository.save(audit);
-        workflowService.startProcess("auditProcess", saved.getId().toString(), Map.of());
+
+        // Start Flowable workflow with proper process variables
+        try {
+            Map<String, Object> vars = new HashMap<>();
+            vars.put("recordId", saved.getId().toString());
+            vars.put("auditNumber", saved.getAuditNumber());
+            vars.put("auditType", saved.getAuditType());
+            vars.put("leadAuditorId", saved.getLeadAuditor().getId().toString());
+            if (saved.getAuditeeContact() != null) {
+                vars.put("auditeeId", saved.getAuditeeContact().getId().toString());
+            }
+            vars.put("plantSiteId", saved.getPlantSite().getId().toString());
+            if (saved.getAuditeeDepartment() != null) {
+                vars.put("departmentId", saved.getAuditeeDepartment().getId().toString());
+            }
+            vars.put("scheduledDate", saved.getScheduledStartDate().toString());
+
+            String processId = workflowService.startProcess(PROCESS_KEY, saved.getId().toString(), vars);
+            saved.setFlowableProcessId(processId);
+            saved.setCurrentWorkflowStep("Audit Planning");
+            saved = auditRepository.save(saved);
+
+            workflowService.recordStep(RECORD_TYPE, saved.getId(), "Draft",
+                    WorkflowStepStatus.COMPLETED, currentUser, "Audit created", 1);
+            workflowService.recordStep(RECORD_TYPE, saved.getId(), "Audit Planning",
+                    WorkflowStepStatus.CURRENT, currentUser, null, 2);
+        } catch (Exception e) {
+            log.warn("Failed to start audit workflow for {}: {}", saved.getAuditNumber(), e.getMessage());
+        }
+
         return saved;
     }
 
@@ -148,17 +181,131 @@ public class AuditService {
     @Transactional
     public Audit transitionStatus(UUID id, String newStatus) {
         Audit audit = getAuditById(id);
-        String old = audit.getStatus();
+        String oldStatus = audit.getStatus();
+        User currentUser = currentUserProvider.getCurrentUser();
+
+        log.info("Audit {} transitioning from {} to {}", audit.getAuditNumber(), oldStatus, newStatus);
+
+        switch (newStatus) {
+            case "SCHEDULED" -> {
+                // PLANNED -> SCHEDULED: complete auditPlanning task
+                if (audit.getFlowableProcessId() != null) {
+                    try {
+                        workflowService.completeCurrentTask(audit.getFlowableProcessId(), new HashMap<>());
+                    } catch (Exception e) {
+                        log.warn("Could not complete auditPlanning task: {}", e.getMessage());
+                    }
+                }
+                workflowService.recordStep(RECORD_TYPE, audit.getId(), "Audit Planning",
+                        WorkflowStepStatus.COMPLETED, currentUser, "Audit scheduled", 2);
+                workflowService.recordStep(RECORD_TYPE, audit.getId(), "Plan Approval",
+                        WorkflowStepStatus.CURRENT, currentUser, null, 3);
+                audit.setCurrentWorkflowStep("Plan Approval");
+            }
+
+            case "IN_PROGRESS" -> {
+                // SCHEDULED -> IN_PROGRESS: complete planApproval task, start execution
+                if (audit.getFlowableProcessId() != null) {
+                    try {
+                        workflowService.completeCurrentTask(audit.getFlowableProcessId(), new HashMap<>());
+                    } catch (Exception e) {
+                        log.warn("Could not complete planApproval task: {}", e.getMessage());
+                    }
+                }
+                if (audit.getActualStartDate() == null) {
+                    audit.setActualStartDate(Instant.now());
+                }
+                workflowService.recordStep(RECORD_TYPE, audit.getId(), "Plan Approval",
+                        WorkflowStepStatus.COMPLETED, currentUser, "Audit plan approved", 3);
+                workflowService.recordStep(RECORD_TYPE, audit.getId(), "Audit Execution",
+                        WorkflowStepStatus.CURRENT, currentUser, null, 4);
+                audit.setCurrentWorkflowStep("Audit Execution");
+            }
+
+            case "REPORT_DRAFTING" -> {
+                // IN_PROGRESS -> REPORT_DRAFTING: complete auditExecution task
+                if (audit.getFlowableProcessId() != null) {
+                    try {
+                        workflowService.completeCurrentTask(audit.getFlowableProcessId(), new HashMap<>());
+                    } catch (Exception e) {
+                        log.warn("Could not complete auditExecution task: {}", e.getMessage());
+                    }
+                }
+                workflowService.recordStep(RECORD_TYPE, audit.getId(), "Audit Execution",
+                        WorkflowStepStatus.COMPLETED, currentUser, "Audit execution complete, drafting report", 4);
+                workflowService.recordStep(RECORD_TYPE, audit.getId(), "Findings Review",
+                        WorkflowStepStatus.CURRENT, currentUser, null, 5);
+                audit.setCurrentWorkflowStep("Findings Review");
+            }
+
+            case "UNDER_REVIEW" -> {
+                // REPORT_DRAFTING -> UNDER_REVIEW: complete findingsReview task
+                boolean capaRequired = false;
+                if (audit.getFlowableProcessId() != null) {
+                    try {
+                        Map<String, Object> taskVars = new HashMap<>();
+                        // Check if any findings require CAPA
+                        List<AuditFinding> findings = auditFindingRepository.findByAuditId(audit.getId());
+                        capaRequired = findings.stream().anyMatch(f -> Boolean.TRUE.equals(f.getCapaRequired()));
+                        taskVars.put("capaRequired", capaRequired);
+                        workflowService.completeCurrentTask(audit.getFlowableProcessId(), taskVars);
+                    } catch (Exception e) {
+                        log.warn("Could not complete findingsReview task: {}", e.getMessage());
+                    }
+                }
+                workflowService.recordStep(RECORD_TYPE, audit.getId(), "Findings Review",
+                        WorkflowStepStatus.COMPLETED, currentUser,
+                        "Report submitted for review" + (capaRequired ? " (CAPA required)" : ""), 5);
+                workflowService.recordStep(RECORD_TYPE, audit.getId(), "Audit Closure",
+                        WorkflowStepStatus.CURRENT, currentUser, null, 6);
+                audit.setCurrentWorkflowStep("Audit Closure");
+            }
+
+            case "COMPLETED" -> {
+                // UNDER_REVIEW -> COMPLETED: complete remaining BPMN tasks
+                if (audit.getFlowableProcessId() != null) {
+                    try {
+                        // Complete any remaining tasks (auditeeResponse, auditClosure)
+                        workflowService.completeCurrentTask(audit.getFlowableProcessId(), new HashMap<>());
+                    } catch (Exception e) {
+                        log.warn("Could not complete audit closure task: {}", e.getMessage());
+                    }
+                    // Try completing one more task in case there's auditClosure after auditeeResponse
+                    try {
+                        workflowService.completeCurrentTask(audit.getFlowableProcessId(), new HashMap<>());
+                    } catch (Exception ignored) {}
+                }
+                if (audit.getActualEndDate() == null) {
+                    audit.setActualEndDate(Instant.now());
+                }
+                workflowService.recordStep(RECORD_TYPE, audit.getId(), "Audit Closure",
+                        WorkflowStepStatus.COMPLETED, currentUser, "Audit completed and closed", 6);
+                workflowService.recordStep(RECORD_TYPE, audit.getId(), "Completed",
+                        WorkflowStepStatus.COMPLETED, currentUser, "Audit workflow complete", 7);
+                audit.setCurrentWorkflowStep("Completed");
+            }
+
+            case "CANCELLED" -> {
+                audit.setCurrentWorkflowStep("Cancelled");
+                workflowService.recordStep(RECORD_TYPE, audit.getId(), "Cancelled",
+                        WorkflowStepStatus.COMPLETED, currentUser, "Audit cancelled", 8);
+            }
+
+            default -> {
+                log.info("Generic status transition for audit {} to {}", audit.getAuditNumber(), newStatus);
+                if ("IN_PROGRESS".equals(newStatus) && audit.getActualStartDate() == null) {
+                    audit.setActualStartDate(Instant.now());
+                }
+                if ("COMPLETED".equals(newStatus) && audit.getActualEndDate() == null) {
+                    audit.setActualEndDate(Instant.now());
+                }
+            }
+        }
+
         audit.setStatus(newStatus);
-        audit.setUpdatedBy(currentUserProvider.getCurrentUser());
-        if ("IN_PROGRESS".equals(newStatus) && audit.getActualStartDate() == null) {
-            audit.setActualStartDate(Instant.now());
-        }
-        if ("COMPLETED".equals(newStatus) && audit.getActualEndDate() == null) {
-            audit.setActualEndDate(Instant.now());
-        }
+        audit.setUpdatedBy(currentUser);
         auditTrailService.logAction(RECORD_TYPE, audit.getId(), audit.getAuditNumber(),
-                "STATUS_CHANGE", "status", old, newStatus, null);
+                "STATUS_CHANGE", "status", oldStatus, newStatus, null);
         return auditRepository.save(audit);
     }
 
