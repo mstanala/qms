@@ -1,5 +1,6 @@
 package com.qmspharma.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -67,6 +68,7 @@ public class Nonconformance {
     @Column(name = "disposition_justification", columnDefinition = "TEXT")
     private String dispositionJustification;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "disposition_approved_by")
     private User dispositionApprovedBy;
@@ -86,6 +88,7 @@ public class Nonconformance {
     @Column(name = "hold_released_date")
     private Instant holdReleasedDate;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hold_released_by")
     private User holdReleasedBy;
@@ -93,26 +96,32 @@ public class Nonconformance {
     @Column(name = "capa_required")
     private Boolean capaRequired = false;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "capa_id")
     private Capa capa;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "deviation_id")
     private Deviation deviation;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "supplier_id")
     private Supplier supplier;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id", nullable = false)
     private Department department;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "plant_site_id", nullable = false)
     private PlantSite plantSite;
@@ -134,10 +143,12 @@ public class Nonconformance {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "updated_by", nullable = false)
     private User updatedBy;

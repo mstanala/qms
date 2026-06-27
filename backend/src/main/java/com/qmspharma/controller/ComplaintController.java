@@ -1,6 +1,7 @@
 package com.qmspharma.controller;
 
 import com.qmspharma.model.dto.response.ComplaintResponse;
+import com.qmspharma.model.dto.response.WorkflowHistoryResponse;
 import com.qmspharma.service.ComplaintService;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
@@ -10,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -47,8 +49,14 @@ public class ComplaintController {
     }
 
     @PatchMapping("/{id}/status")
-    public ResponseEntity<ComplaintResponse> transitionStatus(@PathVariable UUID id, @RequestBody Map<String, String> request) {
-        return ResponseEntity.ok(complaintService.transitionStatus(id, request.get("status")));
+    public ResponseEntity<ComplaintResponse> transitionStatus(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+        String status = (String) request.get("status");
+        return ResponseEntity.ok(complaintService.transitionStatus(id, status, request));
+    }
+
+    @GetMapping("/{id}/workflow-history")
+    public ResponseEntity<List<WorkflowHistoryResponse>> getWorkflowHistory(@PathVariable UUID id) {
+        return ResponseEntity.ok(complaintService.getWorkflowHistory(id));
     }
 
     @GetMapping("/dashboard")

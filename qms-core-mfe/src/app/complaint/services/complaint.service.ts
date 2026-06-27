@@ -3,6 +3,16 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Page } from '../../shared/core-lookup.service';
 
+export interface WorkflowStep {
+  id: string;
+  stepName: string;
+  status: string;
+  performedBy: { id: string; displayName: string } | null;
+  comments: string | null;
+  stepOrder: number;
+  createdAt: string;
+}
+
 export interface Complaint {
   id: string;
   complaintNumber: string;
@@ -15,20 +25,36 @@ export interface Complaint {
   priority: string;
   reporterName: string | null;
   reporterContact: string | null;
+  reporterType: string | null;
   receivedDate: string;
   productName: string | null;
+  productCode: string | null;
   batchNumber: string | null;
+  expiryDate: string | null;
+  quantityAffected: string | null;
   investigationRequired: boolean;
+  investigator: { id: string; displayName: string } | null;
+  investigationStart: string | null;
+  investigationComplete: string | null;
   rootCause: string | null;
   conclusion: string | null;
   isAdverseEvent: boolean;
   adverseEventReported: boolean;
+  reportingDeadline: string | null;
   regulatoryReportable: boolean;
   fieldAlertRequired: boolean;
+  recallAssessment: string | null;
   capaRequired: boolean;
+  capaId: string | null;
+  deviationId: string | null;
+  responseDueDate: string | null;
+  responseSentDate: string | null;
+  responseText: string | null;
   owner: { id: string; displayName: string } | null;
   department: { id: string; name: string } | null;
   plantSite: { id: string; name: string } | null;
+  currentWorkflowStep: string;
+  flowableProcessId: string | null;
   closedDate: string | null;
   createdAt: string;
   updatedAt: string;
@@ -56,8 +82,12 @@ export class ComplaintService {
     return this.http.put<Complaint>(`${this.baseUrl}/${id}`, request);
   }
 
-  transitionStatus(id: string, status: string): Observable<Complaint> {
-    return this.http.patch<Complaint>(`${this.baseUrl}/${id}/status`, { status });
+  transitionStatus(id: string, status: string, params?: Record<string, unknown>): Observable<Complaint> {
+    return this.http.patch<Complaint>(`${this.baseUrl}/${id}/status`, { status, ...params });
+  }
+
+  getWorkflowHistory(id: string): Observable<WorkflowStep[]> {
+    return this.http.get<WorkflowStep[]>(`${this.baseUrl}/${id}/workflow-history`);
   }
 
   getDashboard(): Observable<Record<string, unknown>> {

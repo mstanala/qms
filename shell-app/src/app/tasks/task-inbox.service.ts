@@ -75,12 +75,19 @@ export class TaskInboxService {
   }
 
   getRecordRoute(task: TaskInboxItem): string {
+    const id = task.recordId;
     switch (task.recordType) {
-      case 'DEVIATION': return task.recordId ? `/deviations/detail/${task.recordId}` : '/deviations';
-      case 'CAPA': return task.recordId ? `/capa/detail/${task.recordId}` : '/capa';
-      case 'CHANGE_CONTROL': return task.recordId ? `/change-control/detail/${task.recordId}` : '/change-control';
-      case 'DOCUMENT': return task.recordId ? `/documents/detail/${task.recordId}` : '/documents';
+      case 'DEVIATION': return id ? `/deviations/detail/${id}` : '/deviations';
+      case 'CAPA': return id ? `/capa/detail/${id}` : '/capa';
+      case 'CHANGE_CONTROL': return id ? `/change-control/detail/${id}` : '/change-control';
+      case 'DOCUMENT': return id ? `/documents/detail/${id}` : '/documents';
       case 'TRAINING': return '/training';
+      case 'COMPLAINT': return id ? `/complaint/${id}` : '/complaint/list';
+      case 'RISK_REGISTER': return id ? `/risk/registers/${id}` : '/risk';
+      case 'SUPPLIER': return id ? `/supplier/${id}` : '/supplier/list';
+      case 'EQUIPMENT': return id ? `/equipment/${id}` : '/equipment/list';
+      case 'AUDIT': return id ? `/audit/${id}` : '/audit/list';
+      case 'NONCONFORMANCE': return id ? `/nonconformance/${id}` : '/nonconformance/list';
       default: return '/dashboard';
     }
   }
@@ -92,6 +99,12 @@ export class TaskInboxService {
       case 'CHANGE_CONTROL': return 'swap_horiz';
       case 'DOCUMENT': return 'description';
       case 'TRAINING': return 'school';
+      case 'COMPLAINT': return 'feedback';
+      case 'RISK_REGISTER': return 'warning';
+      case 'SUPPLIER': return 'local_shipping';
+      case 'EQUIPMENT': return 'precision_manufacturing';
+      case 'AUDIT': return 'fact_check';
+      case 'NONCONFORMANCE': return 'error_outline';
       default: return 'task_alt';
     }
   }

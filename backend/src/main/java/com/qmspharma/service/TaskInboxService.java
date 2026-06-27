@@ -81,6 +81,22 @@ public class TaskInboxService {
         Map<String, Object> vars = taskService.getVariables(task.getId());
         String processDefKey = resolveProcessDefKey(task.getProcessDefinitionId());
 
+        String recordId = vars != null ? (String) vars.get("recordId") : null;
+
+        // Fallback: look up recordId from process instance business key if not in variables
+        if (recordId == null && task.getProcessInstanceId() != null) {
+            try {
+                ProcessInstance pi = runtimeService.createProcessInstanceQuery()
+                        .processInstanceId(task.getProcessInstanceId())
+                        .singleResult();
+                if (pi != null && pi.getBusinessKey() != null) {
+                    recordId = pi.getBusinessKey();
+                }
+            } catch (Exception e) {
+                log.warn("Could not look up business key for process {}", task.getProcessInstanceId());
+            }
+        }
+
         return TaskInboxResponse.builder()
                 .taskId(task.getId())
                 .taskName(task.getName())
@@ -88,7 +104,7 @@ public class TaskInboxService {
                 .processInstanceId(task.getProcessInstanceId())
                 .processDefinitionKey(processDefKey)
                 .recordType(resolveRecordType(processDefKey))
-                .recordId(vars != null ? (String) vars.get("recordId") : null)
+                .recordId(recordId)
                 .recordNumber(resolveRecordNumber(vars, processDefKey))
                 .assignee(task.getAssignee())
                 .description(task.getDescription())
@@ -113,6 +129,13 @@ public class TaskInboxService {
             case "capaProcess" -> "CAPA";
             case "changeControlProcess" -> "CHANGE_CONTROL";
             case "documentProcess" -> "DOCUMENT";
+            case "trainingProcess" -> "TRAINING";
+            case "complaintProcess" -> "COMPLAINT";
+            case "riskRegisterProcess" -> "RISK_REGISTER";
+            case "supplierQualificationProcess" -> "SUPPLIER";
+            case "equipmentCalibrationProcess" -> "EQUIPMENT";
+            case "auditProcess" -> "AUDIT";
+            case "nonconformanceProcess" -> "NONCONFORMANCE";
             default -> "SYSTEM";
         };
     }
@@ -123,16 +146,31 @@ public class TaskInboxService {
             case "CAPA" -> "capaProcess";
             case "CHANGE_CONTROL" -> "changeControlProcess";
             case "DOCUMENT" -> "documentProcess";
+            case "TRAINING" -> "trainingProcess";
+            case "COMPLAINT" -> "complaintProcess";
+            case "RISK_REGISTER" -> "riskRegisterProcess";
+            case "SUPPLIER" -> "supplierQualificationProcess";
+            case "EQUIPMENT" -> "equipmentCalibrationProcess";
+            case "AUDIT" -> "auditProcess";
+            case "NONCONFORMANCE" -> "nonconformanceProcess";
             default -> null;
         };
     }
 
     private String resolveRecordNumber(Map<String, Object> vars, String processDefKey) {
         if (vars == null) return null;
-        if ("deviationProcess".equals(processDefKey)) return (String) vars.get("deviationNumber");
-        if ("capaProcess".equals(processDefKey)) return (String) vars.get("capaNumber");
-        if ("changeControlProcess".equals(processDefKey)) return (String) vars.get("changeNumber");
-        if ("documentProcess".equals(processDefKey)) return (String) vars.get("documentNumber");
-        return null;
+        return switch (processDefKey) {
+            case "deviationProcess" -> (String) vars.get("deviationNumber");
+            case "capaProcess" -> (String) vars.get("capaNumber");
+            case "changeControlProcess" -> (String) vars.get("changeNumber");
+            case "documentProcess" -> (String) vars.get("documentNumber");
+            case "complaintProcess" -> (String) vars.get("complaintNumber");
+            case "riskRegisterProcess" -> (String) vars.get("registerNumber");
+            case "supplierQualificationProcess" -> (String) vars.get("supplierNumber");
+            case "nonconformanceProcess" -> (String) vars.get("ncNumber");
+            case "equipmentCalibrationProcess" -> (String) vars.get("equipmentNumber");
+            case "auditProcess" -> (String) vars.get("auditNumber");
+            default -> null;
+        };
     }
 }

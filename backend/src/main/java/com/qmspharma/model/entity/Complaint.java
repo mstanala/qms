@@ -1,5 +1,6 @@
 package com.qmspharma.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -71,6 +72,7 @@ public class Complaint {
     @Column(name = "investigation_required")
     private Boolean investigationRequired = true;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "investigator_id")
     private User investigator;
@@ -108,10 +110,12 @@ public class Complaint {
     @Column(name = "capa_required")
     private Boolean capaRequired = false;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "capa_id")
     private Capa capa;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "deviation_id")
     private Deviation deviation;
@@ -125,14 +129,17 @@ public class Complaint {
     @Column(name = "response_text", columnDefinition = "TEXT")
     private String responseText;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id", nullable = false)
     private Department department;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "plant_site_id", nullable = false)
     private PlantSite plantSite;
@@ -154,10 +161,12 @@ public class Complaint {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "updated_by", nullable = false)
     private User updatedBy;

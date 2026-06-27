@@ -3,6 +3,19 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Page } from '../../shared/core-lookup.service';
 
+export interface WorkflowStep {
+  id: string;
+  stepName: string;
+  status: string;
+  assignedTo: { id: string; displayName: string } | null;
+  performedBy: { id: string; displayName: string } | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  comments: string | null;
+  stepOrder: number;
+  createdAt: string;
+}
+
 export interface Nonconformance {
   id: string;
   ncNumber: string;
@@ -13,20 +26,32 @@ export interface Nonconformance {
   status: string;
   priority: string;
   productName: string | null;
+  productCode: string | null;
   batchNumber: string | null;
+  batchSize: string | null;
   quantityAffected: string | null;
+  unitOfMeasure: string | null;
+  detectedLocation: string | null;
   stageDetected: string | null;
   dispositionDecision: string | null;
   dispositionJustification: string | null;
+  dispositionApprovedBy: { id: string; displayName: string } | null;
   dispositionDate: string | null;
   holdStatus: string;
   holdLocation: string | null;
   holdInitiatedDate: string | null;
   holdReleasedDate: string | null;
+  holdReleasedBy: { id: string; displayName: string } | null;
   capaRequired: boolean;
+  capaId: string | null;
+  deviationId: string | null;
+  supplierId: string | null;
   owner: { id: string; displayName: string } | null;
   department: { id: string; name: string } | null;
   plantSite: { id: string; name: string } | null;
+  currentWorkflowStep: string | null;
+  flowableProcessId: string | null;
+  closedDate: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -53,8 +78,8 @@ export class NonconformanceService {
     return this.http.put<Nonconformance>(`${this.baseUrl}/${id}`, request);
   }
 
-  transitionStatus(id: string, status: string): Observable<Nonconformance> {
-    return this.http.patch<Nonconformance>(`${this.baseUrl}/${id}/status`, { status });
+  transitionStatus(id: string, status: string, params?: Record<string, unknown>): Observable<Nonconformance> {
+    return this.http.patch<Nonconformance>(`${this.baseUrl}/${id}/status`, { status, ...params });
   }
 
   submitDisposition(id: string, request: Record<string, unknown>): Observable<Nonconformance> {
@@ -63,6 +88,10 @@ export class NonconformanceService {
 
   toggleHold(id: string, request: Record<string, unknown>): Observable<Nonconformance> {
     return this.http.patch<Nonconformance>(`${this.baseUrl}/${id}/hold`, request);
+  }
+
+  getWorkflowHistory(id: string): Observable<WorkflowStep[]> {
+    return this.http.get<WorkflowStep[]>(`${this.baseUrl}/${id}/workflow-history`);
   }
 
   getDashboard(): Observable<Record<string, unknown>> {

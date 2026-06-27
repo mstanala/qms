@@ -63,7 +63,7 @@ export class ComplaintListComponent implements OnInit {
   statusFilter = '';
   typeFilter = '';
   classFilter = '';
-  statuses = ['RECEIVED', 'TRIAGE', 'INVESTIGATION', 'RESPONSE_PENDING', 'CLOSED'];
+  statuses = ['RECEIVED', 'CLASSIFIED', 'UNDER_INVESTIGATION', 'INVESTIGATION_COMPLETE', 'RESPONSE_PENDING', 'RESPONSE_SENT', 'CLOSED'];
   types = ['PRODUCT_QUALITY', 'ADVERSE_EVENT', 'PACKAGING', 'DELIVERY', 'SERVICE', 'OTHER'];
   canCreateComplaint = hasStoredPermission('COMPLAINT', 'CREATE', 'complaint');
 

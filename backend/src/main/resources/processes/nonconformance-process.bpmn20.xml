@@ -6,27 +6,58 @@
 
     <process id="nonconformanceProcess" name="Nonconformance Management Process" isExecutable="true">
         <startEvent id="start" name="Nonconformance Identified"/>
-        <sequenceFlow id="flow-start-review" sourceRef="start" targetRef="review"/>
+        <sequenceFlow id="flow-start-review" sourceRef="start" targetRef="initialReview"/>
 
-        <userTask id="review" name="NC Review"
+        <!-- Step 1: Initial Review and Classification -->
+        <userTask id="initialReview" name="Initial Review and Classification"
                   flowable:candidateGroups="QA_REVIEWER"
                   flowable:formKey="nc-review"/>
-        <sequenceFlow id="flow-review-investigation" sourceRef="review" targetRef="investigation"/>
+        <sequenceFlow id="flow-review-gw" sourceRef="initialReview" targetRef="reviewGateway"/>
 
+        <!-- Review Gateway: VALID or VOID -->
+        <exclusiveGateway id="reviewGateway" name="Review Decision"/>
+        <sequenceFlow id="flow-gw-valid" sourceRef="reviewGateway" targetRef="investigation">
+            <conditionExpression><![CDATA[${reviewDecision == 'VALID'}]]></conditionExpression>
+        </sequenceFlow>
+        <sequenceFlow id="flow-gw-void" sourceRef="reviewGateway" targetRef="voidEnd">
+            <conditionExpression><![CDATA[${reviewDecision == 'VOID'}]]></conditionExpression>
+        </sequenceFlow>
+
+        <endEvent id="voidEnd" name="NC Voided"/>
+
+        <!-- Step 2: Investigation -->
         <userTask id="investigation" name="NC Investigation"
-                  flowable:candidateGroups="QA_REVIEWER,OWNER"
+                  flowable:assignee="${ownerId}"
                   flowable:formKey="nc-investigation"/>
-        <sequenceFlow id="flow-investigation-disposition" sourceRef="investigation" targetRef="disposition"/>
+        <sequenceFlow id="flow-investigation-disposition" sourceRef="investigation" targetRef="dispositionReview"/>
 
-        <userTask id="disposition" name="Disposition Approval"
+        <!-- Step 3: Disposition Decision -->
+        <userTask id="dispositionReview" name="Disposition Review"
                   flowable:candidateGroups="QA_APPROVER"
                   flowable:formKey="nc-disposition"/>
-        <sequenceFlow id="flow-disposition-closure" sourceRef="disposition" targetRef="closure"/>
+        <sequenceFlow id="flow-disposition-gw" sourceRef="dispositionReview" targetRef="capaGateway"/>
 
-        <userTask id="closure" name="NC Closure"
+        <!-- CAPA Gateway -->
+        <exclusiveGateway id="capaGateway" name="CAPA Required"/>
+        <sequenceFlow id="flow-capa-yes" sourceRef="capaGateway" targetRef="capaInitiation">
+            <conditionExpression><![CDATA[${capaRequired == true}]]></conditionExpression>
+        </sequenceFlow>
+        <sequenceFlow id="flow-capa-no" sourceRef="capaGateway" targetRef="closureReview">
+            <conditionExpression><![CDATA[${capaRequired == false}]]></conditionExpression>
+        </sequenceFlow>
+
+        <!-- Step 4a: CAPA Initiation (conditional) -->
+        <userTask id="capaInitiation" name="CAPA Initiation"
+                  flowable:candidateGroups="QA_REVIEWER"
+                  flowable:formKey="nc-capa"/>
+        <sequenceFlow id="flow-capa-closure" sourceRef="capaInitiation" targetRef="closureReview"/>
+
+        <!-- Step 4/5: Final Review and Closure -->
+        <userTask id="closureReview" name="Final Review and Closure"
                   flowable:candidateGroups="QA_APPROVER"
                   flowable:formKey="nc-closure"/>
-        <sequenceFlow id="flow-closure-end" sourceRef="closure" targetRef="end"/>
+        <sequenceFlow id="flow-closure-end" sourceRef="closureReview" targetRef="end"/>
+
         <endEvent id="end" name="Nonconformance Closed"/>
     </process>
 </definitions>

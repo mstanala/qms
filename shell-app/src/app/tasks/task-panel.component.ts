@@ -55,81 +55,19 @@ import { AuthService } from '../auth/auth.service';
             <div class="sidebar-empty" *ngIf="getTasksByCategory('approval').length === 0">None</div>
           </div>
 
-          <!-- Deviations -->
-          <div class="sidebar-section" *ngIf="countByType('DEVIATION')">
-            <div class="sidebar-section-title">Deviations ({{ countByType('DEVIATION') }})</div>
-            <div class="sidebar-item-row" *ngFor="let task of getTasksByType('DEVIATION')" [class.overdue]="isOverdue(task)">
+          <!-- Dynamic sections for all record types -->
+          <div class="sidebar-section" *ngFor="let rt of recordTypes">
+            <div class="sidebar-section-title">{{ getRecordTypeLabel(rt) }} ({{ countByType(rt) }})</div>
+            <div class="sidebar-item-row" *ngFor="let task of getTasksByType(rt)" [class.overdue]="isOverdue(task)">
               <button type="button" class="sidebar-item" (click)="openTask(task)">
                 <span class="sidebar-item-label">{{ task.taskName || 'Task' }}</span>
-                <span class="sidebar-item-badge rt-deviation">{{ task.recordNumber || '—' }}</span>
+                <span class="sidebar-item-badge" [ngClass]="'rt-' + rt.toLowerCase()">{{ task.recordNumber || '—' }}</span>
               </button>
               <button type="button" class="claim-btn" *ngIf="!task.assignee" (click)="claimTask(task, $event)" matTooltip="Claim">
                 <mat-icon>person_add</mat-icon>
               </button>
               <button type="button" class="claim-btn unclaim" *ngIf="task.assignee && isMyTask(task)" (click)="unclaimTask(task, $event)" matTooltip="Release">
                 <mat-icon>person_remove</mat-icon>
-              </button>
-            </div>
-          </div>
-
-          <!-- CAPA -->
-          <div class="sidebar-section" *ngIf="countByType('CAPA')">
-            <div class="sidebar-section-title">CAPA ({{ countByType('CAPA') }})</div>
-            <div class="sidebar-item-row" *ngFor="let task of getTasksByType('CAPA')" [class.overdue]="isOverdue(task)">
-              <button type="button" class="sidebar-item" (click)="openTask(task)">
-                <span class="sidebar-item-label">{{ task.taskName || 'Task' }}</span>
-                <span class="sidebar-item-badge rt-capa">{{ task.recordNumber || '—' }}</span>
-              </button>
-              <button type="button" class="claim-btn" *ngIf="!task.assignee" (click)="claimTask(task, $event)" matTooltip="Claim">
-                <mat-icon>person_add</mat-icon>
-              </button>
-              <button type="button" class="claim-btn unclaim" *ngIf="task.assignee && isMyTask(task)" (click)="unclaimTask(task, $event)" matTooltip="Release">
-                <mat-icon>person_remove</mat-icon>
-              </button>
-            </div>
-          </div>
-
-          <!-- Change Control -->
-          <div class="sidebar-section" *ngIf="countByType('CHANGE_CONTROL')">
-            <div class="sidebar-section-title">Change Control ({{ countByType('CHANGE_CONTROL') }})</div>
-            <div class="sidebar-item-row" *ngFor="let task of getTasksByType('CHANGE_CONTROL')" [class.overdue]="isOverdue(task)">
-              <button type="button" class="sidebar-item" (click)="openTask(task)">
-                <span class="sidebar-item-label">{{ task.taskName || 'Task' }}</span>
-                <span class="sidebar-item-badge rt-change_control">{{ task.recordNumber || '—' }}</span>
-              </button>
-              <button type="button" class="claim-btn" *ngIf="!task.assignee" (click)="claimTask(task, $event)" matTooltip="Claim">
-                <mat-icon>person_add</mat-icon>
-              </button>
-              <button type="button" class="claim-btn unclaim" *ngIf="task.assignee && isMyTask(task)" (click)="unclaimTask(task, $event)" matTooltip="Release">
-                <mat-icon>person_remove</mat-icon>
-              </button>
-            </div>
-          </div>
-
-          <!-- Documents -->
-          <div class="sidebar-section" *ngIf="countByType('DOCUMENT')">
-            <div class="sidebar-section-title">Documents ({{ countByType('DOCUMENT') }})</div>
-            <div class="sidebar-item-row" *ngFor="let task of getTasksByType('DOCUMENT')" [class.overdue]="isOverdue(task)">
-              <button type="button" class="sidebar-item" (click)="openTask(task)">
-                <span class="sidebar-item-label">{{ task.taskName || 'Task' }}</span>
-                <span class="sidebar-item-badge rt-document">{{ task.recordNumber || '—' }}</span>
-              </button>
-              <button type="button" class="claim-btn" *ngIf="!task.assignee" (click)="claimTask(task, $event)" matTooltip="Claim">
-                <mat-icon>person_add</mat-icon>
-              </button>
-            </div>
-          </div>
-
-          <!-- Training -->
-          <div class="sidebar-section" *ngIf="countByType('TRAINING')">
-            <div class="sidebar-section-title">Training ({{ countByType('TRAINING') }})</div>
-            <div class="sidebar-item-row" *ngFor="let task of getTasksByType('TRAINING')" [class.overdue]="isOverdue(task)">
-              <button type="button" class="sidebar-item" (click)="openTask(task)">
-                <span class="sidebar-item-label">{{ task.taskName || 'Task' }}</span>
-                <span class="sidebar-item-badge rt-training">{{ task.recordNumber || '—' }}</span>
-              </button>
-              <button type="button" class="claim-btn" *ngIf="!task.assignee" (click)="claimTask(task, $event)" matTooltip="Claim">
-                <mat-icon>person_add</mat-icon>
               </button>
             </div>
           </div>
@@ -340,6 +278,12 @@ import { AuthService } from '../auth/auth.service';
     .rt-document { background: #d1fae5; color: #065f46; }
     .rt-training { background: #fed7aa; color: #9a3412; }
     .rt-system { background: #f1f5f9; color: #64748b; }
+    .rt-complaint { background: #fce4ec; color: #880e4f; }
+    .rt-risk_register { background: #fff3e0; color: #e65100; }
+    .rt-supplier { background: #e0f2f1; color: #004d40; }
+    .rt-equipment { background: #e8eaf6; color: #283593; }
+    .rt-audit { background: #f3e5f5; color: #6a1b9a; }
+    .rt-nonconformance { background: #ffebee; color: #b71c1c; }
 
     .sidebar-item-row {
       display: flex;
@@ -416,6 +360,7 @@ import { AuthService } from '../auth/auth.service';
 })
 export class TaskPanelComponent implements OnInit, OnDestroy {
   tasks: TaskInboxItem[] = [];
+  recordTypes: string[] = [];
   loading = false;
   collapsed = false;
   private pollSub?: Subscription;
@@ -442,6 +387,7 @@ export class TaskPanelComponent implements OnInit, OnDestroy {
     this.taskService.getMyTasks(this.getCandidateGroups()).subscribe({
       next: (tasks) => {
         this.tasks = tasks;
+        this.recordTypes = Array.from(new Set(tasks.map(t => t.recordType)));
         this.loading = false;
       },
       error: () => {
@@ -477,6 +423,23 @@ export class TaskPanelComponent implements OnInit, OnDestroy {
 
   getTasksByType(type: string): TaskInboxItem[] {
     return this.tasks.filter(t => t.recordType === type);
+  }
+
+  getRecordTypeLabel(type: string): string {
+    const labels: Record<string, string> = {
+      'DEVIATION': 'Deviations',
+      'CAPA': 'CAPA',
+      'CHANGE_CONTROL': 'Change Control',
+      'DOCUMENT': 'Documents',
+      'TRAINING': 'Training',
+      'COMPLAINT': 'Complaints',
+      'RISK_REGISTER': 'Risk Management',
+      'SUPPLIER': 'Suppliers',
+      'EQUIPMENT': 'Equipment',
+      'AUDIT': 'Audits',
+      'NONCONFORMANCE': 'Nonconformances',
+    };
+    return labels[type] || type.replace(/_/g, ' ');
   }
 
   getOverdueTasks(): TaskInboxItem[] {

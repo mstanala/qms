@@ -63,8 +63,8 @@ export class NcListComponent implements OnInit {
   statusFilter = '';
   typeFilter = '';
   holdFilter = '';
-  statuses = ['IDENTIFIED', 'UNDER_REVIEW', 'INVESTIGATION', 'DISPOSITION_PENDING', 'DISPOSITION_APPROVED', 'CLOSED'];
-  types = ['PRODUCT', 'PROCESS', 'MATERIAL', 'EQUIPMENT', 'DOCUMENTATION', 'SUPPLIER'];
+  statuses = ['IDENTIFIED', 'UNDER_REVIEW', 'INVESTIGATION_COMPLETE', 'DISPOSITION', 'CAPA_PENDING', 'PENDING_CLOSURE', 'CLOSED', 'VOID'];
+  types = ['MATERIAL', 'IN_PROCESS', 'FINISHED_PRODUCT', 'PACKAGING', 'EQUIPMENT', 'ENVIRONMENTAL', 'DOCUMENTATION', 'LABORATORY'];
   canCreateNonconformance = hasStoredPermission('NONCONFORMANCE', 'CREATE', 'nonconformance');
 
   constructor(private ncService: NonconformanceService) {}

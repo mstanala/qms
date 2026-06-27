@@ -50,6 +50,7 @@ public class ComplaintResponse {
     private ReferenceResponse department;
     private ReferenceResponse plantSite;
     private String currentWorkflowStep;
+    private String flowableProcessId;
     private Instant closedDate;
     private Instant createdAt;
     private Instant updatedAt;

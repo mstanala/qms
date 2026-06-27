@@ -36,7 +36,7 @@ import { NonconformanceService } from '../../services/nonconformance.service';
           <mat-card-content class="grid">
             <mat-form-field appearance="outline"><mat-label>Product Name</mat-label><input matInput formControlName="productName"></mat-form-field>
             <mat-form-field appearance="outline"><mat-label>Batch Number</mat-label><input matInput formControlName="batchNumber"></mat-form-field>
-            <mat-form-field appearance="outline"><mat-label>Stage Detected</mat-label><input matInput formControlName="stageDetected"></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Stage Detected</mat-label><mat-select formControlName="stageDetected"><mat-option [value]="null">-- None --</mat-option><mat-option *ngFor="let s of stages" [value]="s">{{ label(s) }}</mat-option></mat-select></mat-form-field>
             <mat-form-field appearance="outline"><mat-label>Owner</mat-label><mat-select formControlName="ownerId"><mat-option *ngFor="let user of users" [value]="user.id">{{ user.displayName || user.username }}</mat-option></mat-select><mat-error *ngIf="form.get('ownerId')?.hasError('required')">Owner is required</mat-error></mat-form-field>
             <mat-form-field appearance="outline"><mat-label>Plant Site</mat-label><mat-select formControlName="plantSiteId"><mat-option *ngFor="let site of sites" [value]="site.id">{{ site.name }}</mat-option></mat-select><mat-error *ngIf="form.get('plantSiteId')?.hasError('required')">Plant site is required</mat-error></mat-form-field>
             <mat-form-field appearance="outline"><mat-label>Department</mat-label><mat-select formControlName="departmentId"><mat-option *ngFor="let dept of departments" [value]="dept.id">{{ dept.name }}</mat-option></mat-select><mat-error *ngIf="form.get('departmentId')?.hasError('required')">Department is required</mat-error></mat-form-field>
@@ -53,15 +53,16 @@ export class NcFormComponent implements OnInit {
   sites: PlantSiteOption[] = [];
   departments: DepartmentOption[] = [];
   saving = false;
-  types = ['PRODUCT', 'PROCESS', 'MATERIAL', 'EQUIPMENT', 'DOCUMENTATION', 'SUPPLIER'];
+  types = ['MATERIAL', 'IN_PROCESS', 'FINISHED_PRODUCT', 'PACKAGING', 'EQUIPMENT', 'ENVIRONMENTAL', 'DOCUMENTATION', 'LABORATORY'];
+  stages = ['INCOMING', 'IN_PROCESS', 'FINAL_PRODUCT', 'STABILITY', 'MARKET'];
   form = this.fb.group({
     title: ['', Validators.required],
     description: ['', Validators.required],
-    ncType: ['PRODUCT', Validators.required],
+    ncType: ['MATERIAL', Validators.required],
     priority: ['MEDIUM', Validators.required],
     productName: [''],
     batchNumber: [''],
-    stageDetected: [''],
+    stageDetected: [null],
     ownerId: ['', Validators.required],
     departmentId: ['', Validators.required],
     plantSiteId: ['', Validators.required],

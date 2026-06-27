@@ -1,6 +1,7 @@
 package com.qmspharma.controller;
 
 import com.qmspharma.model.dto.response.NonconformanceResponse;
+import com.qmspharma.model.dto.response.WorkflowHistoryResponse;
 import com.qmspharma.service.NonconformanceService;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
@@ -10,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -47,8 +49,9 @@ public class NonconformanceController {
     }
 
     @PatchMapping("/{id}/status")
-    public ResponseEntity<NonconformanceResponse> transitionStatus(@PathVariable UUID id, @RequestBody Map<String, String> request) {
-        return ResponseEntity.ok(ncService.transitionStatus(id, request.get("status")));
+    public ResponseEntity<NonconformanceResponse> transitionStatus(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+        String status = (String) request.get("status");
+        return ResponseEntity.ok(ncService.transitionStatus(id, status, request));
     }
 
     @PatchMapping("/{id}/disposition")
@@ -59,6 +62,11 @@ public class NonconformanceController {
     @PatchMapping("/{id}/hold")
     public ResponseEntity<NonconformanceResponse> toggleHold(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
         return ResponseEntity.ok(ncService.toggleHold(id, request));
+    }
+
+    @GetMapping("/{id}/workflow-history")
+    public ResponseEntity<List<WorkflowHistoryResponse>> getWorkflowHistory(@PathVariable UUID id) {
+        return ResponseEntity.ok(ncService.getWorkflowHistory(id));
     }
 
     @GetMapping("/dashboard")

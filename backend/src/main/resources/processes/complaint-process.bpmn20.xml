@@ -6,27 +6,54 @@
 
     <process id="complaintProcess" name="Complaint Management Process" isExecutable="true">
         <startEvent id="start" name="Complaint Received"/>
-        <sequenceFlow id="flow-start-triage" sourceRef="start" targetRef="triage"/>
+        <sequenceFlow id="flow-start-assess" sourceRef="start" targetRef="initialAssessment"/>
 
-        <userTask id="triage" name="Complaint Triage"
-                  flowable:candidateGroups="QA_REVIEWER,QA_APPROVER"
-                  flowable:formKey="complaint-triage"/>
-        <sequenceFlow id="flow-triage-investigation" sourceRef="triage" targetRef="investigation"/>
-
-        <userTask id="investigation" name="Complaint Investigation"
+        <!-- Step 1: Initial Assessment -->
+        <userTask id="initialAssessment" name="Initial Assessment"
                   flowable:candidateGroups="QA_REVIEWER"
-                  flowable:formKey="complaint-investigation"/>
-        <sequenceFlow id="flow-investigation-response" sourceRef="investigation" targetRef="response"/>
+                  flowable:formKey="complaint-assess"/>
+        <sequenceFlow id="flow-assess-gw" sourceRef="initialAssessment" targetRef="assessmentGateway"/>
 
-        <userTask id="response" name="Customer Response"
+        <exclusiveGateway id="assessmentGateway" name="Investigation Required?"/>
+        <sequenceFlow id="flow-assess-investigate" sourceRef="assessmentGateway" targetRef="investigation">
+            <conditionExpression><![CDATA[${investigationRequired == true}]]></conditionExpression>
+        </sequenceFlow>
+        <sequenceFlow id="flow-assess-response" sourceRef="assessmentGateway" targetRef="responsePrep">
+            <conditionExpression><![CDATA[${investigationRequired == false}]]></conditionExpression>
+        </sequenceFlow>
+
+        <!-- Step 2: Investigation -->
+        <userTask id="investigation" name="Root Cause Investigation"
+                  flowable:assignee="${investigatorId}"
+                  flowable:formKey="complaint-investigate"/>
+        <sequenceFlow id="flow-investigate-disposition" sourceRef="investigation" targetRef="dispositionReview"/>
+
+        <!-- Step 3: Disposition Review -->
+        <userTask id="dispositionReview" name="Disposition Review"
                   flowable:candidateGroups="QA_APPROVER"
+                  flowable:formKey="complaint-disposition"/>
+        <sequenceFlow id="flow-disposition-gw" sourceRef="dispositionReview" targetRef="dispositionGateway"/>
+
+        <exclusiveGateway id="dispositionGateway" name="Disposition Decision?"/>
+        <sequenceFlow id="flow-disposition-approved" sourceRef="dispositionGateway" targetRef="responsePrep">
+            <conditionExpression><![CDATA[${dispositionDecision == 'APPROVED'}]]></conditionExpression>
+        </sequenceFlow>
+        <sequenceFlow id="flow-disposition-reinvestigate" sourceRef="dispositionGateway" targetRef="investigation">
+            <conditionExpression><![CDATA[${dispositionDecision == 'FURTHER_INVESTIGATION'}]]></conditionExpression>
+        </sequenceFlow>
+
+        <!-- Step 4: Response Preparation -->
+        <userTask id="responsePrep" name="Prepare and Send Response"
+                  flowable:assignee="${ownerId}"
                   flowable:formKey="complaint-response"/>
-        <sequenceFlow id="flow-response-closure" sourceRef="response" targetRef="closure"/>
+        <sequenceFlow id="flow-response-closure" sourceRef="responsePrep" targetRef="closureReview"/>
 
-        <userTask id="closure" name="Complaint Closure"
+        <!-- Step 5: Final Review -->
+        <userTask id="closureReview" name="QA Final Review and Closure"
                   flowable:candidateGroups="QA_APPROVER"
-                  flowable:formKey="complaint-closure"/>
-        <sequenceFlow id="flow-closure-end" sourceRef="closure" targetRef="end"/>
+                  flowable:formKey="complaint-close"/>
+        <sequenceFlow id="flow-closure-end" sourceRef="closureReview" targetRef="end"/>
+
         <endEvent id="end" name="Complaint Closed"/>
     </process>
 </definitions>
