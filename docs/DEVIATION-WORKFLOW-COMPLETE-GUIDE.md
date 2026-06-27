@@ -628,7 +628,7 @@ In `TaskInboxService`:
 ### 10.2 Deviation Detail (`deviation-detail.component.ts`)
 
 - **Route:** `/deviations/detail/:id`
-- **Layout:** Veeva Vault-inspired with:
+- **Layout:** mlabs Vault-inspired with:
   - **Record Header:** Deviation number, status pill (color-coded), impact badges, navigation arrows
   - **Lifecycle Bar:** Visual workflow progress (Reported -> QA Review -> Investigation -> Impact Assessment -> Disposition -> CAPA Initiation -> Pending Closure -> Closed)
   - **Workflow Actions Bar:** Dynamic action buttons based on status and user role

@@ -188,7 +188,25 @@ export class DeviationService {
         { status, comments: comments || `Status changed to ${status}` },
         { headers: this.authHeaders() }
       )
-      .pipe(map((item) => this.toDeviation(item)));
+      .pipe(
+        switchMap(() => this.getDeviationById(id)),
+        map((item) => {
+          if (!item) throw new Error('Status was updated but deviation could not be reloaded');
+          return item;
+        })
+      );
+  }
+
+  classifyDeviation(id: string, data: { classification: string; assignedToId?: string; comments?: string }): Observable<Deviation> {
+    return this.http
+      .patch<ApiDeviation>(`${this.apiUrl}/${id}/classify`, data, { headers: this.authHeaders() })
+      .pipe(
+        switchMap(() => this.getDeviationById(id)),
+        map((item) => {
+          if (!item) throw new Error('Deviation was classified but could not be reloaded');
+          return item;
+        })
+      );
   }
 
   getWorkflowHistory(id: string): Observable<any[]> {

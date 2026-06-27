@@ -170,7 +170,13 @@ export class CapaService {
         { status, comments: comments || `Status changed to ${status}` },
         { headers: this.authHeaders() }
       )
-      .pipe(map((item) => this.toCapa(item)));
+      .pipe(
+        switchMap(() => this.getCapaById(id)),
+        map((item) => {
+          if (!item) throw new Error('CAPA status updated but could not be reloaded');
+          return item;
+        })
+      );
   }
 
   getWorkflowHistory(id: string): Observable<any[]> {

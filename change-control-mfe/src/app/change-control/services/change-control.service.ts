@@ -175,7 +175,13 @@ export class ChangeControlService {
         { status, comments: comments || `Status changed to ${status}` },
         { headers: this.authHeaders() }
       )
-      .pipe(map((item) => this.toChangeRequest(item)));
+      .pipe(
+        switchMap(() => this.getChangeRequestById(id)),
+        map((item) => {
+          if (!item) throw new Error('Status updated but could not reload change request');
+          return item;
+        })
+      );
   }
 
   getWorkflowHistory(id: string): Observable<any[]> {

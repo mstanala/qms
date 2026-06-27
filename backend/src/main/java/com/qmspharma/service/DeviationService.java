@@ -367,22 +367,103 @@ public class DeviationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Deviation", "id", id));
         String oldStatus = dev.getStatus().name();
         DeviationStatus newStatus = DeviationStatus.valueOf(request.getStatus());
+        User currentUser = currentUserProvider.getCurrentUser();
 
-        if (newStatus == DeviationStatus.CLOSED) {
-            validateClosureRules(dev);
-            dev.setActualClosureDate(Instant.now());
-            // Complete the pending closure task in Flowable
-            workflowService.completeCurrentTask(dev.getFlowableProcessId(), null);
-        }
+        switch (newStatus) {
+            case UNDER_REVIEW:
+                // REPORTED → UNDER_REVIEW
+                workflowService.recordStep(RECORD_TYPE, dev.getId(), "Reported",
+                        WorkflowStepStatus.COMPLETED, currentUser, null, 1);
+                workflowService.recordStep(RECORD_TYPE, dev.getId(), "QA Review & Classification",
+                        WorkflowStepStatus.CURRENT, null, null, 2);
+                dev.setCurrentWorkflowStep("QA Review & Classification");
+                break;
 
-        if (newStatus == DeviationStatus.CAPA_INITIATED) {
-            // Complete CAPA initiation task if exists
-            workflowService.completeTask(dev.getFlowableProcessId(), "capaInitiation", null);
+            case CLASSIFIED:
+                dev.setCurrentWorkflowStep("Classified");
+                break;
+
+            case INVESTIGATION:
+                // CLASSIFIED → INVESTIGATION
+                workflowService.recordStep(RECORD_TYPE, dev.getId(), "Investigation",
+                        WorkflowStepStatus.CURRENT, null, null, 3);
+                dev.setCurrentWorkflowStep("Investigation");
+                break;
+
+            case IMPACT_ASSESSMENT:
+                // INVESTIGATION → IMPACT_ASSESSMENT
+                if (dev.getInvestigation() == null) {
+                    throw new BusinessRuleException(
+                            "Investigation must be submitted before advancing to Impact Assessment",
+                            "DEV_NO_INVESTIGATION");
+                }
+                try {
+                    workflowService.completeTask(dev.getFlowableProcessId(), "investigation", null);
+                } catch (Exception ignored) {}
+                dev.setCurrentWorkflowStep("Impact Assessment");
+                break;
+
+            case DISPOSITION:
+                // IMPACT_ASSESSMENT → DISPOSITION
+                if (dev.getImpactAssessment() == null) {
+                    throw new BusinessRuleException(
+                            "Impact assessment must be submitted before advancing to Disposition",
+                            "DEV_NO_IMPACT_ASSESSMENT");
+                }
+                try {
+                    workflowService.completeTask(dev.getFlowableProcessId(), "impactAssessment", null);
+                } catch (Exception ignored) {}
+                dev.setCurrentWorkflowStep("Disposition");
+                break;
+
+            case CAPA_INITIATED:
+                // DISPOSITION → CAPA_INITIATED
+                workflowService.recordStep(RECORD_TYPE, dev.getId(), "CAPA Initiation",
+                        WorkflowStepStatus.CURRENT, null, "CAPA required", 6);
+                dev.setCurrentWorkflowStep("CAPA Initiation");
+                break;
+
+            case PENDING_CLOSURE:
+                // CAPA_INITIATED → PENDING_CLOSURE (or DISPOSITION → PENDING_CLOSURE)
+                try {
+                    workflowService.completeTask(dev.getFlowableProcessId(), "capaInitiation", null);
+                } catch (Exception ignored) {}
+                if (dev.getStatus() == DeviationStatus.CAPA_INITIATED) {
+                    workflowService.recordStep(RECORD_TYPE, dev.getId(), "CAPA Initiation",
+                            WorkflowStepStatus.COMPLETED, currentUser, null, 6);
+                }
+                workflowService.recordStep(RECORD_TYPE, dev.getId(), "Pending Closure",
+                        WorkflowStepStatus.CURRENT, null, null, 7);
+                dev.setCurrentWorkflowStep("Pending Closure");
+                break;
+
+            case CLOSED:
+                // PENDING_CLOSURE → CLOSED
+                validateClosureRules(dev);
+                dev.setActualClosureDate(Instant.now());
+                workflowService.completeCurrentTask(dev.getFlowableProcessId(), null);
+                workflowService.recordStep(RECORD_TYPE, dev.getId(), "Pending Closure",
+                        WorkflowStepStatus.COMPLETED, currentUser, null, 7);
+                workflowService.recordStep(RECORD_TYPE, dev.getId(), "Closed",
+                        WorkflowStepStatus.COMPLETED, currentUser, null, 8);
+                dev.setCurrentWorkflowStep("Closed");
+                break;
+
+            case REJECTED:
+                // Any → REJECTED
+                try {
+                    workflowService.completeCurrentTask(dev.getFlowableProcessId(), null);
+                } catch (Exception ignored) {}
+                dev.setCurrentWorkflowStep("Rejected");
+                break;
+
+            default:
+                dev.setCurrentWorkflowStep(newStatus.name());
+                break;
         }
 
         dev.setStatus(newStatus);
-        dev.setCurrentWorkflowStep(newStatus.name());
-        dev.setUpdatedBy(currentUserProvider.getCurrentUser());
+        dev.setUpdatedBy(currentUser);
         deviationRepository.save(dev);
 
         auditTrailService.logAction(RECORD_TYPE, dev.getId(), dev.getDeviationNumber(), "STATUS_CHANGED",

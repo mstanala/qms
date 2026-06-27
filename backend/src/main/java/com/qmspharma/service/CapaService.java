@@ -152,30 +152,86 @@ public class CapaService {
         Capa capa = capaRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("CAPA", "id", id));
         String oldStatus = capa.getStatus().name();
         CapaStatus newStatus = CapaStatus.valueOf(request.getStatus());
+        User currentUser = currentUserProvider.getCurrentUser();
 
-        if (newStatus == CapaStatus.UNDER_REVIEW) {
-            // Complete QA Review task - approved
-            Map<String, Object> taskVars = new HashMap<>();
-            taskVars.put("reviewDecision", "APPROVED");
-            workflowService.completeTask(capa.getFlowableProcessId(), "qaReview", taskVars);
-        }
+        switch (newStatus) {
+            case UNDER_REVIEW:
+                workflowService.recordStep(RECORD_TYPE, capa.getId(), "Initiation",
+                        WorkflowStepStatus.COMPLETED, currentUser, null, 1);
+                workflowService.recordStep(RECORD_TYPE, capa.getId(), "QA Review",
+                        WorkflowStepStatus.CURRENT, null, null, 2);
+                capa.setCurrentWorkflowStep("QA Review");
+                break;
 
-        if (newStatus == CapaStatus.REJECTED) {
-            Map<String, Object> taskVars = new HashMap<>();
-            taskVars.put("reviewDecision", "REJECTED");
-            workflowService.completeCurrentTask(capa.getFlowableProcessId(), taskVars);
-        }
+            case INVESTIGATION:
+                // QA reviewer approves → complete qaReview task in Flowable
+                Map<String, Object> approveVars = new HashMap<>();
+                approveVars.put("reviewDecision", "APPROVED");
+                workflowService.completeTask(capa.getFlowableProcessId(), "qaReview", approveVars);
+                workflowService.recordStep(RECORD_TYPE, capa.getId(), "QA Review",
+                        WorkflowStepStatus.COMPLETED, currentUser, null, 2);
+                workflowService.recordStep(RECORD_TYPE, capa.getId(), "Root Cause Analysis",
+                        WorkflowStepStatus.CURRENT, null, null, 3);
+                capa.setCurrentWorkflowStep("Root Cause Analysis");
+                break;
 
-        if (newStatus == CapaStatus.CLOSED) {
-            validateClosureRules(capa);
-            capa.setClosedAt(Instant.now());
-            capa.setActualCompletionDate(Instant.now());
-            workflowService.completeCurrentTask(capa.getFlowableProcessId(), null);
+            case ROOT_CAUSE_IDENTIFIED:
+                if (capa.getRootCauseAnalysis() == null) {
+                    throw new BusinessRuleException("Root cause analysis must be submitted before marking root cause identified", "CAPA_NO_RCA");
+                }
+                capa.setCurrentWorkflowStep("Root Cause Identified");
+                break;
+
+            case ACTION_PLANNING:
+                // Loop-back from effectiveness check or normal flow
+                if (capa.getStatus() == CapaStatus.EFFECTIVENESS_CHECK) {
+                    workflowService.recordStep(RECORD_TYPE, capa.getId(), "Effectiveness Check",
+                            WorkflowStepStatus.COMPLETED, currentUser, "Not effective - re-planning required", 7);
+                }
+                workflowService.recordStep(RECORD_TYPE, capa.getId(), "Action Planning",
+                        WorkflowStepStatus.CURRENT, null, null, 5);
+                capa.setCurrentWorkflowStep("Action Planning");
+                break;
+
+            case PENDING_CLOSURE:
+                workflowService.recordStep(RECORD_TYPE, capa.getId(), "Effectiveness Check",
+                        WorkflowStepStatus.COMPLETED, currentUser, "Effective", 7);
+                workflowService.recordStep(RECORD_TYPE, capa.getId(), "QA Approval",
+                        WorkflowStepStatus.CURRENT, null, null, 8);
+                capa.setCurrentWorkflowStep("QA Approval");
+                break;
+
+            case CLOSED:
+                validateClosureRules(capa);
+                capa.setClosedAt(Instant.now());
+                capa.setActualCompletionDate(Instant.now());
+                try { workflowService.completeCurrentTask(capa.getFlowableProcessId(), null); } catch (Exception ignored) {}
+                workflowService.recordStep(RECORD_TYPE, capa.getId(), "QA Approval",
+                        WorkflowStepStatus.COMPLETED, currentUser, null, 8);
+                workflowService.recordStep(RECORD_TYPE, capa.getId(), "Closure",
+                        WorkflowStepStatus.COMPLETED, currentUser, null, 9);
+                capa.setCurrentWorkflowStep("Closed");
+                break;
+
+            case REJECTED:
+                Map<String, Object> rejectVars = new HashMap<>();
+                rejectVars.put("reviewDecision", "REJECTED");
+                try { workflowService.completeCurrentTask(capa.getFlowableProcessId(), rejectVars); } catch (Exception ignored) {}
+                capa.setCurrentWorkflowStep("Rejected");
+                break;
+
+            case INITIATED:
+                // Rework / return for revision
+                capa.setCurrentWorkflowStep("Initiation");
+                break;
+
+            default:
+                capa.setCurrentWorkflowStep(newStatus.name());
+                break;
         }
 
         capa.setStatus(newStatus);
-        capa.setCurrentWorkflowStep(newStatus.name());
-        capa.setUpdatedBy(currentUserProvider.getCurrentUser());
+        capa.setUpdatedBy(currentUser);
         capaRepository.save(capa);
         auditTrailService.logAction(RECORD_TYPE, capa.getId(), capa.getCapaNumber(), "STATUS_CHANGED",
                 "status", oldStatus, newStatus.name(), request.getComments());

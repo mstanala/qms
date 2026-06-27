@@ -159,11 +159,20 @@ public class ChangeRequestService {
                 workflowService.completeTask(cr.getFlowableProcessId(), "submitChange", null);
                 workflowService.recordStep(RECORD_TYPE, cr.getId(), "Submit Change", WorkflowStepStatus.COMPLETED, currentUser, null, 1);
                 workflowService.recordStep(RECORD_TYPE, cr.getId(), "Impact Assessment", WorkflowStepStatus.CURRENT, cr.getChangeOwner(), null, 2);
+                cr.setCurrentWorkflowStep("Impact Assessment");
+                break;
+            case IMPACT_ASSESSMENT:
+                workflowService.recordStep(RECORD_TYPE, cr.getId(), "Impact Assessment", WorkflowStepStatus.CURRENT, cr.getChangeOwner(), null, 2);
+                cr.setCurrentWorkflowStep("Impact Assessment");
                 break;
             case QA_REVIEW:
+                if (cr.getImpactAssessment() == null) {
+                    throw new BusinessRuleException("Impact assessment must be submitted before QA review", "CC_NO_IMPACT_ASSESSMENT");
+                }
                 workflowService.completeTask(cr.getFlowableProcessId(), "impactAssessment", null);
                 workflowService.recordStep(RECORD_TYPE, cr.getId(), "Impact Assessment", WorkflowStepStatus.COMPLETED, currentUser, null, 2);
                 workflowService.recordStep(RECORD_TYPE, cr.getId(), "QA Review", WorkflowStepStatus.CURRENT, null, null, 3);
+                cr.setCurrentWorkflowStep("QA Review");
                 break;
             case RA_REVIEW:
                 // QA review completed, route to RA review
@@ -172,6 +181,7 @@ public class ChangeRequestService {
                 workflowService.completeTask(cr.getFlowableProcessId(), "qaReview", qaVars);
                 workflowService.recordStep(RECORD_TYPE, cr.getId(), "QA Review", WorkflowStepStatus.COMPLETED, currentUser, null, 3);
                 workflowService.recordStep(RECORD_TYPE, cr.getId(), "RA Review", WorkflowStepStatus.CURRENT, null, null, 4);
+                cr.setCurrentWorkflowStep("RA Review");
                 break;
             case PENDING_APPROVAL:
                 // Could come from QA Review (no RA needed) or RA Review
@@ -184,45 +194,66 @@ public class ChangeRequestService {
                 workflowService.recordStep(RECORD_TYPE, cr.getId(), cr.getStatus() == ChangeStatus.RA_REVIEW ? "RA Review" : "QA Review",
                         WorkflowStepStatus.COMPLETED, currentUser, null, cr.getStatus() == ChangeStatus.RA_REVIEW ? 4 : 3);
                 workflowService.recordStep(RECORD_TYPE, cr.getId(), "Pending Approval", WorkflowStepStatus.CURRENT, null, null, 5);
+                cr.setCurrentWorkflowStep("Pending Approval");
                 break;
             case APPROVED:
-            case IMPLEMENTATION:
                 Map<String, Object> approvalVars = new HashMap<>();
                 approvalVars.put("approvalDecision", "APPROVED");
                 workflowService.completeTask(cr.getFlowableProcessId(), "pendingApproval", approvalVars);
                 workflowService.recordStep(RECORD_TYPE, cr.getId(), "Approval", WorkflowStepStatus.COMPLETED, currentUser, "Approved", 5);
                 workflowService.recordStep(RECORD_TYPE, cr.getId(), "Implementation", WorkflowStepStatus.CURRENT, cr.getChangeOwner(), null, 6);
+                cr.setCurrentWorkflowStep("Implementation");
+                break;
+            case IMPLEMENTATION:
+                if (cr.getStatus() == ChangeStatus.EFFECTIVENESS_CHECK) {
+                    // Reopened from effectiveness check - loop back
+                    workflowService.recordStep(RECORD_TYPE, cr.getId(), "Effectiveness Check",
+                            WorkflowStepStatus.COMPLETED, currentUser, "Not effective - reopening implementation", 8);
+                    workflowService.recordStep(RECORD_TYPE, cr.getId(), "Implementation", WorkflowStepStatus.CURRENT, cr.getChangeOwner(), null, 6);
+                } else if (cr.getStatus() == ChangeStatus.APPROVED) {
+                    // Normal flow: APPROVED → start implementation
+                    workflowService.recordStep(RECORD_TYPE, cr.getId(), "Implementation", WorkflowStepStatus.CURRENT, cr.getChangeOwner(), null, 6);
+                }
+                cr.setCurrentWorkflowStep("Implementation");
                 break;
             case REJECTED:
                 Map<String, Object> rejectVars = new HashMap<>();
                 rejectVars.put("approvalDecision", "REJECTED");
-                workflowService.completeCurrentTask(cr.getFlowableProcessId(), rejectVars);
+                try { workflowService.completeCurrentTask(cr.getFlowableProcessId(), rejectVars); } catch (Exception ignored) {}
                 workflowService.recordStep(RECORD_TYPE, cr.getId(), "Rejected", WorkflowStepStatus.COMPLETED, currentUser, request.getComments(), 10);
+                cr.setCurrentWorkflowStep("Rejected");
                 break;
             case VERIFICATION:
                 workflowService.completeTask(cr.getFlowableProcessId(), "implementation", null);
                 cr.setActualImplementationDate(Instant.now());
                 workflowService.recordStep(RECORD_TYPE, cr.getId(), "Implementation", WorkflowStepStatus.COMPLETED, currentUser, null, 6);
                 workflowService.recordStep(RECORD_TYPE, cr.getId(), "Verification", WorkflowStepStatus.CURRENT, null, null, 7);
+                cr.setCurrentWorkflowStep("Verification");
                 break;
             case EFFECTIVENESS_CHECK:
                 workflowService.completeTask(cr.getFlowableProcessId(), "verification", null);
                 workflowService.recordStep(RECORD_TYPE, cr.getId(), "Verification", WorkflowStepStatus.COMPLETED, currentUser, null, 7);
                 workflowService.recordStep(RECORD_TYPE, cr.getId(), "Effectiveness Check", WorkflowStepStatus.CURRENT, null, null, 8);
+                cr.setCurrentWorkflowStep("Effectiveness Check");
                 break;
             case CLOSED:
                 validateClosureRules(cr);
                 cr.setClosedDate(Instant.now());
-                workflowService.completeTask(cr.getFlowableProcessId(), "effectivenessCheck", null);
+                try { workflowService.completeTask(cr.getFlowableProcessId(), "effectivenessCheck", null); } catch (Exception ignored) {}
                 workflowService.recordStep(RECORD_TYPE, cr.getId(), "Effectiveness Check", WorkflowStepStatus.COMPLETED, currentUser, null, 8);
                 workflowService.recordStep(RECORD_TYPE, cr.getId(), "Closed", WorkflowStepStatus.COMPLETED, currentUser, null, 9);
+                cr.setCurrentWorkflowStep("Closed");
+                break;
+            case DRAFT:
+                // Rework / return for revision
+                cr.setCurrentWorkflowStep("Draft");
                 break;
             default:
+                cr.setCurrentWorkflowStep(newStatus.name());
                 break;
         }
 
         cr.setStatus(newStatus);
-        cr.setCurrentWorkflowStep(newStatus.name());
         cr.setUpdatedBy(currentUser);
         changeRequestRepository.save(cr);
         auditTrailService.logAction(RECORD_TYPE, cr.getId(), cr.getChangeNumber(), "STATUS_CHANGED",

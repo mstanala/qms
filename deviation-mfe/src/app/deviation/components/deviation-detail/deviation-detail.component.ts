@@ -8,8 +8,9 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
+import { HttpClient, HttpClientModule, HttpHeaders, HttpParams } from '@angular/common/http';
 import { DeviationService } from '../../services/deviation.service';
-import { Deviation, DeviationStatus, ImpactLevel, DispositionDecision } from '../../models/deviation.model';
+import { Deviation, DeviationStatus, DeviationClassification, ImpactLevel, DispositionDecision } from '../../models/deviation.model';
 import { ESignatureDialogComponent } from '../e-signature-dialog/e-signature-dialog.component';
 
 function getUserRoleCodes(): string[] {
@@ -30,7 +31,7 @@ function getUserId(): string {
 @Component({
   selector: 'dev-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, MatIconModule, MatButtonModule, MatTooltipModule, MatMenuModule, MatSnackBarModule, MatDialogModule, ESignatureDialogComponent],
+  imports: [CommonModule, FormsModule, RouterModule, MatIconModule, MatButtonModule, MatTooltipModule, MatMenuModule, MatSnackBarModule, MatDialogModule, ESignatureDialogComponent, HttpClientModule],
   template: `
     <div class="vault-detail" *ngIf="deviation">
       <!-- Record Header -->
@@ -122,6 +123,43 @@ function getUserId(): string {
               <mat-icon>{{ action.icon }}</mat-icon> {{ action.label }}
             </button>
           </ng-container>
+        </div>
+
+        <!-- Classify & Assign Dialog -->
+        <div class="classify-overlay" *ngIf="classifyFormVisible">
+          <div class="classify-dialog">
+            <div class="classify-dialog-header">
+              <h3>Classify & Assign Investigator</h3>
+              <button type="button" class="icon-close-btn" (click)="cancelClassifyForm()"><mat-icon>close</mat-icon></button>
+            </div>
+            <div class="classify-dialog-body">
+              <label>
+                <span>Classification <span class="required">*</span></span>
+                <select [(ngModel)]="classifyForm.classification">
+                  <option value="CRITICAL">Critical</option>
+                  <option value="MAJOR">Major</option>
+                  <option value="MINOR">Minor</option>
+                </select>
+              </label>
+              <label>
+                <span>Assign Investigator <span class="required">*</span></span>
+                <select [(ngModel)]="classifyForm.assignedToId">
+                  <option value="">-- Select --</option>
+                  <option *ngFor="let u of classifyUsers" [value]="u.id">{{ u.displayName || u.username }}</option>
+                </select>
+              </label>
+              <label class="full">
+                <span>Comments</span>
+                <textarea rows="3" [(ngModel)]="classifyForm.comments" placeholder="Optional classification comments"></textarea>
+              </label>
+            </div>
+            <div class="classify-dialog-actions">
+              <button type="button" class="vault-btn-secondary" (click)="cancelClassifyForm()" [disabled]="classifySubmitting">Cancel</button>
+              <button type="button" class="vault-btn-primary" (click)="submitClassify()" [disabled]="classifySubmitting || !classifyForm.assignedToId">
+                {{ classifySubmitting ? 'Saving...' : 'Classify & Assign' }}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -804,6 +842,19 @@ function getUserId(): string {
     .status-select.rejected { background-color: #9E1B32; }
     .status-select:disabled { cursor: progress; opacity: 0.75; }
     .status-select option { background: #fff; color: #333; font-weight: 500; }
+
+    /* Classify Dialog */
+    .classify-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+    .classify-dialog { background: #fff; border-radius: 12px; padding: 24px; width: 480px; max-width: 95vw; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+    .classify-dialog-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .classify-dialog-header h3 { margin: 0; font-size: 18px; font-weight: 600; color: #1a1a1a; }
+    .classify-dialog-body { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .classify-dialog-body label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: #344054; }
+    .classify-dialog-body label.full { grid-column: 1 / -1; }
+    .classify-dialog-body select, .classify-dialog-body textarea { padding: 8px 12px; border: 1px solid #d0d5dd; border-radius: 8px; font-size: 14px; font-family: inherit; }
+    .classify-dialog-body select:focus, .classify-dialog-body textarea:focus { outline: none; border-color: #2C5F7C; box-shadow: 0 0 0 3px rgba(44,95,124,0.15); }
+    .classify-dialog-body .required { color: #dc2626; }
+    .classify-dialog-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; }
     .record-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
     .record-title-line {
       display: flex;
@@ -1209,6 +1260,10 @@ export class DeviationDetailComponent implements OnInit {
     batchDisposition: '',
     justification: '',
   };
+  classifyFormVisible = false;
+  classifySubmitting = false;
+  classifyForm = { classification: 'MAJOR', assignedToId: '', comments: '' };
+  classifyUsers: { id: string; displayName?: string; username?: string }[] = [];
   dispositionFormVisible = false;
   dispositionSubmitting = false;
   dispositionForm = {
@@ -1241,7 +1296,8 @@ export class DeviationDetailComponent implements OnInit {
     private router: Router,
     private deviationService: DeviationService,
     private snackBar: MatSnackBar,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private http: HttpClient
   ) {}
 
   ngOnInit(): void {
@@ -1349,6 +1405,24 @@ export class DeviationDetailComponent implements OnInit {
   executeWorkflowAction(action: WorkflowAction): void {
     if (!this.deviation || this.isStatusUpdating) return;
 
+    // "Classify & Assign" needs a special dialog
+    if (action.targetStatus === DeviationStatus.CLASSIFIED) {
+      this.openClassifyForm();
+      return;
+    }
+
+    // Validate data exists before advancing through data-dependent transitions
+    if (action.targetStatus === DeviationStatus.IMPACT_ASSESSMENT && !this.deviation.investigation) {
+      this.snackBar.open('Please submit investigation data before advancing. Use the Root Cause Analysis section.', 'Close', { duration: 5000 });
+      this.showSection('rootcause');
+      return;
+    }
+    if (action.targetStatus === DeviationStatus.DISPOSITION && !this.deviation.impactAssessment) {
+      this.snackBar.open('Please submit impact assessment before advancing. Use the Impact Assessment section.', 'Close', { duration: 5000 });
+      this.showSection('impact');
+      return;
+    }
+
     if (action.requiresComment) {
       const comment = prompt('Please provide a reason:');
       if (!comment) return;
@@ -1379,22 +1453,16 @@ export class DeviationDetailComponent implements OnInit {
 
   private performStatusChange(status: DeviationStatus, comments?: string): void {
     if (!this.deviation) return;
-    const previousStatus = this.deviation.status;
     this.isStatusUpdating = true;
     this.deviationService.updateDeviationStatus(this.deviation.id, status, comments).subscribe({
-      next: () => {
-        if (this.deviation) {
-          this.deviation.status = status;
-        }
+      next: (deviation) => {
+        this.deviation = deviation;
         this.snackBar.open(`Deviation status changed to ${this.formatStatus(status)}`, 'Close', { duration: 3000 });
-        this.loadDeviation(this.deviation!.id);
       },
-      error: () => {
-        if (this.deviation) {
-          this.deviation.status = previousStatus;
-        }
+      error: (err) => {
         this.isStatusUpdating = false;
-        this.snackBar.open('Unable to update deviation status', 'Close', { duration: 4000 });
+        const msg = err?.error?.message || 'Unable to update deviation status';
+        this.snackBar.open(msg, 'Close', { duration: 5000 });
       },
       complete: () => {
         this.isStatusUpdating = false;
@@ -1404,6 +1472,75 @@ export class DeviationDetailComponent implements OnInit {
 
   changeStatus(status: DeviationStatus): void {
     this.performStatusChange(status);
+  }
+
+  openClassifyForm(): void {
+    this.classifyForm = {
+      classification: this.deviation?.classification || 'MAJOR',
+      assignedToId: this.deviation?.assignedToId || '',
+      comments: '',
+    };
+    // Fetch users for assignee dropdown
+    const token = this.readAccessToken();
+    const headers = token ? new HttpHeaders({ Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}` }) : new HttpHeaders();
+    this.http.get<any>('http://localhost:8082/api/v1/users', { headers, params: new HttpParams().set('size', '100') }).subscribe({
+      next: (data) => {
+        this.classifyUsers = (data?.content || []).map((u: any) => ({ id: u.id, displayName: u.displayName, username: u.username }));
+      },
+      error: () => {
+        this.classifyUsers = [];
+      },
+    });
+    this.classifyFormVisible = true;
+  }
+
+  cancelClassifyForm(): void {
+    this.classifyFormVisible = false;
+  }
+
+  submitClassify(): void {
+    if (!this.deviation || this.classifySubmitting) return;
+    if (!this.classifyForm.assignedToId) {
+      this.snackBar.open('Please select an investigator', 'Close', { duration: 3000 });
+      return;
+    }
+    this.classifySubmitting = true;
+    this.deviationService.classifyDeviation(this.deviation.id, {
+      classification: this.classifyForm.classification,
+      assignedToId: this.classifyForm.assignedToId,
+      comments: this.classifyForm.comments || undefined,
+    }).subscribe({
+      next: (deviation) => {
+        this.deviation = deviation;
+        this.classifyFormVisible = false;
+        this.snackBar.open('Deviation classified and investigator assigned', 'Close', { duration: 3000 });
+      },
+      error: (err) => {
+        const msg = err?.error?.message || 'Unable to classify deviation';
+        this.snackBar.open(msg, 'Close', { duration: 5000 });
+      },
+      complete: () => {
+        this.classifySubmitting = false;
+      },
+    });
+  }
+
+  private readAccessToken(): string | null {
+    const directKeys = ['accessToken', 'authToken', 'token', 'jwt', 'qmsAccessToken'];
+    for (const key of directKeys) {
+      const value = localStorage.getItem(key) || sessionStorage.getItem(key);
+      if (value) return value;
+    }
+    for (const key of ['auth', 'currentUser', 'user']) {
+      const raw = localStorage.getItem(key) || sessionStorage.getItem(key);
+      if (!raw) continue;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.accessToken) return parsed.accessToken;
+        if (parsed?.token) return parsed.token;
+      } catch { continue; }
+    }
+    return null;
   }
 
   openRootCauseForm(): void {

@@ -57,7 +57,7 @@ interface NotificationItem {
       <div class="title-bar">
         <div class="title-bar-left">
           <mat-icon class="app-logo">verified</mat-icon>
-          <span class="app-name">Mlabs eQMS</span>
+          <span class="app-name">MLabs Quality</span>
           <span class="app-divider">|</span>
           <span class="app-module">{{ activeModuleLabel }}</span>
         </div>

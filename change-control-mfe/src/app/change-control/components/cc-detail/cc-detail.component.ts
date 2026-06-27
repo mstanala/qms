@@ -756,6 +756,12 @@ export class CcDetailComponent implements OnInit {
   executeWorkflowAction(action: WorkflowAction): void {
     if (!this.cr) return;
 
+    // Validate impact assessment exists before QA Review
+    if (action.targetStatus === ChangeStatus.QA_REVIEW && !this.hasImpactData()) {
+      this.snackBar.open('Please submit impact assessment before proceeding to QA Review', 'Close', { duration: 5000 });
+      return;
+    }
+
     if (action.requiresESign) {
       const dialogRef = this.dialog.open(ESignatureDialogComponent, {
         width: '480px',
@@ -786,14 +792,15 @@ export class CcDetailComponent implements OnInit {
     if (!this.cr) return;
     this.actionInProgress = true;
     this.ccService.updateStatus(this.cr.id, targetStatus, comments).subscribe({
-      next: () => {
+      next: (updated) => {
         this.actionInProgress = false;
-        this.reloadCr();
+        if (updated) this.cr = updated;
+        this.snackBar.open('Status updated successfully', 'OK', { duration: 3000 });
       },
       error: (err) => {
         this.actionInProgress = false;
-        console.error('Status change failed:', err);
-        alert('Failed to update status. Please try again.');
+        const msg = err.error?.message || err.error?.error || 'Failed to update status. Please try again.';
+        this.snackBar.open(msg, 'Close', { duration: 5000 });
       },
     });
   }
@@ -863,7 +870,10 @@ export class CcDetailComponent implements OnInit {
         this.snackBar.open(`Task ${newStatus === 'IN_PROGRESS' ? 'started' : 'completed'}`, 'OK', { duration: 3000 });
         this.reloadCr();
       },
-      error: (err) => { console.error(err); alert('Failed to update task.'); },
+      error: (err) => {
+        const msg = err.error?.message || 'Failed to update task.';
+        this.snackBar.open(msg, 'Close', { duration: 5000 });
+      },
     });
   }
 
@@ -894,7 +904,10 @@ export class CcDetailComponent implements OnInit {
         this.snackBar.open(`Approval ${decision.toLowerCase()}`, 'OK', { duration: 3000 });
         this.reloadCr();
       },
-      error: (err) => { console.error(err); alert('Failed to submit approval decision.'); },
+      error: (err) => {
+        const msg = err.error?.message || 'Failed to submit approval decision.';
+        this.snackBar.open(msg, 'Close', { duration: 5000 });
+      },
     });
   }
 
