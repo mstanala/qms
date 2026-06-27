@@ -9,6 +9,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatOptionModule } from '@angular/material/core';
 import { FormsModule } from '@angular/forms';
 import { RiskService, RiskRegister } from '../../services/risk.service';
 import { hasStoredPermission } from '../../../permission.guard';
@@ -19,7 +20,7 @@ import { hasStoredPermission } from '../../../permission.guard';
   imports: [
     CommonModule, RouterModule, MatTableModule, MatPaginatorModule,
     MatButtonModule, MatIconModule, MatChipsModule, MatFormFieldModule,
-    MatInputModule, MatSelectModule, FormsModule
+    MatInputModule, MatSelectModule, MatOptionModule, FormsModule
   ],
   template: `
     <div class="list-container">
@@ -40,24 +41,30 @@ import { hasStoredPermission } from '../../../permission.guard';
         <mat-form-field appearance="outline">
           <mat-label>Status</mat-label>
           <mat-select [(ngModel)]="filterStatus" (selectionChange)="loadData()">
-            <option value="">All</option>
-            <option value="DRAFT">Draft</option>
-            <option value="ACTIVE">Active</option>
-            <option value="UNDER_REVIEW">Under Review</option>
-            <option value="APPROVED">Approved</option>
-            <option value="CLOSED">Closed</option>
+            <mat-option value="">All</mat-option>
+            <mat-option value="DRAFT">Draft</mat-option>
+            <mat-option value="IN_ASSESSMENT">In Assessment</mat-option>
+            <mat-option value="EVALUATION">Evaluation</mat-option>
+            <mat-option value="CONTROL_IMPLEMENTATION">Control Implementation</mat-option>
+            <mat-option value="RESIDUAL_RISK_REVIEW">Residual Risk Review</mat-option>
+            <mat-option value="PENDING_APPROVAL">Pending Approval</mat-option>
+            <mat-option value="APPROVED">Approved</mat-option>
+            <mat-option value="CLOSED">Closed</mat-option>
           </mat-select>
         </mat-form-field>
 
         <mat-form-field appearance="outline">
           <mat-label>Risk Type</mat-label>
           <mat-select [(ngModel)]="filterRiskType" (selectionChange)="loadData()">
-            <option value="">All</option>
-            <option value="PRODUCT">Product</option>
-            <option value="PROCESS">Process</option>
-            <option value="PATIENT_SAFETY">Patient Safety</option>
-            <option value="SUPPLY_CHAIN">Supply Chain</option>
-            <option value="REGULATORY">Regulatory</option>
+            <mat-option value="">All</mat-option>
+            <mat-option value="PRODUCT_QUALITY">Product Quality</mat-option>
+            <mat-option value="PATIENT_SAFETY">Patient Safety</mat-option>
+            <mat-option value="PROCESS">Process</mat-option>
+            <mat-option value="COMPLIANCE">Compliance</mat-option>
+            <mat-option value="SUPPLY_CHAIN">Supply Chain</mat-option>
+            <mat-option value="EQUIPMENT">Equipment</mat-option>
+            <mat-option value="ENVIRONMENTAL">Environmental</mat-option>
+            <mat-option value="DATA_INTEGRITY">Data Integrity</mat-option>
           </mat-select>
         </mat-form-field>
       </div>

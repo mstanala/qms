@@ -46,11 +46,13 @@ import { RiskService } from '../../services/risk.service';
               <mat-form-field appearance="outline">
                 <mat-label>Risk Type</mat-label>
                 <mat-select formControlName="riskType">
-                  <mat-option value="PRODUCT">Product</mat-option>
-                  <mat-option value="PROCESS">Process</mat-option>
+                  <mat-option value="PRODUCT_QUALITY">Product Quality</mat-option>
                   <mat-option value="PATIENT_SAFETY">Patient Safety</mat-option>
+                  <mat-option value="PROCESS">Process</mat-option>
+                  <mat-option value="COMPLIANCE">Compliance</mat-option>
                   <mat-option value="SUPPLY_CHAIN">Supply Chain</mat-option>
-                  <mat-option value="REGULATORY">Regulatory</mat-option>
+                  <mat-option value="EQUIPMENT">Equipment</mat-option>
+                  <mat-option value="ENVIRONMENTAL">Environmental</mat-option>
                   <mat-option value="DATA_INTEGRITY">Data Integrity</mat-option>
                 </mat-select>
                 <mat-error *ngIf="form.get('riskType')?.hasError('required')">Risk type is required</mat-error>
@@ -61,9 +63,9 @@ import { RiskService } from '../../services/risk.service';
                 <mat-select formControlName="methodology">
                   <mat-option value="FMEA">FMEA</mat-option>
                   <mat-option value="HACCP">HACCP</mat-option>
-                  <mat-option value="FTA">Fault Tree Analysis</mat-option>
+                  <mat-option value="RISK_MATRIX">Risk Matrix</mat-option>
+                  <mat-option value="FAULT_TREE">Fault Tree Analysis</mat-option>
                   <mat-option value="HAZOP">HAZOP</mat-option>
-                  <mat-option value="PHA">Preliminary Hazard Analysis</mat-option>
                   <mat-option value="BOW_TIE">Bow-Tie</mat-option>
                 </mat-select>
                 <mat-error *ngIf="form.get('methodology')?.hasError('required')">Methodology is required</mat-error>

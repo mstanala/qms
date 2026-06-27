@@ -42,6 +42,7 @@ public class EquipmentResponse {
     private Boolean gxpRelevant;
     private Boolean computerizedSystem;
     private String dataIntegrityClass;
+    private LocalDate decommissionDate;
     private Instant createdAt;
     private Instant updatedAt;
 

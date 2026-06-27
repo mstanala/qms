@@ -1,5 +1,6 @@
 package com.qmspharma.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -16,6 +17,7 @@ public class RiskControl {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "risk_assessment_id", nullable = false)
     private RiskAssessment riskAssessment;
@@ -29,6 +31,7 @@ public class RiskControl {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String description;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "responsible_id")
     private User responsible;

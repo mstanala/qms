@@ -38,4 +38,11 @@ export const EQUIPMENT_ROUTES: Routes = [
     loadComponent: () =>
       import('./components/calibration-list/calibration-list.component').then((m) => m.CalibrationListComponent),
   },
+  {
+    path: ':id/maintenance',
+    canActivate: [permissionGuard],
+    data: { permission: { module: 'EQUIPMENT', action: 'READ', resource: 'equipment' } },
+    loadComponent: () =>
+      import('./components/maintenance-list/maintenance-list.component').then((m) => m.MaintenanceListComponent),
+  },
 ];

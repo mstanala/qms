@@ -317,7 +317,7 @@ advanced. The strongest indicators that Flowable is working are:
 -----------
 SOP stands for Standard Operating Procedure.
 
-In Pharma QMS, an SOP is a controlled document that describes the approved step-by-step process for performing a specific activity consistently and in compliance with regulatory requirements.
+In Mlabs QMS, an SOP is a controlled document that describes the approved step-by-step process for performing a specific activity consistently and in compliance with regulatory requirements.
 
 Example SOPs in a Pharmaceutical Company
 SOP Number
@@ -518,7 +518,7 @@ Expected Result:
 ------------------------------------------------------------
 Flowable Workflow Task Assignment — End-to-End Flow Explained
 
-Your codebase uses 3 separate Flowable BPMN processes that chain together to handle the full pharma QMS lifecycle. Each process assigns tasks to the next role using two Flowable mechanisms:       
+Your codebase uses 3 separate Flowable BPMN processes that chain together to handle the full Mlabs QMS lifecycle. Each process assigns tasks to the next role using two Flowable mechanisms:       
 flowable:assignee (direct assignment) and flowable:candidateGroups (role-based pool).
 
 How Task Assignment Works in Flowable

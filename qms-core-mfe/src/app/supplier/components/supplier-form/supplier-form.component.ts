@@ -68,7 +68,9 @@ import { SupplierService } from '../../services/supplier.service';
               <textarea matInput formControlName="address" rows="2"></textarea>
             </mat-form-field>
             <mat-form-field appearance="outline"><mat-label>City</mat-label><input matInput formControlName="city"></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>State</mat-label><input matInput formControlName="state"></mat-form-field>
             <mat-form-field appearance="outline"><mat-label>Country</mat-label><input matInput formControlName="country"></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Postal Code</mat-label><input matInput formControlName="postalCode"></mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>Owner</mat-label>
               <mat-select formControlName="ownerId">
@@ -91,6 +93,33 @@ import { SupplierService } from '../../services/supplier.service';
           <mat-card-content class="grid">
             <mat-form-field appearance="outline"><mat-label>Contact Name</mat-label><input matInput formControlName="primaryContactName"></mat-form-field>
             <mat-form-field appearance="outline"><mat-label>Contact Email</mat-label><input matInput formControlName="primaryContactEmail"></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Contact Phone</mat-label><input matInput formControlName="primaryContactPhone"></mat-form-field>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card>
+          <mat-card-header><mat-card-title>Certifications & Compliance</mat-card-title></mat-card-header>
+          <mat-card-content class="grid">
+            <mat-form-field appearance="outline">
+              <mat-label>GMP Certification</mat-label>
+              <input matInput formControlName="gmpCertification" placeholder="e.g., WHO-GMP, EU-GMP">
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>ISO Certification</mat-label>
+              <input matInput formControlName="isoCertification" placeholder="e.g., ISO 9001:2015">
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>FDA Registration</mat-label>
+              <input matInput formControlName="fdaRegistration" placeholder="e.g., FEI Number">
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>DUNS Number</mat-label>
+              <input matInput formControlName="dunsNumber" placeholder="9-digit DUNS number">
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Requalification Frequency (Months)</mat-label>
+              <input matInput type="number" formControlName="requalificationFrequencyMonths" min="1" max="120">
+            </mat-form-field>
           </mat-card-content>
         </mat-card>
 
@@ -124,9 +153,17 @@ export class SupplierFormComponent implements OnInit {
     category: ['CRITICAL', Validators.required],
     address: [''],
     city: [''],
+    state: [''],
     country: [''],
+    postalCode: [''],
     primaryContactName: [''],
     primaryContactEmail: [''],
+    primaryContactPhone: [''],
+    gmpCertification: [''],
+    isoCertification: [''],
+    fdaRegistration: [''],
+    dunsNumber: [''],
+    requalificationFrequencyMonths: [36],
     ownerId: ['', Validators.required],
     plantSiteId: [''],
   });

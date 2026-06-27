@@ -1,5 +1,6 @@
 package com.qmspharma.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -42,14 +43,17 @@ public class RiskRegister {
     @Column(nullable = false, length = 20)
     private String priority = "MEDIUM";
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id", nullable = false)
     private Department department;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "plant_site_id", nullable = false)
     private PlantSite plantSite;
@@ -63,6 +67,7 @@ public class RiskRegister {
     @Column(name = "last_review_date")
     private Instant lastReviewDate;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "approved_by_id")
     private User approvedBy;
@@ -76,6 +81,7 @@ public class RiskRegister {
     @Column(name = "flowable_process_id")
     private String flowableProcessId;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "riskRegister", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RiskAssessment> assessments = new ArrayList<>();
 
@@ -87,10 +93,12 @@ public class RiskRegister {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "updated_by", nullable = false)
     private User updatedBy;

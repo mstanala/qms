@@ -122,6 +122,9 @@ public class Equipment {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
+    @Column(name = "flowable_process_id")
+    private String flowableProcessId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;

@@ -21,6 +21,10 @@ export interface Supplier {
   gmpCertification: string;
   isoCertification: string;
   fdaRegistration: string;
+  dunsNumber: string;
+  requalificationFrequencyMonths: number;
+  currentWorkflowStep: string;
+  flowableProcessId: string;
   qualificationDate: string | null;
   nextRequalificationDate: string | null;
   overallScore: number | null;
@@ -31,6 +35,17 @@ export interface Supplier {
   plantSite: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface WorkflowStep {
+  id: string;
+  stepName: string;
+  status: string;
+  assignedTo: { id: string; displayName: string; email: string } | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  comments: string | null;
+  stepOrder: number;
 }
 
 export interface Page<T> {
@@ -63,8 +78,20 @@ export class SupplierService {
     return this.http.put<Supplier>(`${this.baseUrl}/${id}`, request);
   }
 
-  transitionStatus(id: string, status: string): Observable<Supplier> {
-    return this.http.patch<Supplier>(`${this.baseUrl}/${id}/status`, { status });
+  transitionStatus(id: string, status: string, params?: Record<string, unknown>): Observable<Supplier> {
+    return this.http.patch<Supplier>(`${this.baseUrl}/${id}/status`, { status, ...params });
+  }
+
+  updateScores(id: string, scores: Record<string, unknown>): Observable<Supplier> {
+    return this.http.put<Supplier>(`${this.baseUrl}/${id}/scores`, scores);
+  }
+
+  startRequalification(id: string): Observable<Supplier> {
+    return this.http.post<Supplier>(`${this.baseUrl}/${id}/requalification`, {});
+  }
+
+  getWorkflowHistory(id: string): Observable<WorkflowStep[]> {
+    return this.http.get<WorkflowStep[]>(`${this.baseUrl}/${id}/workflow-history`);
   }
 
   getDashboard(): Observable<Record<string, unknown>> {

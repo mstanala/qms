@@ -1,5 +1,6 @@
 package com.qmspharma.controller;
 
+import com.qmspharma.model.dto.response.WorkflowHistoryResponse;
 import com.qmspharma.model.entity.RiskAssessment;
 import com.qmspharma.model.entity.RiskControl;
 import com.qmspharma.model.entity.RiskRegister;
@@ -52,8 +53,9 @@ public class RiskController {
     }
 
     @PatchMapping("/registers/{id}/status")
-    public ResponseEntity<RiskRegister> transitionRegisterStatus(@PathVariable UUID id, @RequestBody Map<String, String> request) {
-        return ResponseEntity.ok(riskService.transitionRegisterStatus(id, request.get("status")));
+    public ResponseEntity<RiskRegister> transitionRegisterStatus(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+        String newStatus = (String) request.get("status");
+        return ResponseEntity.ok(riskService.transitionRegisterStatus(id, newStatus, request));
     }
 
     // ─── Risk Assessments ────────────────────────────────────────────────────────
@@ -107,6 +109,13 @@ public class RiskController {
     @PutMapping("/controls/{id}")
     public ResponseEntity<RiskControl> updateControl(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
         return ResponseEntity.ok(riskService.updateControl(id, request));
+    }
+
+    // ─── Workflow History ─────────────────────────────────────────────────────────
+
+    @GetMapping("/registers/{id}/workflow-history")
+    public ResponseEntity<List<WorkflowHistoryResponse>> getWorkflowHistory(@PathVariable UUID id) {
+        return ResponseEntity.ok(riskService.getWorkflowHistory(id));
     }
 
     // ─── Dashboard ───────────────────────────────────────────────────────────────

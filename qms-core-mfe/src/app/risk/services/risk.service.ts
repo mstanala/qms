@@ -13,6 +13,9 @@ export interface RiskRegister {
   status: string;
   priority: string;
   reviewFrequencyMonths: number;
+  currentWorkflowStep: string;
+  approvedDate: string | null;
+  nextReviewDate: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -46,6 +49,19 @@ export interface RiskControl {
   status: string;
   effectivenessRating: string | null;
   evidence: string | null;
+  implementationDate: string | null;
+  verificationDate: string | null;
+}
+
+export interface WorkflowStep {
+  id: string;
+  stepName: string;
+  status: string;
+  assignedTo: { id: string; displayName: string; email: string } | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  comments: string | null;
+  stepOrder: number;
 }
 
 export interface Page<T> {
@@ -85,8 +101,8 @@ export class RiskService {
     return this.http.put<RiskRegister>(`${this.baseUrl}/registers/${id}`, request);
   }
 
-  transitionRegisterStatus(id: string, status: string): Observable<RiskRegister> {
-    return this.http.patch<RiskRegister>(`${this.baseUrl}/registers/${id}/status`, { status });
+  transitionStatus(id: string, status: string, params?: Record<string, unknown>): Observable<RiskRegister> {
+    return this.http.patch<RiskRegister>(`${this.baseUrl}/registers/${id}/status`, { status, ...params });
   }
 
   // Assessments
@@ -108,7 +124,11 @@ export class RiskService {
     return this.http.post<RiskAssessment>(`${this.baseUrl}/registers/${registerId}/assessments`, request);
   }
 
-  updateResidualRisk(id: string, request: { residualSeverity: number; residualOccurrence: number; residualDetectability: number }): Observable<RiskAssessment> {
+  updateAssessment(id: string, request: Record<string, unknown>): Observable<RiskAssessment> {
+    return this.http.put<RiskAssessment>(`${this.baseUrl}/assessments/${id}`, request);
+  }
+
+  updateResidualRisk(id: string, request: Record<string, unknown>): Observable<RiskAssessment> {
     return this.http.patch<RiskAssessment>(`${this.baseUrl}/assessments/${id}/residual-risk`, request);
   }
 
@@ -119,6 +139,15 @@ export class RiskService {
 
   addControl(assessmentId: string, request: Partial<RiskControl>): Observable<RiskControl> {
     return this.http.post<RiskControl>(`${this.baseUrl}/assessments/${assessmentId}/controls`, request);
+  }
+
+  updateControl(id: string, request: Record<string, unknown>): Observable<RiskControl> {
+    return this.http.put<RiskControl>(`${this.baseUrl}/controls/${id}`, request);
+  }
+
+  // Workflow
+  getWorkflowHistory(id: string): Observable<WorkflowStep[]> {
+    return this.http.get<WorkflowStep[]>(`${this.baseUrl}/registers/${id}/workflow-history`);
   }
 
   // Dashboard

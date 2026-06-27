@@ -1,6 +1,7 @@
 package com.qmspharma.controller;
 
 import com.qmspharma.model.dto.response.SupplierResponse;
+import com.qmspharma.model.dto.response.WorkflowHistoryResponse;
 import com.qmspharma.service.SupplierService;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
@@ -10,6 +11,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -46,12 +50,40 @@ public class SupplierController {
     }
 
     @PatchMapping("/{id}/status")
-    public ResponseEntity<SupplierResponse> transitionStatus(@PathVariable UUID id, @RequestBody Map<String, String> request) {
-        return ResponseEntity.ok(supplierService.transitionStatus(id, request.get("status")));
+    public ResponseEntity<SupplierResponse> transitionStatus(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+        String newStatus = (String) request.get("status");
+        // Pass the full request map as params so the service can extract documentDecision, auditResult, etc.
+        Map<String, Object> params = new HashMap<>(request);
+        params.remove("status");
+        return ResponseEntity.ok(supplierService.transitionStatus(id, newStatus, params));
+    }
+
+    @PutMapping("/{id}/scores")
+    public ResponseEntity<SupplierResponse> updateScores(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+        BigDecimal qualityScore = toBigDecimal(request.get("qualityScore"));
+        BigDecimal deliveryScore = toBigDecimal(request.get("deliveryScore"));
+        BigDecimal complianceScore = toBigDecimal(request.get("complianceScore"));
+        return ResponseEntity.ok(supplierService.updateScores(id, qualityScore, deliveryScore, complianceScore));
+    }
+
+    @PostMapping("/{id}/requalification")
+    public ResponseEntity<SupplierResponse> startRequalification(@PathVariable UUID id) {
+        return ResponseEntity.ok(supplierService.startRequalification(id));
+    }
+
+    @GetMapping("/{id}/workflow-history")
+    public ResponseEntity<List<WorkflowHistoryResponse>> getWorkflowHistory(@PathVariable UUID id) {
+        return ResponseEntity.ok(supplierService.getWorkflowHistory(id));
     }
 
     @GetMapping("/dashboard")
     public ResponseEntity<Map<String, Object>> getDashboard() {
         return ResponseEntity.ok(supplierService.getDashboardMetrics());
+    }
+
+    private BigDecimal toBigDecimal(Object value) {
+        if (value == null) return null;
+        if (value instanceof Number) return BigDecimal.valueOf(((Number) value).doubleValue());
+        return new BigDecimal(value.toString());
     }
 }

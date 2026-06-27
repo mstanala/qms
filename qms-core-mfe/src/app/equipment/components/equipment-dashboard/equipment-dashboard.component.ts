@@ -24,11 +24,12 @@ import { hasStoredPermission } from '../../../permission.guard';
         <mat-card class="kpi-card"><mat-card-content><div class="kpi-value">{{ metric('totalEquipment') }}</div><div class="kpi-label">Total Equipment</div></mat-card-content></mat-card>
         <mat-card class="kpi-card"><mat-card-content><div class="kpi-value">{{ statusCount('ACTIVE') }}</div><div class="kpi-label">Active</div></mat-card-content></mat-card>
         <mat-card class="kpi-card warning"><mat-card-content><div class="kpi-value">{{ metric('calibrationOverdue') }}</div><div class="kpi-label">Calibration Overdue</div></mat-card-content></mat-card>
+        <mat-card class="kpi-card info"><mat-card-content><div class="kpi-value">{{ metric('maintenanceDue') }}</div><div class="kpi-label">Maintenance Due (7 days)</div></mat-card-content></mat-card>
         <mat-card class="kpi-card"><mat-card-content><div class="kpi-value">{{ calibrationStatus('SCHEDULED') }}</div><div class="kpi-label">Scheduled Calibrations</div></mat-card-content></mat-card>
       </div>
     </div>
   `,
-  styles: [`.dashboard-container{padding:24px}.dashboard-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;gap:12px;flex-wrap:wrap}.dashboard-header h1{margin:0;font-size:24px}.header-actions{display:flex;gap:12px}.kpi-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}.kpi-card{text-align:center}.kpi-card.warning{border-left:4px solid #f44336}.kpi-value{font-size:36px;font-weight:700;color:#1976d2}.kpi-card.warning .kpi-value{color:#f44336}.kpi-label{font-size:14px;color:#666;margin-top:4px}`],
+  styles: [`.dashboard-container{padding:24px}.dashboard-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;gap:12px;flex-wrap:wrap}.dashboard-header h1{margin:0;font-size:24px}.header-actions{display:flex;gap:12px}.kpi-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}.kpi-card{text-align:center}.kpi-card.warning{border-left:4px solid #f44336}.kpi-card.info{border-left:4px solid #ff9800}.kpi-value{font-size:36px;font-weight:700;color:#1976d2}.kpi-card.warning .kpi-value{color:#f44336}.kpi-card.info .kpi-value{color:#ff9800}.kpi-label{font-size:14px;color:#666;margin-top:4px}`],
 })
 export class EquipmentDashboardComponent implements OnInit {
   metrics: Record<string, unknown> = {};

@@ -64,6 +64,7 @@ public class SequenceGeneratorService {
             case "TRAINING" -> "TRN";
             case "RISK_REGISTER" -> "RSK";
             case "RISK_ASSESSMENT" -> "RA";
+            case "RISK_CONTROL" -> "RC";
             case "AUDIT_PLAN" -> "AP";
             case "AUDIT" -> "AUD";
             case "AUDIT_FINDING" -> "AF";

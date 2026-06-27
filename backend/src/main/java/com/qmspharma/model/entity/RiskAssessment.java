@@ -1,5 +1,6 @@
 package com.qmspharma.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -18,6 +19,7 @@ public class RiskAssessment {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "risk_register_id", nullable = false)
     private RiskRegister riskRegister;
@@ -73,6 +75,7 @@ public class RiskAssessment {
     @Column(nullable = false, length = 30)
     private String status = "IDENTIFIED";
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assessed_by_id")
     private User assessedBy;
@@ -81,18 +84,22 @@ public class RiskAssessment {
     private Instant assessedDate;
 
     // Cross-Module Links
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "linked_capa_id")
     private Capa linkedCapa;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "linked_deviation_id")
     private Deviation linkedDeviation;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "linked_change_id")
     private ChangeRequest linkedChange;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "riskAssessment", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RiskControl> controls = new ArrayList<>();
 
@@ -104,10 +111,12 @@ public class RiskAssessment {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "updated_by", nullable = false)
     private User updatedBy;
