@@ -50,7 +50,7 @@ jwt:
 
 # CORS
 cors:
-  allowed-origins: http://localhost:4200,http://localhost:4201,http://localhost:4202,http://localhost:4203,http://localhost:4204,http://localhost:4205
+  allowed-origins: http://localhost:4200,http://localhost:4201,http://localhost:4202,http://localhost:4203,http://localhost:4204,http://localhost:4205,http://localhost:4210,https://*.ngrok-free.app,https://*.ngrok.io,https://mechatronlabs.com,https://www.mechatronlabs.com,http://mechatronlabs.com,http://www.mechatronlabs.com
 
 # Google Cloud Configuration
 google:

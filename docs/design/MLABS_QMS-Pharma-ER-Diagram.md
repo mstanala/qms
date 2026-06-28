@@ -1,4 +1,4 @@
-# QMS-Pharma Entity Relationship Diagram
+# MLABS Pharma-QMS Entity Relationship Diagram
 
 **Version:** 1.0 | **Date:** 27-Jun-2026 | **Source:** Flyway migrations V1–V23
 
