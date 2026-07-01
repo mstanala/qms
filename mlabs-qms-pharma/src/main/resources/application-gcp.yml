@@ -1,0 +1,47 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  config:
+    import: sm://
+  cloud:
+    gcp:
+      sql:
+        enabled: false
+      secretmanager:
+        enabled: true
+        project-id: long-way-476920-g7
+
+  datasource:
+    url: jdbc:postgresql://google/postgres?cloudSqlInstance=long-way-476920-g7:us-central1:healthtriage&socketFactory=com.google.cloud.sql.postgres.SocketFactory&currentSchema=qms
+    username: ${DB_USERNAME:postgres}
+    password: ${PG_DB_POSTGRES_PWD:Bbpur@m#1984}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    properties:
+      hibernate:
+        default_schema: qms
+
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    schemas: qms
+    default-schema: qms
+
+# Flowable will also use qms schema via the JDBC currentSchema parameter
+flowable:
+  database-schema: qms
+
+# Override CORS for production — remove ngrok, keep only real origins
+cors:
+  allowed-origins: https://mechatronlabs.com,https://www.mechatronlabs.com,http://mechatronlabs.com,http://www.mechatronlabs.com
+
+# JWT secret pulled from GCP Secret Manager
+jwt:
+  secret: ${sm://JWT_SECRET}
+
+logging:
+  level:
+    com.qmspharma: INFO
+    org.springframework.security: WARN
+    org.flowable: WARN

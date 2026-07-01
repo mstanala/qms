@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-QMS-Pharma is a pharmaceutical Quality Management System built with an Angular microfrontend architecture (shell-app + remote MFEs) and a Java Spring Boot backend. It targets Indian pharma SMEs needing FDA/Schedule M compliance. The MVP focuses on CAPA Management, with modules for Deviation, Change Control, Document Control, Training, Audit, Risk, Supplier, Complaint, Nonconformance, and Equipment management.
+QMS-Pharma is a pharmaceutical Quality Management System built with an Angular microfrontend architecture (shell-app + remote MFEs) and a Java Spring Boot mlabs-qms-pharma. It targets Indian pharma SMEs needing FDA/Schedule M compliance. The MVP focuses on CAPA Management, with modules for Deviation, Change Control, Document Control, Training, Audit, Risk, Supplier, Complaint, Nonconformance, and Equipment management.
 
 ## Architecture
 
@@ -19,7 +19,7 @@ QMS-Pharma is a pharmaceutical Quality Management System built with an Angular m
 
 Each MFE uses Angular 18 standalone components, Angular Material, `@angular-architects/module-federation`, and `ngx-build-plus`. Routes are permission-guarded via `permissionGuard` with `{ module, action, resource }` data.
 
-**Backend:** Single Spring Boot 3.5 app (Java 21) at `backend/`, runs on port 8082.
+**mlabs-qms-pharma:** Single Spring Boot 3.5 app (Java 21) at `mlabs-qms-pharma/`, runs on port 8082.
 - Package: `com.qmspharma` with standard layers: `controller/`, `service/`, `repository/`, `model/` (entity, dto, enums), `config/`, `security/`, `workflow/`, `exception/`
 - Flowable 7.1.0 workflow engine with BPMN processes in `src/main/resources/processes/`
 - PostgreSQL 17 (port 5434, database `qms`) with Flyway migrations
@@ -56,10 +56,10 @@ cd <mfe-dir> && npm run build
 cd <mfe-dir> && npm test
 ```
 
-### Backend
+### mlabs-qms-pharma
 
 ```bash
-cd backend
+cd mlabs-qms-pharma
 
 # Build (skip tests for speed)
 ./mvnw clean package -DskipTests
@@ -80,7 +80,7 @@ cd backend
 ### Database
 
 - PostgreSQL on port 5434, database `qms`
-- Flyway migrations: `backend/src/main/resources/db/migration/` (V1 through V16)
+- Flyway migrations: `mlabs-qms-pharma/src/main/resources/db/migration/` (V1 through V16)
 - Standalone DDL/DML copies: `database/` directory
 - Hibernate ddl-auto is `validate` — all schema changes must go through Flyway
 
@@ -89,9 +89,9 @@ cd backend
 | What | Where |
 |------|-------|
 | API docs & workflow guides | `docs/` |
-| Flyway migrations | `backend/src/main/resources/db/migration/` |
-| BPMN process definitions | `backend/src/main/resources/processes/` |
-| Backend config | `backend/src/main/resources/application.yml` |
+| Flyway migrations | `mlabs-qms-pharma/src/main/resources/db/migration/` |
+| BPMN process definitions | `mlabs-qms-pharma/src/main/resources/processes/` |
+| mlabs-qms-pharma config | `mlabs-qms-pharma/src/main/resources/application.yml` |
 | MFE manifest (remote URLs) | `shell-app/src/assets/mf.manifest.json` |
 | Shell routing | `shell-app/src/app/app.routes.ts` |
 | Webpack MF configs | `<mfe-dir>/webpack.config.js` |
@@ -100,10 +100,10 @@ cd backend
 
 - All Angular MFEs use standalone components (no NgModules)
 - Each MFE exposes routes as a named export (e.g., `CAPA_ROUTES`, `DEVIATION_ROUTES`)
-- Backend entities extend `BaseEntity` with audit fields
+- mlabs-qms-pharma entities extend `BaseEntity` with audit fields
 - Sequence numbers generated via `SequenceGeneratorService` (e.g., CAPA-2024-001, DEV-2024-001)
 - API base path: `/api/v1/<resource>` (e.g., `/api/v1/capas`, `/api/v1/deviations`, `/api/v1/change-requests`)
-- Permission model: module + action + resource (checked by `permissionGuard` on frontend, security on backend)
+- Permission model: module + action + resource (checked by `permissionGuard` on frontend, security on mlabs-qms-pharma)
 - CORS configured for localhost ports 4200-4205
 
 ## Workflow Testing

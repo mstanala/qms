@@ -1,6 +1,8 @@
 package com.qmspharma.service;
 
 import com.qmspharma.model.dto.response.TaskInboxResponse;
+import com.qmspharma.model.entity.User;
+import com.qmspharma.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.flowable.engine.RuntimeService;
@@ -12,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -21,15 +24,17 @@ public class TaskInboxService {
 
     private final TaskService taskService;
     private final RuntimeService runtimeService;
+    private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
     public List<TaskInboxResponse> getTasksForUser(String userId, List<String> candidateGroups) {
-        var query = taskService.createTaskQuery();
+        List<String> groups = resolveGroups(userId, candidateGroups);
 
-        if (candidateGroups != null && !candidateGroups.isEmpty()) {
+        var query = taskService.createTaskQuery();
+        if (groups != null && !groups.isEmpty()) {
             query.or()
                     .taskAssignee(userId)
-                    .taskCandidateGroupIn(candidateGroups)
+                    .taskCandidateGroupIn(groups)
                     .endOr();
         } else {
             query.taskAssignee(userId);
@@ -65,16 +70,38 @@ public class TaskInboxService {
 
     @Transactional(readOnly = true)
     public long countTasksForUser(String userId, List<String> candidateGroups) {
+        List<String> groups = resolveGroups(userId, candidateGroups);
+
         var query = taskService.createTaskQuery();
-        if (candidateGroups != null && !candidateGroups.isEmpty()) {
+        if (groups != null && !groups.isEmpty()) {
             query.or()
                     .taskAssignee(userId)
-                    .taskCandidateGroupIn(candidateGroups)
+                    .taskCandidateGroupIn(groups)
                     .endOr();
         } else {
             query.taskAssignee(userId);
         }
         return query.count();
+    }
+
+    private List<String> resolveGroups(String userId, List<String> candidateGroups) {
+        if (candidateGroups != null && !candidateGroups.isEmpty()) {
+            return candidateGroups;
+        }
+        try {
+            User user = userRepository.findById(UUID.fromString(userId)).orElse(null);
+            if (user != null && user.getUserRoles() != null) {
+                List<String> roleCodes = user.getUserRoles().stream()
+                        .map(ur -> ur.getRole().getCode())
+                        .collect(Collectors.toList());
+                if (!roleCodes.isEmpty()) {
+                    return roleCodes;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Could not resolve roles for user {}: {}", userId, e.getMessage());
+        }
+        return null;
     }
 
     private TaskInboxResponse toResponse(Task task) {

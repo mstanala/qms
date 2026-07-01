@@ -35,7 +35,7 @@ A specialized, AI-enabled Quality Management System (QMS) for pharmaceutical man
 | UI Library | Angular Material |
 | Microfrontend | Module Federation (@angular-architects/module-federation) |
 | Build Tool | Webpack 5 (via ngx-build-plus) |
-| Backend (planned) | Java Spring Boot 3.5 |
+| mlabs-qms-pharma (planned) | Java Spring Boot 3.5 |
 | Database (planned) | PostgreSQL 17 |
 | Workflow Engine (planned) | Flowable |
 | Search (planned) | OpenSearch |
@@ -207,17 +207,17 @@ Add a route in shell-app/src/app/app.routes.ts.
 
 Flowable Testing
 ----------------
-Flowable is integrated as a backend workflow engine for CAPA, Deviations, and Change Control. The UI/business APIs still drive the process, but each major business action also starts or
+Flowable is integrated as a mlabs-qms-pharma workflow engine for CAPA, Deviations, and Change Control. The UI/business APIs still drive the process, but each major business action also starts or
 advances a Flowable process.
 
 How It Works
 On app startup, Flowable auto-deploys these BPMN files:
 
-- capaProcess: backend/src/main/resources/processes/capa-process.bpmn20.xml:6
-- deviationProcess: backend/src/main/resources/processes/deviation-process.bpmn20.xml:7
-- changeControlProcess: backend/src/main/resources/processes/change-control-process.bpmn20.xml:6
+- capaProcess: mlabs-qms-pharma/src/main/resources/processes/capa-process.bpmn20.xml:6
+- deviationProcess: mlabs-qms-pharma/src/main/resources/processes/deviation-process.bpmn20.xml:7
+- changeControlProcess: mlabs-qms-pharma/src/main/resources/processes/change-control-process.bpmn20.xml:6
 
-When a record is created, backend starts a Flowable process using WorkflowService.startProcess(...).
+When a record is created, mlabs-qms-pharma starts a Flowable process using WorkflowService.startProcess(...).
 
 Examples:
 
@@ -225,7 +225,7 @@ Examples:
 - Deviation create starts deviationProcess
 - Change Request create starts changeControlProcess
 
-Then when you perform business actions, backend completes the matching Flowable task:
+Then when you perform business actions, mlabs-qms-pharma completes the matching Flowable task:
 
 - CAPA QA review completes qaReview
 - CAPA Root Cause Analysis completes investigation
@@ -273,7 +273,7 @@ For a newly created Change Control:
 
 Complete & Submit Change Request / submitChange
 
-3. Test through backend task inbox API:
+3. Test through mlabs-qms-pharma task inbox API:
 
 curl -H "Authorization: Bearer <TOKEN>" \
 "http://localhost:8082/api/v1/tasks/by-record-type/CAPA"
@@ -306,14 +306,14 @@ GET /api/v1/deviations/{id}/workflow-history
 GET /api/v1/change-requests/{id}/workflow-history
 
 Important Caveat
-Current backend WorkflowService logs Flowable failures but does not always fail the business transaction. So if Flowable breaks, the record may still save, but workflow tasks may not be created or
+Current mlabs-qms-pharma WorkflowService logs Flowable failures but does not always fail the business transaction. So if Flowable breaks, the record may still save, but workflow tasks may not be created or
 advanced. The strongest indicators that Flowable is working are:
 
 - records appear in ACT_RU_TASK
 - process definitions exist in ACT_RE_PROCDEF
 - task inbox API returns active tasks
 - tasks move to the next BPMN step after business actions
-- backend logs show messages like Started process... and Completed task...
+- mlabs-qms-pharma logs show messages like Started process... and Completed task...
 -----------
 SOP stands for Standard Operating Procedure.
 

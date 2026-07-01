@@ -2,6 +2,8 @@ server:
   port: 8082
 
 spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
   application:
     name: qms-pharma-api
 
@@ -43,8 +45,9 @@ spring:
     default-property-inclusion: non_null
 
 # JWT Configuration
+#mySecretKey1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
 jwt:
-  secret: ${JWT_SECRET:qms-pharma-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256}
+  secret: ${JWT_SECRET:}
   expiration-ms: 3600000
   refresh-expiration-ms: 86400000
 
