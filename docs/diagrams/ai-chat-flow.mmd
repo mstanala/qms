@@ -1,0 +1,51 @@
+---
+title: AI Copilot Chat Flow - Request Processing Sequence
+---
+
+sequenceDiagram
+    actor User
+    participant UI as AI Copilot Panel
+    participant API as AiCopilotController
+    participant Conv as ConversationService
+    participant Sup as SupervisorAgent
+    participant Reg as AgentRegistry
+    participant Agent as DomainAgent
+    participant LLM as OpenAiLlmService
+    participant GPT as OpenAI GPT-5 Mini
+    participant DB as PostgreSQL
+    participant Audit as AI Audit Trail
+
+    User->>UI: Types message
+    UI->>API: POST /api/v1/ai/chat
+    API->>Conv: processMessage(request, user)
+
+    Note over Conv: Get/Create Conversation
+    Conv->>DB: Save user message
+
+    Note over Sup: Route to appropriate agent
+    Conv->>Sup: route(message, moduleContext)
+    Sup->>LLM: chat(supervisorPrompt, message)
+    LLM->>GPT: Chat Completion API
+    GPT-->>LLM: {targetAgent, reasoning, refinedQuery}
+    LLM-->>Sup: RoutingDecision
+    Sup-->>Conv: targetAgent = CAPA_AGENT
+
+    Note over Conv: Execute target agent
+    Conv->>Reg: getAgent(CAPA_AGENT)
+    Reg-->>Conv: CapaAgent instance
+
+    Conv->>Agent: execute(agentRequest)
+    Agent->>LLM: chat(capaPrompt, refinedQuery)
+    LLM->>GPT: Chat Completion API
+    GPT-->>LLM: Response content
+    LLM-->>Agent: LlmResponse
+    Agent-->>Conv: AgentResponse
+
+    Note over Conv: Persist results
+    Conv->>DB: Save assistant message
+    Conv->>DB: Save agent execution
+    Conv->>Audit: Log AI action
+
+    Conv-->>API: AiChatResponse
+    API-->>UI: {conversationId, content, agentType}
+    UI-->>User: Display response with agent badge

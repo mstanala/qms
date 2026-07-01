@@ -1,0 +1,41 @@
+---
+title: AI-Powered Cross-Module Automation Chains
+---
+
+flowchart LR
+    subgraph CHAIN1 ["Chain 1: Deviation -> CAPA -> Change Control"]
+        D1["Deviation Agent<br/>Classifies & Investigates"] --> C1["CAPA Agent<br/>Creates CAPA from Deviation"]
+        C1 --> CC1["Change Control Agent<br/>Initiates Change from CAPA"]
+        CC1 --> DOC1["Document Agent<br/>Identifies SOPs to Revise"]
+        DOC1 --> TR1["Training Agent<br/>Auto-Assigns Retraining"]
+    end
+
+    subgraph CHAIN2 ["Chain 2: Complaint -> Investigation -> CAPA"]
+        COMP2["Complaint Agent<br/>Classifies & Assesses"] --> NC2["NC Agent<br/>Creates NC from Complaint"]
+        NC2 --> DEV2["Deviation Agent<br/>Links to Deviation"]
+        DEV2 --> CAPA2["CAPA Agent<br/>Triggers Root Cause Analysis"]
+    end
+
+    subgraph CHAIN3 ["Chain 3: Audit -> Finding -> CAPA"]
+        AUD3["Audit Agent<br/>Generates Checklist"] --> FIND3["Audit Agent<br/>Classifies Findings"]
+        FIND3 --> RISK3["Risk Agent<br/>Assesses Finding Risk"]
+        RISK3 --> CAPA3["CAPA Agent<br/>Creates CAPA for Major Findings"]
+    end
+
+    subgraph CHAIN4 ["Chain 4: Equipment -> Calibration -> Deviation"]
+        EQ4["Equipment Agent<br/>Monitors Calibration Due"] --> CAL4["Equipment Agent<br/>Detects OOT/OOS Calibration"]
+        CAL4 --> DEV4["Deviation Agent<br/>Auto-Creates Deviation"]
+        DEV4 --> BATCH4["CAPA Agent<br/>Assesses Batch Impact"]
+    end
+
+    subgraph CHAIN5 ["Chain 5: Supplier -> Risk -> Audit"]
+        SUP5["Supplier Agent<br/>Monitors Performance"] --> RISK5["Risk Agent<br/>Updates Supply Chain Risk"]
+        RISK5 --> AUD5["Audit Agent<br/>Triggers Supplier Audit"]
+        AUD5 --> SUPC5["Supplier Agent<br/>Updates Qualification Status"]
+    end
+
+    style CHAIN1 fill:#f0f7ff,stroke:#2563eb
+    style CHAIN2 fill:#fff7ed,stroke:#ea580c
+    style CHAIN3 fill:#f0fdf4,stroke:#16a34a
+    style CHAIN4 fill:#fef3c7,stroke:#d97706
+    style CHAIN5 fill:#f3e8ff,stroke:#7c3aed

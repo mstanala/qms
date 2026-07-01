@@ -4,9 +4,7 @@ import com.qmspharma.model.enums.RcaMethod;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
-import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -32,13 +30,11 @@ public class CapaRootCauseAnalysis {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String description;
 
-    @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(name = "root_causes", columnDefinition = "TEXT[]")
-    private List<String> rootCauses;
+    @Column(name = "root_causes", columnDefinition = "text[]")
+    private String[] rootCauses;
 
-    @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(name = "contributing_factors", columnDefinition = "TEXT[]")
-    private List<String> contributingFactors;
+    @Column(name = "contributing_factors", columnDefinition = "text[]")
+    private String[] contributingFactors;
 
     @Column(name = "fishbone_diagram_url", length = 1000)
     private String fishboneDiagramUrl;

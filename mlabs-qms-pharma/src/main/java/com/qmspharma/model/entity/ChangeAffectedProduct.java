@@ -2,10 +2,7 @@ package com.qmspharma.model.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
-import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -29,9 +26,8 @@ public class ChangeAffectedProduct {
     @Column(name = "dosage_form", length = 100)
     private String dosageForm;
 
-    @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(columnDefinition = "TEXT[]")
-    private List<String> markets;
+    @Column(columnDefinition = "text[]")
+    private String[] markets;
 
     @Column(name = "impact_description", columnDefinition = "TEXT")
     private String impactDescription;

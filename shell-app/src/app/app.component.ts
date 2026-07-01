@@ -14,6 +14,7 @@ import { catchError, debounceTime, distinctUntilChanged, filter, switchMap, tap 
 import { AuthService, AuthUser } from './auth/auth.service';
 import { ProfileApiService, SearchResult } from './profile/profile-api.service';
 import { TaskPanelComponent } from './tasks/task-panel.component';
+import { AiCopilotPanelComponent } from './ai/ai-copilot-panel.component';
 
 const API_BASE_URL = 'http://localhost:8082/api/v1';
 
@@ -48,6 +49,7 @@ interface NotificationItem {
     MatTooltipModule,
     MatDividerModule,
     TaskPanelComponent,
+    AiCopilotPanelComponent,
   ],
   template: `
     <router-outlet *ngIf="isLoginRoute"></router-outlet>
@@ -177,6 +179,16 @@ interface NotificationItem {
           <button mat-menu-item routerLink="/admin/compliance" [disabled]="!canConfigureAdmin">
             <mat-icon>security</mat-icon>Compliance Settings
           </button>
+        </mat-menu>
+
+        <button class="menu-item" [matMenuTriggerFor]="aiMenu">AI</button>
+        <mat-menu #aiMenu="matMenu">
+          <button mat-menu-item routerLink="/ai/dashboard">
+            <mat-icon>dashboard</mat-icon>AI Dashboard
+          </button>
+          <mat-divider></mat-divider>
+          <button mat-menu-item disabled><mat-icon>tune</mat-icon>Agent Configuration</button>
+          <button mat-menu-item disabled><mat-icon>history</mat-icon>AI Audit Trail</button>
         </mat-menu>
 
         <button class="menu-item" [matMenuTriggerFor]="helpMenu">Help</button>
@@ -341,6 +353,9 @@ interface NotificationItem {
           <router-outlet></router-outlet>
         </div>
       </div>
+
+      <!-- ═══ AI COPILOT ═══ -->
+      <qms-ai-copilot-panel></qms-ai-copilot-panel>
 
       <!-- ═══ STATUS BAR ═══ -->
       <div class="status-bar">
@@ -742,6 +757,7 @@ export class AppComponent implements OnDestroy {
     else if (url.startsWith('/complaint')) this.activeModuleLabel = 'Complaints';
     else if (url.startsWith('/nonconformance')) this.activeModuleLabel = 'Nonconformance';
     else if (url.startsWith('/equipment')) this.activeModuleLabel = 'Equipment';
+    else if (url.startsWith('/ai')) this.activeModuleLabel = 'AI Agents';
     else if (url.startsWith('/admin')) this.activeModuleLabel = 'Administration';
     else if (url.startsWith('/tools')) this.activeModuleLabel = 'Tools';
     else if (url.startsWith('/profile')) this.activeModuleLabel = 'My Account';

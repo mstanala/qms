@@ -90,11 +90,11 @@ public class ChangeRequestService {
         cr.setPlantSite(plantSiteRepository.findById(request.getPlantSiteId())
                 .orElseThrow(() -> new ResourceNotFoundException("PlantSite", "id", request.getPlantSiteId())));
         cr.setTargetImplementationDate(request.getTargetImplementationDate());
-        cr.setAffectedAreas(request.getAffectedAreas());
+        cr.setAffectedAreas(request.getAffectedAreas() != null ? request.getAffectedAreas().toArray(new String[0]) : null);
         cr.setValidationRequired(request.getValidationRequired() != null ? request.getValidationRequired() : false);
         cr.setTrainingRequired(request.getTrainingRequired() != null ? request.getTrainingRequired() : false);
-        cr.setRelatedDeviations(request.getRelatedDeviations());
-        cr.setRelatedCapas(request.getRelatedCapas());
+        cr.setRelatedDeviations(request.getRelatedDeviations() != null ? request.getRelatedDeviations().toArray(new String[0]) : null);
+        cr.setRelatedCapas(request.getRelatedCapas() != null ? request.getRelatedCapas().toArray(new String[0]) : null);
         cr.setCreatedBy(currentUser);
         cr.setUpdatedBy(currentUser);
         cr = changeRequestRepository.save(cr);
@@ -138,7 +138,7 @@ public class ChangeRequestService {
         if (request.getChangeOwnerId() != null) cr.setChangeOwner(userRepository.findById(request.getChangeOwnerId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getChangeOwnerId())));
         if (request.getTargetImplementationDate() != null) cr.setTargetImplementationDate(request.getTargetImplementationDate());
-        if (request.getAffectedAreas() != null) cr.setAffectedAreas(request.getAffectedAreas());
+        if (request.getAffectedAreas() != null) cr.setAffectedAreas(request.getAffectedAreas().toArray(new String[0]));
         if (request.getValidationRequired() != null) cr.setValidationRequired(request.getValidationRequired());
         if (request.getTrainingRequired() != null) cr.setTrainingRequired(request.getTrainingRequired());
         cr.setUpdatedBy(currentUserProvider.getCurrentUser());
@@ -307,7 +307,7 @@ public class ChangeRequestService {
         prod.setProductName(request.getProductName());
         prod.setProductCode(request.getProductCode());
         prod.setDosageForm(request.getDosageForm());
-        prod.setMarkets(request.getMarkets());
+        prod.setMarkets(request.getMarkets() != null ? request.getMarkets().toArray(new String[0]) : null);
         prod.setImpactDescription(request.getImpactDescription());
         affectedProductRepository.save(prod);
     }
@@ -453,15 +453,15 @@ public class ChangeRequestService {
                 .changeOwner(toUserRef(cr.getChangeOwner()))
                 .qaReviewer(toUserRef(cr.getQaReviewer())).raReviewer(toUserRef(cr.getRaReviewer()))
                 .plantSiteId(cr.getPlantSite().getId()).plantSiteName(cr.getPlantSite().getName())
-                .affectedAreas(cr.getAffectedAreas())
+                .affectedAreas(cr.getAffectedAreas() != null ? java.util.Arrays.asList(cr.getAffectedAreas()) : null)
                 .targetImplementationDate(cr.getTargetImplementationDate())
                 .actualImplementationDate(cr.getActualImplementationDate())
                 .effectivenessCheckDate(cr.getEffectivenessCheckDate()).closedDate(cr.getClosedDate())
                 .regulatoryFilingRequired(cr.getRegulatoryFilingRequired())
                 .validationRequired(cr.getValidationRequired()).validationDetails(cr.getValidationDetails())
                 .trainingRequired(cr.getTrainingRequired())
-                .relatedDeviations(cr.getRelatedDeviations()).relatedCapas(cr.getRelatedCapas())
-                .relatedChanges(cr.getRelatedChanges()).currentWorkflowStep(cr.getCurrentWorkflowStep())
+                .relatedDeviations(cr.getRelatedDeviations() != null ? java.util.Arrays.asList(cr.getRelatedDeviations()) : null).relatedCapas(cr.getRelatedCapas() != null ? java.util.Arrays.asList(cr.getRelatedCapas()) : null)
+                .relatedChanges(cr.getRelatedChanges() != null ? java.util.Arrays.asList(cr.getRelatedChanges()) : null).currentWorkflowStep(cr.getCurrentWorkflowStep())
                 .createdAt(cr.getCreatedAt()).updatedAt(cr.getUpdatedAt()).version(cr.getVersion());
 
         // Impact Assessment
@@ -491,7 +491,7 @@ public class ChangeRequestService {
                     .id(rf.getId())
                     .filingRequired(rf.getFilingRequired())
                     .filingType(rf.getFilingType() != null ? rf.getFilingType().name() : null)
-                    .markets(rf.getMarkets())
+                    .markets(rf.getMarkets() != null ? java.util.Arrays.asList(rf.getMarkets()) : null)
                     .filingDetails(rf.getFilingDetails())
                     .targetFilingDate(rf.getTargetFilingDate())
                     .filingStatus(rf.getFilingStatus() != null ? rf.getFilingStatus().name() : null)
@@ -518,7 +518,7 @@ public class ChangeRequestService {
                     .map(p -> AffectedProductResponse.builder()
                             .id(p.getId()).productName(p.getProductName())
                             .productCode(p.getProductCode()).dosageForm(p.getDosageForm())
-                            .markets(p.getMarkets()).impactDescription(p.getImpactDescription())
+                            .markets(p.getMarkets() != null ? java.util.Arrays.asList(p.getMarkets()) : null).impactDescription(p.getImpactDescription())
                             .build())
                     .collect(Collectors.toList()));
         }

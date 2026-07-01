@@ -291,8 +291,8 @@ public class DeviationService {
         ia.setRegulatoryImpact(ImpactLevel.valueOf(request.getRegulatoryImpact()));
         ia.setBusinessImpact(ImpactLevel.valueOf(request.getBusinessImpact()));
         ia.setOverallRiskLevel(RiskLevel.valueOf(request.getOverallRiskLevel()));
-        ia.setAffectedProducts(request.getAffectedProducts());
-        ia.setAffectedBatches(request.getAffectedBatches());
+        ia.setAffectedProducts(request.getAffectedProducts() != null ? request.getAffectedProducts().toArray(new String[0]) : null);
+        ia.setAffectedBatches(request.getAffectedBatches() != null ? request.getAffectedBatches().toArray(new String[0]) : null);
         ia.setBatchDisposition(request.getBatchDisposition());
         ia.setJustification(request.getJustification());
         ia.setAssessedBy(currentUser);
@@ -562,7 +562,7 @@ public class DeviationService {
                     .regulatoryImpact(ia.getRegulatoryImpact().name())
                     .businessImpact(ia.getBusinessImpact().name())
                     .overallRiskLevel(ia.getOverallRiskLevel().name())
-                    .affectedProducts(ia.getAffectedProducts()).affectedBatches(ia.getAffectedBatches())
+                    .affectedProducts(ia.getAffectedProducts() != null ? java.util.Arrays.asList(ia.getAffectedProducts()) : null).affectedBatches(ia.getAffectedBatches() != null ? java.util.Arrays.asList(ia.getAffectedBatches()) : null)
                     .batchDisposition(ia.getBatchDisposition()).justification(ia.getJustification())
                     .assessedBy(toUserRef(ia.getAssessedBy())).assessedDate(ia.getAssessedDate()).build());
         }

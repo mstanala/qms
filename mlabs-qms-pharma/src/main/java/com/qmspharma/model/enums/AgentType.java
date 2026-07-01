@@ -1,0 +1,17 @@
+package com.qmspharma.model.enums;
+
+public enum AgentType {
+    SUPERVISOR,
+    COPILOT,
+    CAPA_AGENT,
+    DEVIATION_AGENT,
+    CHANGE_CONTROL_AGENT,
+    DOCUMENT_AGENT,
+    TRAINING_AGENT,
+    AUDIT_AGENT,
+    RISK_AGENT,
+    COMPLAINT_AGENT,
+    SUPPLIER_AGENT,
+    NC_AGENT,
+    EQUIPMENT_AGENT
+}

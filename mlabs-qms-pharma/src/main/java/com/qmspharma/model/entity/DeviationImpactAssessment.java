@@ -5,11 +5,8 @@ import com.qmspharma.model.enums.RiskLevel;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -44,13 +41,11 @@ public class DeviationImpactAssessment {
     @Column(name = "overall_risk_level", nullable = false, length = 20)
     private RiskLevel overallRiskLevel;
 
-    @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(name = "affected_products", columnDefinition = "TEXT[]")
-    private List<String> affectedProducts;
+    @Column(name = "affected_products", columnDefinition = "text[]")
+    private String[] affectedProducts;
 
-    @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(name = "affected_batches", columnDefinition = "TEXT[]")
-    private List<String> affectedBatches;
+    @Column(name = "affected_batches", columnDefinition = "text[]")
+    private String[] affectedBatches;
 
     @Column(name = "batch_disposition", columnDefinition = "TEXT")
     private String batchDisposition;

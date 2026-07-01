@@ -1,0 +1,100 @@
+---
+title: QMS-Pharma AI Agent Architecture - Multi-Agent Orchestration
+---
+
+graph TB
+    subgraph USER["User Interface Layer"]
+        UI_COPILOT["AI Copilot Panel<br/>(Floating Chat Widget)"]
+        UI_DASHBOARD["AI Dashboard<br/>(Agent Monitoring)"]
+        UI_MODULES["QMS Module Screens<br/>(Context-Aware AI)"]
+    end
+
+    subgraph API["API Layer"]
+        CTRL["AiCopilotController<br/>/api/v1/ai/*"]
+        WS["WebSocket<br/>/ws/ai-copilot"]
+    end
+
+    subgraph ORCHESTRATION["Agent Orchestration Layer"]
+        SUPERVISOR["Supervisor Agent<br/>(Request Router)"]
+        REGISTRY["Agent Registry<br/>(13 Agents)"]
+        CONV_SVC["Conversation Service<br/>(Session Management)"]
+    end
+
+    subgraph DOMAIN_AGENTS["Domain Agents"]
+        CAPA_A["CAPA Agent"]
+        DEV_A["Deviation Agent"]
+        CC_A["Change Control Agent"]
+        DOC_A["Document Agent"]
+        TRAIN_A["Training Agent"]
+        AUDIT_A["Audit Agent"]
+        RISK_A["Risk Agent"]
+        COMP_A["Complaint Agent"]
+        SUP_A["Supplier Agent"]
+        NC_A["NC Agent"]
+        EQUIP_A["Equipment Agent"]
+        COPILOT_A["Copilot Agent"]
+    end
+
+    subgraph LLM["LLM Layer"]
+        OAI["OpenAI GPT-5 Mini<br/>(API Key via GCP Secret Manager)"]
+        LLM_SVC["OpenAiLlmService<br/>(Chat + Function Calling)"]
+    end
+
+    subgraph DATA["Data Layer"]
+        QMS_DB["PostgreSQL<br/>(QMS Tables)"]
+        AI_DB["PostgreSQL<br/>(AI Tables)"]
+        FLOWABLE["Flowable BPMN<br/>(Workflow Engine)"]
+    end
+
+    subgraph COMPLIANCE["Compliance Layer"]
+        AI_AUDIT["AI Audit Trail<br/>(21 CFR Part 11)"]
+        HITL["Human-in-the-Loop<br/>(Approval Workflow)"]
+        PROMPT_MGMT["Prompt Templates<br/>(Versioned & Validated)"]
+    end
+
+    UI_COPILOT --> CTRL
+    UI_DASHBOARD --> CTRL
+    UI_MODULES --> CTRL
+    UI_COPILOT --> WS
+
+    CTRL --> CONV_SVC
+    CONV_SVC --> SUPERVISOR
+    SUPERVISOR --> REGISTRY
+
+    REGISTRY --> CAPA_A
+    REGISTRY --> DEV_A
+    REGISTRY --> CC_A
+    REGISTRY --> DOC_A
+    REGISTRY --> TRAIN_A
+    REGISTRY --> AUDIT_A
+    REGISTRY --> RISK_A
+    REGISTRY --> COMP_A
+    REGISTRY --> SUP_A
+    REGISTRY --> NC_A
+    REGISTRY --> EQUIP_A
+    REGISTRY --> COPILOT_A
+
+    CAPA_A --> LLM_SVC
+    DEV_A --> LLM_SVC
+    CC_A --> LLM_SVC
+    DOC_A --> LLM_SVC
+    TRAIN_A --> LLM_SVC
+    AUDIT_A --> LLM_SVC
+    RISK_A --> LLM_SVC
+    COMP_A --> LLM_SVC
+    SUP_A --> LLM_SVC
+    NC_A --> LLM_SVC
+    EQUIP_A --> LLM_SVC
+    COPILOT_A --> LLM_SVC
+
+    LLM_SVC --> OAI
+
+    CONV_SVC --> AI_DB
+    CAPA_A --> QMS_DB
+    DEV_A --> QMS_DB
+    SUPERVISOR --> AI_AUDIT
+    CONV_SVC --> AI_AUDIT
+
+    HITL --> FLOWABLE
+    AI_AUDIT --> AI_DB
+    PROMPT_MGMT --> AI_DB

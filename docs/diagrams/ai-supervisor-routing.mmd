@@ -1,0 +1,47 @@
+---
+title: AI Supervisor Agent - Intelligent Request Routing
+---
+
+flowchart TB
+    START((User<br/>Message))
+
+    SUP[/"Supervisor Agent<br/>Analyzes Intent"/]
+
+    START --> SUP
+
+    SUP -->|"CAPA keywords:<br/>root cause, corrective,<br/>preventive, effectiveness"| CAPA[CAPA Agent]
+
+    SUP -->|"Deviation keywords:<br/>deviation, OOS, OOT,<br/>non-conforming batch"| DEV[Deviation Agent]
+
+    SUP -->|"Change keywords:<br/>change request, impact,<br/>implementation, SOP revision"| CC[Change Control Agent]
+
+    SUP -->|"Document keywords:<br/>SOP, document review,<br/>version, effective date"| DOC[Document Agent]
+
+    SUP -->|"Training keywords:<br/>training, curriculum,<br/>qualification, gap analysis"| TRAIN[Training Agent]
+
+    SUP -->|"Audit keywords:<br/>audit, finding,<br/>checklist, observation"| AUDIT[Audit Agent]
+
+    SUP -->|"Risk keywords:<br/>risk assessment, FMEA,<br/>RPN, severity, probability"| RISK[Risk Agent]
+
+    SUP -->|"Complaint keywords:<br/>complaint, adverse event,<br/>reportability, MedWatch"| COMP[Complaint Agent]
+
+    SUP -->|"Supplier keywords:<br/>supplier, vendor,<br/>qualification, evaluation"| SUPP[Supplier Agent]
+
+    SUP -->|"NC keywords:<br/>nonconformance, disposition,<br/>reject, rework"| NC[NC Agent]
+
+    SUP -->|"Equipment keywords:<br/>calibration, maintenance,<br/>qualification, IQ/OQ/PQ"| EQUIP[Equipment Agent]
+
+    SUP -->|"General/Unclear:<br/>regulatory, guidance,<br/>navigation, search"| COPILOT[Copilot Agent]
+
+    CAPA --> RESPONSE((AI<br/>Response))
+    DEV --> RESPONSE
+    CC --> RESPONSE
+    DOC --> RESPONSE
+    TRAIN --> RESPONSE
+    AUDIT --> RESPONSE
+    RISK --> RESPONSE
+    COMP --> RESPONSE
+    SUPP --> RESPONSE
+    NC --> RESPONSE
+    EQUIP --> RESPONSE
+    COPILOT --> RESPONSE

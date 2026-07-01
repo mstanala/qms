@@ -247,8 +247,8 @@ public class CapaService {
         rca.setCapa(capa);
         rca.setMethod(RcaMethod.valueOf(request.getMethod()));
         rca.setDescription(request.getDescription());
-        rca.setRootCauses(request.getRootCauses());
-        rca.setContributingFactors(request.getContributingFactors());
+        rca.setRootCauses(request.getRootCauses() != null ? request.getRootCauses().toArray(new String[0]) : null);
+        rca.setContributingFactors(request.getContributingFactors() != null ? request.getContributingFactors().toArray(new String[0]) : null);
         rca.setCompletedBy(currentUser);
         rca.setCompletedDate(Instant.now());
         rca = rcaRepository.save(rca);
@@ -271,7 +271,7 @@ public class CapaService {
                 CapaFishboneCategory fc = new CapaFishboneCategory();
                 fc.setRca(rca);
                 fc.setCategoryName(cat.getCategoryName());
-                fc.setCauses(cat.getCauses());
+                fc.setCauses(cat.getCauses() != null ? cat.getCauses().toArray(new String[0]) : null);
                 rca.getFishboneCategories().add(fc);
             }
         }
@@ -532,11 +532,11 @@ public class CapaService {
                     .collect(Collectors.toList()) : null;
             var fishbone = rca.getFishboneCategories() != null ? rca.getFishboneCategories().stream()
                     .map(f -> RcaResponse.FishboneCategoryResponse.builder()
-                            .categoryName(f.getCategoryName()).causes(f.getCauses()).build())
+                            .categoryName(f.getCategoryName()).causes(f.getCauses() != null ? java.util.Arrays.asList(f.getCauses()) : null).build())
                     .collect(Collectors.toList()) : null;
             builder.rootCauseAnalysis(RcaResponse.builder()
                     .id(rca.getId()).method(rca.getMethod().name()).description(rca.getDescription())
-                    .rootCauses(rca.getRootCauses()).contributingFactors(rca.getContributingFactors())
+                    .rootCauses(rca.getRootCauses() != null ? java.util.Arrays.asList(rca.getRootCauses()) : null).contributingFactors(rca.getContributingFactors() != null ? java.util.Arrays.asList(rca.getContributingFactors()) : null)
                     .fiveWhyEntries(fiveWhys).fishboneCategories(fishbone)
                     .completedDate(rca.getCompletedDate()).completedBy(toUserRef(rca.getCompletedBy())).build());
         }

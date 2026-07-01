@@ -4,11 +4,8 @@ import com.qmspharma.model.enums.FilingStatus;
 import com.qmspharma.model.enums.FilingType;
 import jakarta.persistence.*;
 import lombok.Data;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -30,9 +27,8 @@ public class ChangeRegulatoryFiling {
     @Column(name = "filing_type", length = 30)
     private FilingType filingType;
 
-    @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(columnDefinition = "TEXT[]")
-    private List<String> markets;
+    @Column(columnDefinition = "text[]")
+    private String[] markets;
 
     @Column(name = "filing_details", columnDefinition = "TEXT")
     private String filingDetails;

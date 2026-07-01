@@ -1,0 +1,48 @@
+---
+title: AI Agent Approval Workflow (Human-in-the-Loop)
+---
+
+flowchart TD
+    START((AI Agent<br/>Proposes Action))
+
+    CHECK{Action Requires<br/>Human Approval?}
+
+    START --> CHECK
+
+    CHECK -->|"No (Read-only,<br/>search, analysis)"| EXECUTE_DIRECT["Execute Directly<br/>(No approval needed)"]
+
+    CHECK -->|"Yes (Create, Update,<br/>Delete records)"| APPROVAL_TASK
+
+    subgraph BPMN ["Flowable BPMN Process"]
+        APPROVAL_TASK["Create Approval Task<br/>in User's Inbox"]
+
+        REVIEW["Quality Manager Reviews<br/>AI Recommendation"]
+
+        DECISION{Decision}
+
+        APPROVE["Approve"]
+        MODIFY["Modify & Approve"]
+        REJECT["Reject"]
+    end
+
+    APPROVAL_TASK --> REVIEW
+    REVIEW --> DECISION
+    DECISION -->|"Approve"| APPROVE
+    DECISION -->|"Modify"| MODIFY
+    DECISION -->|"Reject"| REJECT
+
+    APPROVE --> EXEC_APPROVED["Execute Approved<br/>AI Action"]
+    MODIFY --> EXEC_MODIFIED["Execute Modified<br/>Action"]
+    REJECT --> LOG_REJECT["Log Rejection<br/>in Audit Trail"]
+
+    EXECUTE_DIRECT --> AUDIT_LOG
+    EXEC_APPROVED --> AUDIT_LOG
+    EXEC_MODIFIED --> AUDIT_LOG
+    LOG_REJECT --> AUDIT_LOG
+
+    AUDIT_LOG["AI Audit Trail<br/>(21 CFR Part 11 Compliant)"]
+
+    AUDIT_LOG --> FINISH((Complete))
+
+    style BPMN fill:#f0f7ff,stroke:#2C5F7C
+    style AUDIT_LOG fill:#fff7ed,stroke:#ED8B00

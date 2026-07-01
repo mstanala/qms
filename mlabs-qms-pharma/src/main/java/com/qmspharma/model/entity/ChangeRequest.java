@@ -4,9 +4,7 @@ import com.qmspharma.model.enums.*;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
-import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -80,9 +78,8 @@ public class ChangeRequest {
     @JoinColumn(name = "plant_site_id", nullable = false)
     private PlantSite plantSite;
 
-    @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(name = "affected_areas", columnDefinition = "TEXT[]")
-    private List<String> affectedAreas;
+    @Column(name = "affected_areas", columnDefinition = "text[]")
+    private String[] affectedAreas;
 
     @Column(name = "target_implementation_date", nullable = false)
     private Instant targetImplementationDate;
@@ -108,17 +105,14 @@ public class ChangeRequest {
     @Column(name = "training_required", nullable = false)
     private Boolean trainingRequired = false;
 
-    @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(name = "related_deviations", columnDefinition = "TEXT[]")
-    private List<String> relatedDeviations;
+    @Column(name = "related_deviations", columnDefinition = "text[]")
+    private String[] relatedDeviations;
 
-    @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(name = "related_capas", columnDefinition = "TEXT[]")
-    private List<String> relatedCapas;
+    @Column(name = "related_capas", columnDefinition = "text[]")
+    private String[] relatedCapas;
 
-    @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(name = "related_changes", columnDefinition = "TEXT[]")
-    private List<String> relatedChanges;
+    @Column(name = "related_changes", columnDefinition = "text[]")
+    private String[] relatedChanges;
 
     @Column(name = "current_workflow_step", nullable = false, length = 100)
     private String currentWorkflowStep = "Draft";

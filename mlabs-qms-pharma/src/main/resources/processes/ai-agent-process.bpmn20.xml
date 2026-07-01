@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:flowable="http://flowable.org/bpmn"
+             xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+             xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC"
+             xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI"
+             targetNamespace="http://www.qmspharma.com/ai"
+             exporter="QMS-Pharma" exporterVersion="1.0">
+
+  <!-- ============================================================ -->
+  <!-- AI Agent Approval Process                                     -->
+  <!-- Triggered when an AI agent action requires human approval     -->
+  <!-- ============================================================ -->
+  <process id="ai-agent-approval" name="AI Agent Approval Process" isExecutable="true">
+
+    <!-- Start: AI action requires human approval -->
+    <startEvent id="start" name="AI Action Requires Approval">
+      <documentation>Triggered when an AI agent proposes an action that requires human review and approval</documentation>
+    </startEvent>
+
+    <!-- Task: Review AI Recommendation -->
+    <userTask id="reviewAiAction" name="Review AI Recommendation"
+              flowable:assignee="${assignee}"
+              flowable:candidateGroups="${candidateGroups}">
+      <documentation>
+        Review the AI agent's recommended action.
+        Agent: ${agentType}
+        Action: ${proposedAction}
+        Record: ${recordType} - ${recordNumber}
+        Confidence: ${confidence}%
+      </documentation>
+      <extensionElements>
+        <flowable:formProperty id="decision" name="Decision" type="enum" required="true">
+          <flowable:value id="APPROVE" name="Approve AI Recommendation"/>
+          <flowable:value id="MODIFY" name="Modify and Approve"/>
+          <flowable:value id="REJECT" name="Reject AI Recommendation"/>
+        </flowable:formProperty>
+        <flowable:formProperty id="comments" name="Review Comments" type="string"/>
+      </extensionElements>
+    </userTask>
+
+    <!-- Gateway: Decision -->
+    <exclusiveGateway id="decisionGateway" name="Approval Decision"/>
+
+    <!-- Task: Execute Approved Action -->
+    <serviceTask id="executeAction" name="Execute Approved AI Action"
+                 flowable:delegateExpression="${aiActionExecutor}">
+      <documentation>Executes the AI-recommended action after human approval</documentation>
+    </serviceTask>
+
+    <!-- Task: Execute Modified Action -->
+    <serviceTask id="executeModifiedAction" name="Execute Modified Action"
+                 flowable:delegateExpression="${aiActionExecutor}">
+      <documentation>Executes a human-modified version of the AI recommendation</documentation>
+    </serviceTask>
+
+    <!-- Task: Log Rejection -->
+    <serviceTask id="logRejection" name="Log AI Rejection"
+                 flowable:delegateExpression="${aiAuditLogger}">
+      <documentation>Records the rejection of AI recommendation in audit trail</documentation>
+    </serviceTask>
+
+    <!-- End Events -->
+    <endEvent id="endApproved" name="Action Executed"/>
+    <endEvent id="endModified" name="Modified Action Executed"/>
+    <endEvent id="endRejected" name="Action Rejected"/>
+
+    <!-- Sequence Flows -->
+    <sequenceFlow id="flow1" sourceRef="start" targetRef="reviewAiAction"/>
+    <sequenceFlow id="flow2" sourceRef="reviewAiAction" targetRef="decisionGateway"/>
+    <sequenceFlow id="flow3" sourceRef="decisionGateway" targetRef="executeAction">
+      <conditionExpression xsi:type="tFormalExpression">${decision == 'APPROVE'}</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow4" sourceRef="decisionGateway" targetRef="executeModifiedAction">
+      <conditionExpression xsi:type="tFormalExpression">${decision == 'MODIFY'}</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow5" sourceRef="decisionGateway" targetRef="logRejection">
+      <conditionExpression xsi:type="tFormalExpression">${decision == 'REJECT'}</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow6" sourceRef="executeAction" targetRef="endApproved"/>
+    <sequenceFlow id="flow7" sourceRef="executeModifiedAction" targetRef="endModified"/>
+    <sequenceFlow id="flow8" sourceRef="logRejection" targetRef="endRejected"/>
+  </process>
+
+  <!-- ============================================================ -->
+  <!-- AI-Assisted CAPA Creation Process                             -->
+  <!-- AI suggests, human reviews and approves CAPA creation         -->
+  <!-- ============================================================ -->
+  <process id="ai-capa-creation" name="AI-Assisted CAPA Creation" isExecutable="true">
+
+    <startEvent id="capaStart" name="AI Suggests CAPA"/>
+
+    <!-- AI generates CAPA draft -->
+    <serviceTask id="generateCapaDraft" name="AI Generate CAPA Draft"
+                 flowable:delegateExpression="${aiCapaDraftGenerator}">
+      <documentation>AI agent generates a CAPA draft based on source data (deviation, complaint, audit finding)</documentation>
+    </serviceTask>
+
+    <!-- Human reviews AI-generated CAPA -->
+    <userTask id="reviewCapaDraft" name="Review AI-Generated CAPA"
+              flowable:assignee="${qualityManager}"
+              flowable:candidateGroups="QUALITY_MANAGER">
+      <documentation>Review and approve the AI-generated CAPA draft before creation</documentation>
+    </userTask>
+
+    <!-- Decision gateway -->
+    <exclusiveGateway id="capaDecision"/>
+
+    <!-- Create CAPA in system -->
+    <serviceTask id="createCapa" name="Create CAPA Record"
+                 flowable:delegateExpression="${aiCapaCreator}"/>
+
+    <!-- AI performs root cause analysis suggestion -->
+    <serviceTask id="suggestRca" name="AI Suggest Root Cause Analysis"
+                 flowable:delegateExpression="${aiRcaSuggester}"/>
+
+    <!-- Human reviews RCA -->
+    <userTask id="reviewRca" name="Review AI Root Cause Analysis"
+              flowable:assignee="${capaOwner}"/>
+
+    <endEvent id="capaEnd" name="CAPA Created with AI Assistance"/>
+    <endEvent id="capaRejected" name="CAPA Draft Rejected"/>
+
+    <sequenceFlow id="cf1" sourceRef="capaStart" targetRef="generateCapaDraft"/>
+    <sequenceFlow id="cf2" sourceRef="generateCapaDraft" targetRef="reviewCapaDraft"/>
+    <sequenceFlow id="cf3" sourceRef="reviewCapaDraft" targetRef="capaDecision"/>
+    <sequenceFlow id="cf4" sourceRef="capaDecision" targetRef="createCapa">
+      <conditionExpression xsi:type="tFormalExpression">${approved == true}</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="cf5" sourceRef="capaDecision" targetRef="capaRejected">
+      <conditionExpression xsi:type="tFormalExpression">${approved == false}</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="cf6" sourceRef="createCapa" targetRef="suggestRca"/>
+    <sequenceFlow id="cf7" sourceRef="suggestRca" targetRef="reviewRca"/>
+    <sequenceFlow id="cf8" sourceRef="reviewRca" targetRef="capaEnd"/>
+  </process>
+
+  <!-- BPMN Diagram layout -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_ai_agent">
+    <bpmndi:BPMNPlane bpmnElement="ai-agent-approval" id="BPMNPlane_ai_agent">
+      <bpmndi:BPMNShape id="shape_start" bpmnElement="start">
+        <omgdc:Bounds x="100" y="200" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="shape_review" bpmnElement="reviewAiAction">
+        <omgdc:Bounds x="200" y="178" width="160" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="shape_gateway" bpmnElement="decisionGateway">
+        <omgdc:Bounds x="420" y="198" width="40" height="40"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="shape_execute" bpmnElement="executeAction">
+        <omgdc:Bounds x="530" y="100" width="160" height="60"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="shape_modify" bpmnElement="executeModifiedAction">
+        <omgdc:Bounds x="530" y="200" width="160" height="60"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="shape_reject" bpmnElement="logRejection">
+        <omgdc:Bounds x="530" y="300" width="160" height="60"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="shape_endA" bpmnElement="endApproved">
+        <omgdc:Bounds x="750" y="114" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="shape_endM" bpmnElement="endModified">
+        <omgdc:Bounds x="750" y="214" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="shape_endR" bpmnElement="endRejected">
+        <omgdc:Bounds x="750" y="314" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

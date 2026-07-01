@@ -2,10 +2,7 @@ package com.qmspharma.model.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
-import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -23,7 +20,6 @@ public class CapaFishboneCategory {
     @Column(name = "category_name", nullable = false, length = 100)
     private String categoryName;
 
-    @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(columnDefinition = "TEXT[]")
-    private List<String> causes;
+    @Column(columnDefinition = "text[]")
+    private String[] causes;
 }
