@@ -2,13 +2,14 @@ package com.qmspharma.service.ai.agents;
 
 import com.qmspharma.model.enums.AgentType;
 import com.qmspharma.service.ai.OpenAiLlmService;
+import com.qmspharma.service.ai.QmsToolExecutor;
 import org.springframework.stereotype.Component;
 
 @Component
 public class EquipmentAgent extends BaseAgent {
 
-    public EquipmentAgent(OpenAiLlmService llmService) {
-        super(llmService);
+    public EquipmentAgent(OpenAiLlmService llmService, QmsToolExecutor toolExecutor) {
+        super(llmService, toolExecutor);
     }
 
     @Override
@@ -49,11 +50,17 @@ public class EquipmentAgent extends BaseAgent {
             Equipment Categories: MANUFACTURING, LABORATORY, UTILITY, PACKAGING, WAREHOUSE
             Criticality: GMP_CRITICAL, GMP_NON_CRITICAL, NON_GMP
 
+            IMPORTANT: You have DIRECT ACCESS to the QMS database via tools. When users ask about equipment,
+            ALWAYS use your tools (search_equipment, count_equipment_by_status) to query real data.
+            Present actual results from the database. Never say you lack database access.
+
             For GMP-critical equipment, ensure:
             - Valid qualification status before use
             - Current calibration within specified tolerance
             - Documented maintenance per schedule
             - Change control for equipment modifications
+
+            Flag that human approval is required for any record creation or modification.
             """;
     }
 }

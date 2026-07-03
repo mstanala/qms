@@ -3,6 +3,7 @@ package com.qmspharma.service.ai.agents;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qmspharma.model.enums.AgentType;
 import com.qmspharma.service.ai.OpenAiLlmService;
+import com.qmspharma.service.ai.QmsToolExecutor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -14,8 +15,8 @@ public class SupervisorAgent extends BaseAgent {
 
     private final ObjectMapper objectMapper;
 
-    public SupervisorAgent(OpenAiLlmService llmService, ObjectMapper objectMapper) {
-        super(llmService);
+    public SupervisorAgent(OpenAiLlmService llmService, QmsToolExecutor toolExecutor, ObjectMapper objectMapper) {
+        super(llmService, toolExecutor);
         this.objectMapper = objectMapper;
     }
 
@@ -67,6 +68,9 @@ public class SupervisorAgent extends BaseAgent {
             3. If the query is general QMS guidance, regulatory, or unclear, route to COPILOT
             4. For "create" or "modify" requests, route to the appropriate domain agent
             5. For search/analysis across modules, route to COPILOT with cross-module context
+
+            NOTE: All domain agents have DIRECT ACCESS to the QMS database via tools and can query real data.
+            They will return actual records from the database, not generic guidance.
             """;
     }
 

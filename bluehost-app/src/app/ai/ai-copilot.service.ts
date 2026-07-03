@@ -2,8 +2,9 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, BehaviorSubject } from 'rxjs';
 import { tap } from 'rxjs/operators';
+import { environment } from '../../environments/environment';
 
-const API_BASE = 'http://localhost:8082/api/v1/ai';
+const API_BASE = `${environment.apiBaseUrl}/api/v1/ai`;
 
 export interface AiChatRequest {
   conversationId?: string;

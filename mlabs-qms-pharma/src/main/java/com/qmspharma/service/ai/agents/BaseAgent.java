@@ -2,6 +2,7 @@ package com.qmspharma.service.ai.agents;
 
 import com.qmspharma.model.enums.AgentType;
 import com.qmspharma.service.ai.OpenAiLlmService;
+import com.qmspharma.service.ai.QmsToolExecutor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -12,9 +13,11 @@ import java.util.Map;
 public abstract class BaseAgent {
 
     protected final OpenAiLlmService llmService;
+    protected final QmsToolExecutor toolExecutor;
 
-    protected BaseAgent(OpenAiLlmService llmService) {
+    protected BaseAgent(OpenAiLlmService llmService, QmsToolExecutor toolExecutor) {
         this.llmService = llmService;
+        this.toolExecutor = toolExecutor;
     }
 
     public abstract AgentType getAgentType();
@@ -30,9 +33,22 @@ public abstract class BaseAgent {
             String context = buildContextPrompt(request);
             String fullMessage = context + "\n\nUser Query: " + request.getMessage();
 
-            OpenAiLlmService.LlmResponse llmResponse = llmService.chat(
-                    systemPrompt, fullMessage,
-                    request.getModel(), List.of(), request.getTemperature());
+            // Get tools for this agent type
+            List<OpenAiLlmService.ToolDefinition> tools = toolExecutor.getToolsForAgent(getAgentType());
+
+            OpenAiLlmService.LlmResponse llmResponse;
+            if (!tools.isEmpty()) {
+                // Use tool-calling loop: LLM can call QMS database tools
+                llmResponse = llmService.chatWithTools(
+                        systemPrompt, fullMessage,
+                        request.getModel(), tools, request.getTemperature(),
+                        toolCall -> toolExecutor.executeTool(toolCall.getName(), toolCall.getArguments()));
+            } else {
+                // Fallback to simple chat without tools
+                llmResponse = llmService.chat(
+                        systemPrompt, fullMessage,
+                        request.getModel(), List.of(), request.getTemperature());
+            }
 
             long latencyMs = System.currentTimeMillis() - start;
 
@@ -59,6 +75,21 @@ public abstract class BaseAgent {
     }
 
     protected abstract String getSystemPrompt();
+
+    /** Public accessor for streaming — returns the system prompt. */
+    public String getSystemPromptPublic() {
+        return getSystemPrompt();
+    }
+
+    /** Public accessor for streaming — returns the LLM service. */
+    public OpenAiLlmService getLlmService() {
+        return llmService;
+    }
+
+    /** Public accessor for streaming — returns the tool executor. */
+    public QmsToolExecutor getToolExecutor() {
+        return toolExecutor;
+    }
 
     protected String buildContextPrompt(AgentRequest request) {
         StringBuilder sb = new StringBuilder();

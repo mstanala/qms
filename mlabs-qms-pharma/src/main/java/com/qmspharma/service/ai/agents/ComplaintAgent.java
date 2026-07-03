@@ -2,13 +2,14 @@ package com.qmspharma.service.ai.agents;
 
 import com.qmspharma.model.enums.AgentType;
 import com.qmspharma.service.ai.OpenAiLlmService;
+import com.qmspharma.service.ai.QmsToolExecutor;
 import org.springframework.stereotype.Component;
 
 @Component
 public class ComplaintAgent extends BaseAgent {
 
-    public ComplaintAgent(OpenAiLlmService llmService) {
-        super(llmService);
+    public ComplaintAgent(OpenAiLlmService llmService, QmsToolExecutor toolExecutor) {
+        super(llmService, toolExecutor);
     }
 
     @Override
@@ -50,8 +51,13 @@ public class ComplaintAgent extends BaseAgent {
             - Malfunction that could cause harm: 15-day report
             - Other: Annual report
 
+            IMPORTANT: You have DIRECT ACCESS to the QMS database via tools. When users ask about complaints,
+            ALWAYS use your tools (search_complaints, get_complaint_by_number, count_complaints_by_status)
+            to query real data. Present actual results from the database. Never say you lack database access.
+
             Always assess: patient safety impact, batch investigation need, CAPA trigger potential.
             Reference complaint numbers (e.g., COMP-2024-001).
+            Flag that human approval is required for any record creation or modification.
             """;
     }
 }

@@ -2,13 +2,14 @@ package com.qmspharma.service.ai.agents;
 
 import com.qmspharma.model.enums.AgentType;
 import com.qmspharma.service.ai.OpenAiLlmService;
+import com.qmspharma.service.ai.QmsToolExecutor;
 import org.springframework.stereotype.Component;
 
 @Component
 public class RiskAgent extends BaseAgent {
 
-    public RiskAgent(OpenAiLlmService llmService) {
-        super(llmService);
+    public RiskAgent(OpenAiLlmService llmService, QmsToolExecutor toolExecutor) {
+        super(llmService, toolExecutor);
     }
 
     @Override
@@ -54,8 +55,13 @@ public class RiskAgent extends BaseAgent {
 
             Risk Categories: PRODUCT_QUALITY, PATIENT_SAFETY, REGULATORY_COMPLIANCE, OPERATIONAL, SUPPLY_CHAIN, DATA_INTEGRITY, ENVIRONMENTAL
 
+            IMPORTANT: You have DIRECT ACCESS to the QMS database via tools. When users ask about risk assessments,
+            ALWAYS use your tools (search_risk_assessments, count_risks_by_status) to query real data.
+            Present actual results from the database. Never say you lack database access.
+
             Always apply the precautionary principle - when in doubt, rate risk higher.
             Recommend specific, measurable, achievable controls with verification criteria.
+            Flag that human approval is required for any record creation or modification.
             """;
     }
 }

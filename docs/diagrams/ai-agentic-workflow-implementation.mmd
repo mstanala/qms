@@ -1,0 +1,183 @@
+%%{ init: { 'theme': 'base', 'themeVariables': { 'primaryColor': '#1a73e8', 'primaryTextColor': '#fff', 'primaryBorderColor': '#1557b0', 'lineColor': '#5f6368', 'secondaryColor': '#e8f0fe', 'tertiaryColor': '#f1f3f4' } } }%%
+
+flowchart TB
+    subgraph PRESENTATION["Presentation Layer - Angular Microfrontends"]
+        direction LR
+        SHELL["shell-app :4200<br/>Layout, Nav, Auth"]
+        CAPA_MFE["capa-mfe :4201"]
+        DEV_MFE["deviation-mfe :4202"]
+        CC_MFE["change-control-mfe :4203"]
+        DOC_MFE["document-mfe :4204"]
+        TRAIN_MFE["training-mfe :4205"]
+        CORE_MFE["qms-core-mfe :4206<br/>Risk, Audit, Supplier,<br/>Complaint, NC, Equipment"]
+        AI_PANEL["AI Copilot Panel<br/>Floating Chat UI"]
+        AI_DASH["AI Dashboard<br/>Metrics & Config"]
+    end
+
+    subgraph API["Spring Boot API Layer - :8082"]
+        direction TB
+        AI_CTRL["AiCopilotController<br/>/api/v1/ai/*"]
+
+        subgraph ENDPOINTS["REST API Endpoints"]
+            direction LR
+            EP_CHAT["POST /chat<br/>Conversational AI"]
+            EP_INVOKE["POST /agents/{name}/invoke<br/>Direct Agent Invocation"]
+            EP_SUGGEST["GET/PUT /suggestions<br/>Human-in-the-Loop"]
+            EP_AUDIT["GET /audit-trail<br/>21 CFR Part 11"]
+            EP_DASH["GET /dashboard<br/>Metrics & Analytics"]
+            EP_CONV["GET /conversations<br/>Chat History"]
+            EP_TOOLS["GET /agents/{name}/tools<br/>Tool Registry"]
+        end
+    end
+
+    subgraph ORCHESTRATION["Agent Orchestration Layer"]
+        direction TB
+        SUPERVISOR["Supervisor Agent<br/>Intent Detection &<br/>Request Routing"]
+
+        subgraph DOMAIN_AGENTS["Domain Agents - 11 Specialized"]
+            direction LR
+            DEV_AGENT["Deviation<br/>Agent"]
+            CAPA_AGENT["CAPA<br/>Agent"]
+            COMPLAINT_AGENT["Complaint<br/>Agent"]
+            AUDIT_AGENT["Audit<br/>Agent"]
+            DOC_AGENT["Document<br/>Agent"]
+            TRAIN_AGENT["Training<br/>Agent"]
+            SUPPLIER_AGENT["Supplier<br/>Agent"]
+            EQUIP_AGENT["Equipment<br/>Agent"]
+            NC_AGENT["NC<br/>Agent"]
+            RISK_AGENT["Risk<br/>Agent"]
+            CC_AGENT["Change Control<br/>Agent"]
+        end
+
+        subgraph CROSS_AGENTS["Cross-Cutting Agents"]
+            direction LR
+            COPILOT["AI Copilot<br/>General Assistant"]
+            ROOT_CAUSE["Root Cause<br/>Investigation"]
+            PREDICT["Predictive<br/>Compliance"]
+            REG_INTEL["Regulatory<br/>Intelligence"]
+        end
+
+        REGISTRY["Agent Registry<br/>Spring-managed Discovery"]
+    end
+
+    subgraph SERVICES["Service Layer"]
+        direction TB
+        CONV_SVC["AiConversationService<br/>Message Processing &<br/>Conversation Management"]
+        SUGGEST_SVC["AiSuggestionService<br/>Human-in-the-Loop<br/>Approval Workflow"]
+        DASH_SVC["AiDashboardService<br/>Metrics & Analytics"]
+        LLM_SVC["OpenAiLlmService<br/>LLM Integration &<br/>Tool Calling"]
+        ESIG_SVC["ESignatureService<br/>21 CFR Part 11<br/>Electronic Signatures"]
+    end
+
+    subgraph APPROVAL["Human-in-the-Loop Approval Flow"]
+        direction LR
+        AI_SUGGEST["AI Generates<br/>Suggestion"]
+        PENDING["PENDING<br/>ai_suggestions table"]
+        NOTIFY["Notify<br/>Assigned Reviewer"]
+        REVIEW["Human Reviews<br/>Confidence + Reasoning"]
+        DECISION{Decision}
+        ACCEPT["ACCEPTED<br/>+ E-Signature<br/>if GxP-critical"]
+        REJECT["REJECTED<br/>+ Comments"]
+        MODIFY["MODIFIED<br/>+ Human Changes"]
+        AUDIT_LOG["AI Audit Trail<br/>Immutable Log"]
+    end
+
+    subgraph DATA["Data Layer"]
+        direction TB
+        subgraph DB_TABLES["PostgreSQL 17 - AI Tables"]
+            direction LR
+            T_CONV["ai_conversations"]
+            T_MSG["ai_messages"]
+            T_EXEC["ai_agent_executions"]
+            T_AUDIT["ai_audit_trail<br/>IMMUTABLE<br/>21 CFR Part 11"]
+            T_SUGGEST["ai_suggestions<br/>Human-in-the-Loop"]
+            T_PROMPT["ai_prompt_templates<br/>Versioned Prompts"]
+            T_CONFIG["ai_agent_config<br/>Runtime Settings"]
+        end
+
+        subgraph QMS_TABLES["60+ QMS Tables"]
+            direction LR
+            QMS_DEV["deviations"]
+            QMS_CAPA["capas"]
+            QMS_CC["change_requests"]
+            QMS_DOC["documents"]
+            QMS_TRAIN["training_*"]
+            QMS_AUDIT["audits"]
+            QMS_MORE["...and more"]
+        end
+
+        FLOWABLE["Flowable 7.1.0<br/>11 BPMN Processes<br/>ACT_* tables"]
+    end
+
+    subgraph EXTERNAL["External Services"]
+        direction LR
+        OPENAI["OpenAI API<br/>GPT-5 Mini"]
+        GCS["Google Cloud Storage<br/>Documents & SOPs"]
+    end
+
+    %% Connections: Presentation -> API
+    AI_PANEL -->|"POST /api/v1/ai/chat"| AI_CTRL
+    AI_DASH -->|"GET /api/v1/ai/dashboard"| AI_CTRL
+    SHELL -.->|"Module Federation"| CAPA_MFE & DEV_MFE & CC_MFE & DOC_MFE & TRAIN_MFE & CORE_MFE
+
+    %% API -> Endpoints
+    AI_CTRL --> EP_CHAT & EP_INVOKE & EP_SUGGEST & EP_AUDIT & EP_DASH & EP_CONV & EP_TOOLS
+
+    %% Endpoints -> Services
+    EP_CHAT --> CONV_SVC
+    EP_INVOKE --> REGISTRY
+    EP_SUGGEST --> SUGGEST_SVC
+    EP_DASH --> DASH_SVC
+
+    %% Service -> Orchestration
+    CONV_SVC --> SUPERVISOR
+    SUPERVISOR -->|"Route by Intent"| DOMAIN_AGENTS
+    SUPERVISOR -->|"Route by Intent"| CROSS_AGENTS
+    REGISTRY --> DOMAIN_AGENTS & CROSS_AGENTS
+
+    %% Agents -> LLM
+    DOMAIN_AGENTS --> LLM_SVC
+    CROSS_AGENTS --> LLM_SVC
+    LLM_SVC -->|"API Calls"| OPENAI
+
+    %% Approval Flow
+    AI_SUGGEST --> PENDING
+    PENDING --> NOTIFY
+    NOTIFY --> REVIEW
+    REVIEW --> DECISION
+    DECISION -->|"Accept"| ACCEPT
+    DECISION -->|"Reject"| REJECT
+    DECISION -->|"Modify"| MODIFY
+    ACCEPT & REJECT & MODIFY --> AUDIT_LOG
+    ACCEPT -->|"GxP Actions"| ESIG_SVC
+
+    %% Service -> Data
+    CONV_SVC --> T_CONV & T_MSG & T_EXEC & T_AUDIT
+    SUGGEST_SVC --> T_SUGGEST & T_AUDIT
+    DASH_SVC --> T_EXEC & T_CONFIG & T_SUGGEST
+    DOMAIN_AGENTS -.->|"Read/Query"| QMS_TABLES
+    DOMAIN_AGENTS -.->|"Workflow Tasks"| FLOWABLE
+
+    %% Cross-module chains
+    DEV_AGENT -.->|"Chain 1: CAPA Required"| CAPA_AGENT
+    COMPLAINT_AGENT -.->|"Chain 2: AE -> CAPA"| CAPA_AGENT
+    AUDIT_AGENT -.->|"Chain 3: Finding -> CAPA"| CAPA_AGENT
+    EQUIP_AGENT -.->|"Chain 4: Cal Fail -> Deviation"| DEV_AGENT
+    NC_AGENT -.->|"Chain 5: NC -> Supplier SCAR"| SUPPLIER_AGENT
+    DOC_AGENT -.->|"Chain 6: Approval -> Training"| TRAIN_AGENT
+    CC_AGENT -.->|"Chain 7: Change -> Doc Rev"| DOC_AGENT
+    RISK_AGENT -.->|"Chain 8: Risk -> Change/CAPA"| CC_AGENT
+
+    classDef agent fill:#1a73e8,color:#fff,stroke:#1557b0
+    classDef service fill:#34a853,color:#fff,stroke:#2d8e47
+    classDef data fill:#fbbc04,color:#000,stroke:#e8a800
+    classDef approval fill:#ea4335,color:#fff,stroke:#c5221f
+    classDef frontend fill:#7c4dff,color:#fff,stroke:#6200ea
+    classDef external fill:#ff6d00,color:#fff,stroke:#e65100
+
+    class SUPERVISOR,DEV_AGENT,CAPA_AGENT,COMPLAINT_AGENT,AUDIT_AGENT,DOC_AGENT,TRAIN_AGENT,SUPPLIER_AGENT,EQUIP_AGENT,NC_AGENT,RISK_AGENT,CC_AGENT,COPILOT,ROOT_CAUSE,PREDICT,REG_INTEL agent
+    class CONV_SVC,SUGGEST_SVC,DASH_SVC,LLM_SVC,ESIG_SVC service
+    class T_CONV,T_MSG,T_EXEC,T_AUDIT,T_SUGGEST,T_PROMPT,T_CONFIG,QMS_DEV,QMS_CAPA,QMS_CC,QMS_DOC,QMS_TRAIN,QMS_AUDIT,QMS_MORE,FLOWABLE data
+    class PENDING,REVIEW,DECISION,ACCEPT,REJECT,MODIFY,AUDIT_LOG,AI_SUGGEST,NOTIFY approval
+    class SHELL,CAPA_MFE,DEV_MFE,CC_MFE,DOC_MFE,TRAIN_MFE,CORE_MFE,AI_PANEL,AI_DASH frontend
+    class OPENAI,GCS external

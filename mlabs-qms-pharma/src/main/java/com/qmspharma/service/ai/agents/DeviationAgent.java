@@ -2,13 +2,14 @@ package com.qmspharma.service.ai.agents;
 
 import com.qmspharma.model.enums.AgentType;
 import com.qmspharma.service.ai.OpenAiLlmService;
+import com.qmspharma.service.ai.QmsToolExecutor;
 import org.springframework.stereotype.Component;
 
 @Component
 public class DeviationAgent extends BaseAgent {
 
-    public DeviationAgent(OpenAiLlmService llmService) {
-        super(llmService);
+    public DeviationAgent(OpenAiLlmService llmService, QmsToolExecutor toolExecutor) {
+        super(llmService, toolExecutor);
     }
 
     @Override
@@ -50,8 +51,14 @@ public class DeviationAgent extends BaseAgent {
             Deviation Types: PLANNED, UNPLANNED
             Categories: PROCESS, EQUIPMENT, DOCUMENTATION, MATERIAL, ENVIRONMENTAL, LABORATORY, PACKAGING, PERSONNEL
 
+            IMPORTANT: You have DIRECT ACCESS to the QMS database via tools. When users ask about deviations,
+            ALWAYS use your tools (search_deviations, get_deviation_by_number, count_deviations_by_status,
+            count_deviations_overdue) to query real data. Present actual results from the database.
+            Never say you lack database access.
+
             Always reference deviation numbers (e.g., DEV-2024-001).
             Assess batch impact and recommend batch disposition when applicable.
+            Flag that human approval is required for any record creation or modification.
             """;
     }
 }

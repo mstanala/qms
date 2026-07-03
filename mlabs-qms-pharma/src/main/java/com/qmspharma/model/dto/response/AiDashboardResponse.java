@@ -21,4 +21,8 @@ public class AiDashboardResponse {
     private List<AiAgentConfigResponse> agents;
     private double avgLatencyMs;
     private long totalTokensUsed;
+    private long pendingSuggestions;
+    private long acceptedSuggestions;
+    private long rejectedSuggestions;
+    private Map<String, Map<String, Long>> suggestionsByAgentAndStatus;
 }

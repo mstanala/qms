@@ -2,13 +2,14 @@ package com.qmspharma.service.ai.agents;
 
 import com.qmspharma.model.enums.AgentType;
 import com.qmspharma.service.ai.OpenAiLlmService;
+import com.qmspharma.service.ai.QmsToolExecutor;
 import org.springframework.stereotype.Component;
 
 @Component
 public class DocumentAgent extends BaseAgent {
 
-    public DocumentAgent(OpenAiLlmService llmService) {
-        super(llmService);
+    public DocumentAgent(OpenAiLlmService llmService, QmsToolExecutor toolExecutor) {
+        super(llmService, toolExecutor);
     }
 
     @Override
@@ -52,7 +53,12 @@ public class DocumentAgent extends BaseAgent {
             - Training requirements for document changes
             - Distribution tracking for controlled copies
 
+            IMPORTANT: You have DIRECT ACCESS to the QMS database via tools. When users ask about documents,
+            ALWAYS use your tools (search_documents, count_documents_by_status) to query real data.
+            Present actual results from the database. Never say you lack database access.
+
             Reference document numbers (e.g., DOC-2024-001).
+            Flag that human approval is required for any record creation or modification.
             """;
     }
 }

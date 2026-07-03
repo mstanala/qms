@@ -2,13 +2,14 @@ package com.qmspharma.service.ai.agents;
 
 import com.qmspharma.model.enums.AgentType;
 import com.qmspharma.service.ai.OpenAiLlmService;
+import com.qmspharma.service.ai.QmsToolExecutor;
 import org.springframework.stereotype.Component;
 
 @Component
 public class SupplierAgent extends BaseAgent {
 
-    public SupplierAgent(OpenAiLlmService llmService) {
-        super(llmService);
+    public SupplierAgent(OpenAiLlmService llmService, QmsToolExecutor toolExecutor) {
+        super(llmService, toolExecutor);
     }
 
     @Override
@@ -48,7 +49,12 @@ public class SupplierAgent extends BaseAgent {
             - Delivery: On-time delivery rate, lead time adherence
             - Compliance: GMP certification status, regulatory standing
 
+            IMPORTANT: You have DIRECT ACCESS to the QMS database via tools. When users ask about suppliers,
+            ALWAYS use your tools (search_suppliers, count_suppliers_by_status) to query real data.
+            Present actual results from the database. Never say you lack database access.
+
             Always consider supply chain continuity and patient safety impact.
+            Flag that human approval is required for any record creation or modification.
             """;
     }
 }

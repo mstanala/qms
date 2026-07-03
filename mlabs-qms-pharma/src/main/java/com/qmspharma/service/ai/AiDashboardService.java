@@ -3,11 +3,13 @@ package com.qmspharma.service.ai;
 import com.qmspharma.model.dto.response.AiAgentConfigResponse;
 import com.qmspharma.model.dto.response.AiDashboardResponse;
 import com.qmspharma.model.enums.AgentExecutionStatus;
+import com.qmspharma.model.enums.AiSuggestionStatus;
 import com.qmspharma.model.enums.ConversationStatus;
 import com.qmspharma.repository.AiAgentConfigRepository;
 import com.qmspharma.repository.AiAgentExecutionRepository;
 import com.qmspharma.repository.AiConversationRepository;
 import com.qmspharma.repository.AiMessageRepository;
+import com.qmspharma.repository.AiSuggestionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +29,7 @@ public class AiDashboardService {
     private final AiMessageRepository messageRepository;
     private final AiAgentExecutionRepository executionRepository;
     private final AiAgentConfigRepository agentConfigRepository;
+    private final AiSuggestionRepository suggestionRepository;
 
     @Transactional(readOnly = true)
     public AiDashboardResponse getDashboard(UUID userId) {
@@ -63,6 +66,21 @@ public class AiDashboardService {
 
         long totalTokens = messageRepository.totalTokensByUser(userId);
 
+        // Suggestion stats
+        long pendingSuggestions = suggestionRepository.countByStatus(AiSuggestionStatus.PENDING);
+        long acceptedSuggestions = suggestionRepository.countByStatus(AiSuggestionStatus.ACCEPTED);
+        long rejectedSuggestions = suggestionRepository.countByStatus(AiSuggestionStatus.REJECTED);
+
+        Map<String, Map<String, Long>> suggestionsByAgentAndStatus = new LinkedHashMap<>();
+        for (Object[] row : suggestionRepository.countByAgentTypeAndStatusGrouped()) {
+            String agent = row[0].toString();
+            String status = row[1].toString();
+            Long count = (Long) row[2];
+            suggestionsByAgentAndStatus
+                    .computeIfAbsent(agent, k -> new LinkedHashMap<>())
+                    .put(status, count);
+        }
+
         return AiDashboardResponse.builder()
                 .totalConversations(conversationRepository.count())
                 .totalMessages(messageRepository.count())
@@ -77,6 +95,10 @@ public class AiDashboardService {
                 .agents(agents)
                 .avgLatencyMs(executionRepository.averageLatency())
                 .totalTokensUsed(totalTokens)
+                .pendingSuggestions(pendingSuggestions)
+                .acceptedSuggestions(acceptedSuggestions)
+                .rejectedSuggestions(rejectedSuggestions)
+                .suggestionsByAgentAndStatus(suggestionsByAgentAndStatus)
                 .build();
     }
 }

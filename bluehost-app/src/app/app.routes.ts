@@ -16,6 +16,7 @@ import { MyProfileComponent } from './profile/my-profile.component';
 import { PreferencesComponent } from './profile/preferences.component';
 import { ActivityLogComponent } from './profile/activity-log.component';
 import { NotificationsComponent } from './notifications/notifications.component';
+import { AiDashboardComponent } from './ai/ai-dashboard.component';
 
 export const routes: Routes = [
   {
@@ -167,6 +168,16 @@ export const routes: Routes = [
       { path: 'me', component: MyProfileComponent },
       { path: 'preferences', component: PreferencesComponent },
       { path: 'activity', component: ActivityLogComponent },
+    ],
+  },
+
+  // --- AI Dashboard ---
+  {
+    path: 'ai',
+    canActivate: [authGuard],
+    children: [
+      { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
+      { path: 'dashboard', component: AiDashboardComponent },
     ],
   },
 

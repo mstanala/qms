@@ -14,6 +14,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.Instant;
 import java.util.*;
@@ -161,6 +162,188 @@ public class AiConversationService {
                 .latencyMs(totalLatency)
                 .timestamp(Instant.now())
                 .build();
+    }
+
+    /**
+     * Streaming version of processMessage. Performs routing + tool calls synchronously,
+     * then streams the final AI response token-by-token via SSE.
+     */
+    public SseEmitter processMessageStreaming(AiChatRequest request, User currentUser) {
+        SseEmitter emitter = new SseEmitter(300_000L); // 5 minute timeout
+
+        // Run the heavy work on a separate thread so the SSE connection stays open
+        new Thread(() -> {
+            try {
+                long overallStart = System.currentTimeMillis();
+
+                // Get or create conversation
+                AiConversation conversation;
+                if (request.getConversationId() != null) {
+                    conversation = conversationRepository.findById(request.getConversationId())
+                            .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                } else {
+                    conversation = new AiConversation();
+                    conversation.setUser(currentUser);
+                    conversation.setStatus(ConversationStatus.ACTIVE);
+                    conversation.setModuleContext(request.getModuleContext());
+                    conversation.setRecordId(request.getRecordId());
+                    conversation.setRecordType(request.getRecordType());
+                    conversation.setTitle(generateTitle(request.getMessage()));
+                    conversation = conversationRepository.save(conversation);
+                }
+
+                // Save user message
+                AiMessage userMsg = new AiMessage();
+                userMsg.setConversation(conversation);
+                userMsg.setRole(MessageRole.USER);
+                userMsg.setContent(request.getMessage());
+                messageRepository.save(userMsg);
+
+                // Send conversation metadata first
+                final UUID convId = conversation.getId();
+                emitter.send(SseEmitter.event()
+                        .name("meta")
+                        .data(Map.of("conversationId", convId)));
+
+                // Route through supervisor
+                SupervisorAgent.RoutingDecision routing = supervisorAgent.route(
+                        request.getMessage(), request.getModuleContext());
+                log.info("Supervisor routed to {} - Reason: {}", routing.getTargetAgent(), routing.getReasoning());
+
+                AgentType targetType = routing.getTargetAgent();
+                Optional<AiAgentConfig> agentConfig = agentConfigRepository.findByAgentType(targetType);
+                if (agentConfig.isPresent() && !agentConfig.get().getIsEnabled()) {
+                    targetType = AgentType.COPILOT;
+                }
+
+                // Send agent info
+                emitter.send(SseEmitter.event()
+                        .name("agent")
+                        .data(Map.of("agentType", targetType.name())));
+
+                // Get tools and prepare streaming call
+                BaseAgent agent = agentRegistry.getAgent(targetType);
+                List<OpenAiLlmService.ToolDefinition> tools = agent.getToolExecutor().getToolsForAgent(targetType);
+
+                String systemPrompt = agent.getSystemPromptPublic();
+                String context = buildStreamingContext(request);
+                String fullMessage = context + "\n\nUser Query: " + routing.getRefinedQuery();
+
+                String resolvedModel = agentConfig.map(AiAgentConfig::getModelId).orElse("gpt-5-mini");
+                double temp = agentConfig.map(c -> c.getTemperature().doubleValue()).orElse(0.3);
+
+                // Stream the response
+                final StringBuilder contentBuilder = new StringBuilder();
+                final AgentType finalTargetType = targetType;
+
+                OpenAiLlmService.LlmResponse llmResponse;
+                // Token consumer: wrap in Map so Spring JSON-serializes it,
+                // preserving whitespace (raw strings lose leading spaces per SSE spec)
+                java.util.function.Consumer<String> tokenConsumer = token -> {
+                    try {
+                        contentBuilder.append(token);
+                        emitter.send(SseEmitter.event()
+                                .name("token")
+                                .data(Map.of("token", token),
+                                      org.springframework.http.MediaType.APPLICATION_JSON));
+                    } catch (Exception e) {
+                        log.debug("SSE send failed (client disconnected?): {}", e.getMessage());
+                    }
+                };
+
+                if (!tools.isEmpty()) {
+                    llmResponse = agent.getLlmService().chatWithToolsStreaming(
+                            systemPrompt, fullMessage, resolvedModel, tools, temp,
+                            toolCall -> agent.getToolExecutor().executeTool(toolCall.getName(), toolCall.getArguments()),
+                            tokenConsumer);
+                } else {
+                    llmResponse = agent.getLlmService().chatWithToolsStreaming(
+                            systemPrompt, fullMessage, resolvedModel, List.of(), temp,
+                            toolCall -> "{}",
+                            tokenConsumer);
+                }
+
+                String fullContent = contentBuilder.toString();
+                int totalLatency = (int) (System.currentTimeMillis() - overallStart);
+
+                // Save assistant message
+                AiMessage assistantMessage = new AiMessage();
+                assistantMessage.setConversation(conversation);
+                assistantMessage.setRole(MessageRole.ASSISTANT);
+                assistantMessage.setContent(fullContent);
+                assistantMessage.setAgentType(finalTargetType);
+                assistantMessage.setTokensUsed(llmResponse.getTokensUsed());
+                assistantMessage.setModelId(llmResponse.getModel());
+                assistantMessage.setLatencyMs(totalLatency);
+                messageRepository.save(assistantMessage);
+
+                // Record execution
+                AiAgentExecution execution = new AiAgentExecution();
+                execution.setConversation(conversation);
+                execution.setMessage(assistantMessage);
+                execution.setAgentType(finalTargetType);
+                execution.setAgentAction("chat");
+                execution.setInputSummary(truncate(request.getMessage(), 500));
+                execution.setOutputSummary(truncate(fullContent, 500));
+                execution.setStatus(llmResponse.getError() == null ? AgentExecutionStatus.COMPLETED : AgentExecutionStatus.FAILED);
+                execution.setErrorMessage(llmResponse.getError());
+                execution.setTokensInput(routing.getTokensUsed());
+                execution.setTokensOutput(llmResponse.getTokensUsed());
+                execution.setLatencyMs(totalLatency);
+                execution.setInitiatedBy(currentUser);
+                execution.setCompletedAt(Instant.now());
+                executionRepository.save(execution);
+
+                // Audit log
+                AiAuditLog auditLog = new AiAuditLog();
+                auditLog.setExecution(execution);
+                auditLog.setUser(currentUser);
+                auditLog.setAgentType(finalTargetType);
+                auditLog.setAction("CHAT_RESPONSE");
+                auditLog.setRecordType(request.getRecordType());
+                auditLog.setRecordId(request.getRecordId());
+                auditLog.setDescription("AI " + finalTargetType + " responded (streamed)");
+                auditLogRepository.save(auditLog);
+
+                conversation.setUpdatedAt(Instant.now());
+                conversationRepository.save(conversation);
+
+                // Send final done event with metadata
+                emitter.send(SseEmitter.event()
+                        .name("done")
+                        .data(Map.of(
+                                "messageId", assistantMessage.getId(),
+                                "tokensUsed", llmResponse.getTokensUsed() + routing.getTokensUsed(),
+                                "latencyMs", totalLatency
+                        )));
+                emitter.complete();
+
+            } catch (Exception e) {
+                log.error("Streaming chat failed", e);
+                try {
+                    emitter.send(SseEmitter.event()
+                            .name("error")
+                            .data(Map.of("message", "Streaming failed: " + e.getMessage())));
+                    emitter.complete();
+                } catch (Exception ex) {
+                    emitter.completeWithError(e);
+                }
+            }
+        }, "ai-stream-" + System.currentTimeMillis()).start();
+
+        return emitter;
+    }
+
+    private String buildStreamingContext(AiChatRequest request) {
+        StringBuilder sb = new StringBuilder();
+        if (request.getModuleContext() != null) {
+            sb.append("Module Context: ").append(request.getModuleContext()).append("\n");
+        }
+        if (request.getRecordType() != null && request.getRecordId() != null) {
+            sb.append("Current Record: ").append(request.getRecordType())
+              .append(" ID=").append(request.getRecordId()).append("\n");
+        }
+        return sb.toString();
     }
 
     @Transactional(readOnly = true)

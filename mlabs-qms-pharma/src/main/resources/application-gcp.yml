@@ -40,6 +40,11 @@ cors:
 jwt:
   secret: ${sm://JWT_SECRET}
 
+# OpenAI API key pulled from GCP Secret Manager
+ai:
+  openai:
+    api-key: ${sm://OpenAI_apiKey}
+
 logging:
   level:
     com.qmspharma: INFO

@@ -2,13 +2,14 @@ package com.qmspharma.service.ai.agents;
 
 import com.qmspharma.model.enums.AgentType;
 import com.qmspharma.service.ai.OpenAiLlmService;
+import com.qmspharma.service.ai.QmsToolExecutor;
 import org.springframework.stereotype.Component;
 
 @Component
 public class CapaAgent extends BaseAgent {
 
-    public CapaAgent(OpenAiLlmService llmService) {
-        super(llmService);
+    public CapaAgent(OpenAiLlmService llmService, QmsToolExecutor toolExecutor) {
+        super(llmService, toolExecutor);
     }
 
     @Override
@@ -51,6 +52,10 @@ public class CapaAgent extends BaseAgent {
             For 5-Why analysis, always push to find the true systemic root cause, not just the immediate cause.
             For Fishbone, use categories: Man, Machine, Material, Method, Measurement, Environment.
             Risk scoring: Severity (1-10) x Probability (1-10) x Detectability (1-10) = RPN.
+
+            IMPORTANT: You have DIRECT ACCESS to the QMS database via tools. When users ask about CAPAs,
+            ALWAYS use your tools (search_capas, get_capa_by_number, count_capas_by_status, count_capas_overdue)
+            to query real data. Present actual results from the database. Never say you lack database access.
 
             Always reference CAPA numbers (e.g., CAPA-2024-001).
             Flag that human approval is required for any record creation or modification.

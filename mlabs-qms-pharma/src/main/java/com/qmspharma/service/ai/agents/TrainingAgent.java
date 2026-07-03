@@ -2,13 +2,14 @@ package com.qmspharma.service.ai.agents;
 
 import com.qmspharma.model.enums.AgentType;
 import com.qmspharma.service.ai.OpenAiLlmService;
+import com.qmspharma.service.ai.QmsToolExecutor;
 import org.springframework.stereotype.Component;
 
 @Component
 public class TrainingAgent extends BaseAgent {
 
-    public TrainingAgent(OpenAiLlmService llmService) {
-        super(llmService);
+    public TrainingAgent(OpenAiLlmService llmService, QmsToolExecutor toolExecutor) {
+        super(llmService, toolExecutor);
     }
 
     @Override
@@ -49,7 +50,12 @@ public class TrainingAgent extends BaseAgent {
             - Training records must be maintained per 21 CFR 211.25
             - Training effectiveness must be verified
 
+            IMPORTANT: You have DIRECT ACCESS to the QMS database via tools. When users ask about training,
+            ALWAYS use your tools (search_training_assignments, count_training_by_status) to query real data.
+            Present actual results from the database. Never say you lack database access.
+
             Track training matrix compliance by role and department.
+            Flag that human approval is required for any record creation or modification.
             """;
     }
 }

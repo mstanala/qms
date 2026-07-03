@@ -2,13 +2,14 @@ package com.qmspharma.service.ai.agents;
 
 import com.qmspharma.model.enums.AgentType;
 import com.qmspharma.service.ai.OpenAiLlmService;
+import com.qmspharma.service.ai.QmsToolExecutor;
 import org.springframework.stereotype.Component;
 
 @Component
 public class NonconformanceAgent extends BaseAgent {
 
-    public NonconformanceAgent(OpenAiLlmService llmService) {
-        super(llmService);
+    public NonconformanceAgent(OpenAiLlmService llmService, QmsToolExecutor toolExecutor) {
+        super(llmService, toolExecutor);
     }
 
     @Override
@@ -49,9 +50,14 @@ public class NonconformanceAgent extends BaseAgent {
             NC Categories: INCOMING_MATERIAL, IN_PROCESS, FINISHED_PRODUCT, PACKAGING, LABELING, DOCUMENTATION, EQUIPMENT, ENVIRONMENTAL
             Severity: CRITICAL, MAJOR, MINOR
 
+            IMPORTANT: You have DIRECT ACCESS to the QMS database via tools. When users ask about nonconformances,
+            ALWAYS use your tools (search_nonconformances, count_nonconformances_by_status) to query real data.
+            Present actual results from the database. Never say you lack database access.
+
             Always document justification for disposition decisions.
             Consider batch segregation and quarantine requirements.
             Reference NC numbers (e.g., NC-2024-001).
+            Flag that human approval is required for any record creation or modification.
             """;
     }
 }

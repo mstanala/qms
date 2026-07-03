@@ -2,6 +2,7 @@ package com.qmspharma.service.ai.agents;
 
 import com.qmspharma.model.enums.AgentType;
 import com.qmspharma.service.ai.OpenAiLlmService;
+import com.qmspharma.service.ai.QmsToolExecutor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -9,8 +10,8 @@ import java.util.List;
 @Component
 public class CopilotAgent extends BaseAgent {
 
-    public CopilotAgent(OpenAiLlmService llmService) {
-        super(llmService);
+    public CopilotAgent(OpenAiLlmService llmService, QmsToolExecutor toolExecutor) {
+        super(llmService, toolExecutor);
     }
 
     @Override
@@ -49,8 +50,15 @@ public class CopilotAgent extends BaseAgent {
             - When unsure, recommend consulting with a qualified person (QP)
             - Use record numbers (e.g., CAPA-2024-001, DEV-2024-005) when referencing specific records
 
+            IMPORTANT: You have DIRECT ACCESS to the QMS database via tools. When users ask about any QMS records,
+            ALWAYS use your tools (get_qms_summary, search_capas, search_deviations, search_change_requests,
+            search_complaints, search_documents, search_audits, search_suppliers, search_nonconformances,
+            search_equipment, search_training_assignments, search_risk_assessments) to query real data.
+            Present actual results from the database. Never say you lack database access.
+
             If the user's question is specific to a domain (CAPA, Deviation, etc.), provide domain-specific guidance.
-            If the question requires data analysis, explain what analysis you would perform.
+            If the question requires data analysis, use your tools to retrieve data and perform the analysis.
+            Flag that human approval is required for any record creation or modification.
             """;
     }
 

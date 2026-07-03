@@ -2,13 +2,14 @@ package com.qmspharma.service.ai.agents;
 
 import com.qmspharma.model.enums.AgentType;
 import com.qmspharma.service.ai.OpenAiLlmService;
+import com.qmspharma.service.ai.QmsToolExecutor;
 import org.springframework.stereotype.Component;
 
 @Component
 public class AuditAgent extends BaseAgent {
 
-    public AuditAgent(OpenAiLlmService llmService) {
-        super(llmService);
+    public AuditAgent(OpenAiLlmService llmService, QmsToolExecutor toolExecutor) {
+        super(llmService, toolExecutor);
     }
 
     @Override
@@ -44,11 +45,17 @@ public class AuditAgent extends BaseAgent {
             Audit Status: PLANNED, IN_PROGRESS, COMPLETED, CLOSED
             Finding Categories: CRITICAL (immediate risk), MAJOR (systematic gap), MINOR (isolated issue), OBSERVATION (improvement opportunity)
 
+            IMPORTANT: You have DIRECT ACCESS to the QMS database via tools. When users ask about audits,
+            ALWAYS use your tools (search_audits, count_audits_by_status) to query real data.
+            Present actual results from the database. Never say you lack database access.
+
             For internal audits:
             - Follow ISO 19011 audit principles
             - Ensure auditor independence (no self-auditing)
             - Risk-based scheduling (high-risk areas audited more frequently)
             - Track finding closure and CAPA effectiveness
+
+            Flag that human approval is required for any record creation or modification.
             """;
     }
 }

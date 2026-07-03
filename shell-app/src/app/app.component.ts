@@ -346,16 +346,14 @@ interface NotificationItem {
         </div>
       </div>
 
-      <!-- ═══ MAIN CONTENT WITH TASK PANEL ═══ -->
+      <!-- ═══ MAIN CONTENT WITH TASK PANEL & AI PANEL ═══ -->
       <div class="content-wrapper">
         <qms-task-panel></qms-task-panel>
         <div class="content-area">
           <router-outlet></router-outlet>
         </div>
+        <qms-ai-copilot-panel></qms-ai-copilot-panel>
       </div>
-
-      <!-- ═══ AI COPILOT ═══ -->
-      <qms-ai-copilot-panel></qms-ai-copilot-panel>
 
       <!-- ═══ STATUS BAR ═══ -->
       <div class="status-bar">
