@@ -102,21 +102,24 @@ function getUserId(): string {
         </div>
 
         <!-- Workflow Action Bar -->
-        <div class="workflow-actions-bar" *ngIf="getAvailableActions().length > 0">
-          <ng-container *ngFor="let action of getAvailableActions()">
+        <div class="workflow-actions-bar" *ngIf="availableActions.length > 0">
+          <ng-container *ngFor="let action of availableActions; trackBy: trackAction">
             <button *ngIf="action.type === 'primary'"
+                    type="button"
                     class="wf-btn wf-btn-primary"
                     [disabled]="isStatusUpdating"
                     (click)="executeWorkflowAction(action)">
               <mat-icon>{{ action.icon }}</mat-icon> {{ action.label }}
             </button>
             <button *ngIf="action.type === 'danger'"
+                    type="button"
                     class="wf-btn wf-btn-danger"
                     [disabled]="isStatusUpdating"
                     (click)="executeWorkflowAction(action)">
               <mat-icon>{{ action.icon }}</mat-icon> {{ action.label }}
             </button>
             <button *ngIf="action.type === 'secondary'"
+                    type="button"
                     class="wf-btn wf-btn-secondary"
                     [disabled]="isStatusUpdating"
                     (click)="executeWorkflowAction(action)">
@@ -1233,6 +1236,7 @@ export class DeviationDetailComponent implements OnInit {
   deviation: Deviation | null = null;
   statusOptions = Object.values(DeviationStatus);
   isStatusUpdating = false;
+  availableActions: WorkflowAction[] = [];
   rootCauseFormVisible = false;
   rootCauseSubmitting = false;
   rootCauseForm = {
@@ -1349,6 +1353,14 @@ export class DeviationDetailComponent implements OnInit {
     this.router.navigate(['/deviations/detail', id]);
   }
 
+  trackAction(_index: number, action: WorkflowAction): string {
+    return action.label;
+  }
+
+  refreshAvailableActions(): void {
+    this.availableActions = this.getAvailableActions();
+  }
+
   getAvailableActions(): WorkflowAction[] {
     if (!this.deviation) return [];
     const roles = getUserRoleCodes();
@@ -1457,6 +1469,7 @@ export class DeviationDetailComponent implements OnInit {
     this.deviationService.updateDeviationStatus(this.deviation.id, status, comments).subscribe({
       next: (deviation) => {
         this.deviation = deviation;
+        this.refreshAvailableActions();
         this.snackBar.open(`Deviation status changed to ${this.formatStatus(status)}`, 'Close', { duration: 3000 });
       },
       error: (err) => {
@@ -1904,6 +1917,7 @@ export class DeviationDetailComponent implements OnInit {
   private loadDeviation(id: string): void {
     this.deviationService.getDeviationById(id).subscribe((data) => {
       this.deviation = data || null;
+      this.refreshAvailableActions();
       this.updateNavigationState(id);
     });
   }

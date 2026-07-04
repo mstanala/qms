@@ -85,8 +85,9 @@ interface WorkflowAction {
       </div>
 
       <!-- Workflow Action Bar -->
-      <div class="workflow-actions-bar" *ngIf="getAvailableActions().length">
-        <button *ngFor="let action of getAvailableActions()"
+      <div class="workflow-actions-bar" *ngIf="availableActions.length">
+        <button *ngFor="let action of availableActions; trackBy: trackAction"
+                type="button"
                 [ngClass]="{'wf-btn': true, 'wf-btn-primary': action.type === 'primary', 'wf-btn-danger': action.type === 'danger', 'wf-btn-secondary': action.type === 'secondary'}"
                 (click)="executeWorkflowAction(action)"
                 [disabled]="actionInProgress">
@@ -1034,6 +1035,7 @@ export class CapaDetailComponent implements OnInit {
   riskFormVisible = false;
   riskSubmitting = false;
   riskForm = { severity: 3, occurrence: 3, detection: 3, justification: '' };
+  availableActions: WorkflowAction[] = [];
 
   constructor(
     private route: ActivatedRoute,
@@ -1048,6 +1050,7 @@ export class CapaDetailComponent implements OnInit {
     if (id) {
       this.capaService.getCapaById(id).subscribe((data) => {
         this.capa = data || null;
+        this.refreshAvailableActions();
       });
     }
   }
@@ -1090,7 +1093,15 @@ export class CapaDetailComponent implements OnInit {
     );
   }
 
-  getAvailableActions(): WorkflowAction[] {
+  trackAction(_index: number, action: WorkflowAction): string {
+    return action.label;
+  }
+
+  refreshAvailableActions(): void {
+    this.availableActions = this.computeAvailableActions();
+  }
+
+  private computeAvailableActions(): WorkflowAction[] {
     if (!this.capa) return [];
     const roles = getUserRoleCodes();
     const allActions: Record<string, WorkflowAction[]> = {
@@ -1138,6 +1149,7 @@ export class CapaDetailComponent implements OnInit {
   }
 
   executeWorkflowAction(action: WorkflowAction): void {
+    console.log('[CAPA] executeWorkflowAction:', action.label, '→', action.targetStatus);
     if (!this.capa) return;
 
     // Intercept transitions that need dedicated API calls
@@ -1153,6 +1165,7 @@ export class CapaDetailComponent implements OnInit {
           this.actionInProgress = false;
           const msg = err.error?.message || err.error?.error || 'Failed to start action execution';
           this.snackBar.open(msg, 'Close', { duration: 5000 });
+          console.error('startActionExecution error:', err);
         },
       });
       return;
@@ -1170,6 +1183,7 @@ export class CapaDetailComponent implements OnInit {
           this.actionInProgress = false;
           const msg = err.error?.message || err.error?.error || 'Failed to complete action execution';
           this.snackBar.open(msg, 'Close', { duration: 5000 });
+          console.error('completeActionExecution error:', err);
         },
       });
       return;
@@ -1214,6 +1228,7 @@ export class CapaDetailComponent implements OnInit {
       next: (updated) => {
         this.actionInProgress = false;
         if (updated) this.capa = updated;
+        this.refreshAvailableActions();
         this.snackBar.open('Status updated successfully', 'OK', { duration: 3000 });
       },
       error: (err) => {
@@ -1228,6 +1243,7 @@ export class CapaDetailComponent implements OnInit {
     if (!this.capa) return;
     this.capaService.getCapaById(this.capa.id).subscribe((full) => {
       if (full) this.capa = full;
+      this.refreshAvailableActions();
     });
   }
 

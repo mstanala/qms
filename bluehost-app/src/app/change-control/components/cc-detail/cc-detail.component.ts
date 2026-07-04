@@ -75,8 +75,9 @@ interface WorkflowAction {
       </div>
 
       <!-- Workflow Action Bar -->
-      <div class="workflow-actions-bar" *ngIf="getAvailableActions().length">
-        <button *ngFor="let action of getAvailableActions()"
+      <div class="workflow-actions-bar" *ngIf="availableActions.length">
+        <button *ngFor="let action of availableActions; trackBy: trackAction"
+                type="button"
                 [ngClass]="{'wf-btn': true, 'wf-btn-primary': action.type === 'primary', 'wf-btn-danger': action.type === 'danger', 'wf-btn-secondary': action.type === 'secondary'}"
                 (click)="executeWorkflowAction(action)"
                 [disabled]="actionInProgress">
@@ -623,6 +624,7 @@ interface WorkflowAction {
 export class CcDetailComponent implements OnInit {
   cr: ChangeRequest | null = null;
   actionInProgress = false;
+  availableActions: WorkflowAction[] = [];
 
   constructor(
     private route: ActivatedRoute,
@@ -637,6 +639,7 @@ export class CcDetailComponent implements OnInit {
     if (id) {
       this.ccService.getChangeRequestById(id).subscribe((data) => {
         this.cr = data || null;
+        this.refreshAvailableActions();
       });
     }
   }
@@ -692,6 +695,14 @@ export class CcDetailComponent implements OnInit {
       { label: 'Supplier Qualification', value: ia.supplierQualification },
       { label: 'Stability', value: ia.stability },
     ];
+  }
+
+  trackAction(_index: number, action: WorkflowAction): string {
+    return action.label;
+  }
+
+  refreshAvailableActions(): void {
+    this.availableActions = this.getAvailableActions();
   }
 
   getAvailableActions(): WorkflowAction[] {
@@ -795,6 +806,7 @@ export class CcDetailComponent implements OnInit {
       next: (updated) => {
         this.actionInProgress = false;
         if (updated) this.cr = updated;
+        this.refreshAvailableActions();
         this.snackBar.open('Status updated successfully', 'OK', { duration: 3000 });
       },
       error: (err) => {
@@ -809,6 +821,7 @@ export class CcDetailComponent implements OnInit {
     if (!this.cr) return;
     this.ccService.getChangeRequestById(this.cr.id).subscribe((full) => {
       if (full) this.cr = full;
+      this.refreshAvailableActions();
     });
   }
 
