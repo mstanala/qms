@@ -1,0 +1,20 @@
+spring:
+  config:
+    import: sm://
+  cloud:
+    gcp:
+      sql:
+        enabled: false
+      secretmanager:
+        enabled: true
+        project-id: long-way-476920-g7
+
+  datasource:
+    url: jdbc:postgresql://localhost:5434/qms
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:Pandu#4492}
+    driver-class-name: org.postgresql.Driver
+
+# JWT secret pulled from GCP Secret Manager
+jwt:
+  secret: ${sm://JWT_SECRET}

@@ -1,0 +1,86 @@
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#bf360c', 'primaryTextColor': '#fff', 'primaryBorderColor': '#8d2808', 'lineColor': '#333', 'secondaryColor': '#ED8B00', 'tertiaryColor': '#f5f7fa'}}}%%
+
+flowchart TD
+    Start([Start Event<br/>Risk Register Created]) --> riskEvaluation
+
+    subgraph INPUT_SOURCES ["Cross-Module Risk Triggers"]
+        devTrigger["Deviation<br/>(HIGH Risk Impact)"]
+        capaTrigger["CAPA<br/>(Risk Assessment Step)"]
+        complaintTrigger["Complaint<br/>(Product Risk Pattern)"]
+        changeTrigger["Change Control<br/>(Impact Assessment)"]
+        auditTrigger["Audit Finding<br/>(Systemic Risk)"]
+    end
+
+    devTrigger --> Start
+    capaTrigger --> Start
+    complaintTrigger --> Start
+    changeTrigger --> Start
+    auditTrigger --> Start
+
+    subgraph EVALUATION_PHASE ["Step 1: Risk Evaluation & Prioritization"]
+        riskEvaluation[/"<b>Risk Evaluation</b><br/>Candidate: QA_REVIEWER<br/>Form: risk-evaluate<br/>Methodology: FMEA/HACCP/FTA/PHA<br/>Score: Severity x Occurrence x Detectability"/]
+    end
+
+    riskEvaluation --> controlPlanning
+
+    subgraph CONTROL_PHASE ["Step 2: Control Planning & Implementation"]
+        controlPlanning[/"<b>Control Planning</b><br/>Assignee: Risk Owner<br/>Form: risk-controls<br/>Types: Preventive, Detective, Corrective"/]
+        controlPlanning --> controlImplementation[/"<b>Control Implementation</b><br/>Assignee: Risk Owner<br/>Form: risk-implement<br/>Evidence collection"/]
+    end
+
+    controlImplementation --> changeGW{{"Process Change<br/>Required?"}}
+
+    changeGW -->|Yes| createChange
+    changeGW -->|No| residualRiskReview
+
+    subgraph CC_CROSS_MODULE ["Cross-Module: Change Control"]
+        createChange["Create Change Request<br/>(changeInitiationDelegate)<br/>sourceType: RISK_ASSESSMENT"]
+    end
+
+    createChange --> residualRiskReview
+
+    subgraph RESIDUAL_PHASE ["Step 3: Residual Risk Assessment"]
+        residualRiskReview[/"<b>Residual Risk Review</b><br/>Candidate: QA_REVIEWER, QA_APPROVER<br/>Form: risk-residual<br/>Re-score with controls applied<br/>Verify control effectiveness"/]
+    end
+
+    residualRiskReview --> residualGW{{"Residual Risk<br/>Acceptable?"}}
+
+    residualGW -->|"residualDecision<br/>= ACCEPTABLE"| registerApproval
+    residualGW -->|"residualDecision<br/>= UNACCEPTABLE"| controlPlanning
+
+    subgraph APPROVAL_PHASE ["Step 4: Register Approval"]
+        registerApproval[/"<b>Register Approval</b><br/>Candidate: QA_APPROVER<br/>Form: risk-approve<br/>E-Signature Required<br/>Risk-benefit analysis"/]
+        registerApproval --> notifyApproved["Notify Approved<br/>(notificationDelegate)<br/>STATUS_CHANGE to:<br/>Risk Owner, QA"]
+    end
+
+    notifyApproved --> approvedEnd([End Event<br/>Risk Register Approved])
+
+    subgraph REVIEW_PHASE ["Periodic Review"]
+        reviewTimer>"Boundary Timer<br/>reviewFrequencyMonths<br/>Non-interrupting"] -.- approvedEnd
+        reviewTimer --> periodicReview["Periodic Review Reminder<br/>(notificationDelegate)<br/>RISK_REVIEW_DUE"]
+    end
+
+    subgraph CAPA_OUTPUTS ["Cross-Module Risk Outputs"]
+        riskCapa["CAPA Initiation<br/>(for unacceptable risks<br/>requiring corrective action)"]
+        riskDeviation["Deviation Report<br/>(control failure detected)"]
+    end
+
+    residualGW -->|"risk requires<br/>CAPA"| riskCapa
+    riskCapa --> controlPlanning
+
+    %% Styling
+    classDef startEnd fill:#bf360c,stroke:#8d2808,color:#fff,stroke-width:2px
+    classDef userTask fill:#fff,stroke:#bf360c,color:#333,stroke-width:2px
+    classDef gateway fill:#ED8B00,stroke:#D4760A,color:#fff,stroke-width:2px
+    classDef serviceTask fill:#f5f7fa,stroke:#667085,color:#333,stroke-width:1px
+    classDef timer fill:#fff3e0,stroke:#ED8B00,color:#333,stroke-width:1px
+    classDef trigger fill:#fbe9e7,stroke:#bf360c,color:#333,stroke-width:1px
+    classDef crossModule fill:#e8eaf6,stroke:#5c6bc0,color:#333,stroke-width:1px
+
+    class Start,approvedEnd startEnd
+    class riskEvaluation,controlPlanning,controlImplementation,residualRiskReview,registerApproval userTask
+    class changeGW,residualGW gateway
+    class notifyApproved,periodicReview serviceTask
+    class reviewTimer timer
+    class devTrigger,capaTrigger,complaintTrigger,changeTrigger,auditTrigger trigger
+    class createChange,riskCapa,riskDeviation crossModule

@@ -1,0 +1,197 @@
+%%{init: {'theme': 'base', 'themeVariables': {'actorBkg': '#bf360c', 'actorTextColor': '#fff', 'actorBorder': '#8d2808', 'signalColor': '#333', 'noteBkgColor': '#fff8e1', 'noteBorderColor': '#ED8B00'}}}%%
+
+sequenceDiagram
+    autonumber
+
+    participant RO as Risk Owner<br/>(OWNER)
+    participant API as Spring Boot API<br/>(RiskService)
+    participant FL as Flowable Engine<br/>(riskProcess)
+    participant DB as PostgreSQL<br/>(Database)
+    participant QR as QA Reviewer<br/>(QA_REVIEWER)
+    participant QA as QA Approver<br/>(QA_APPROVER)
+    participant NS as Notification<br/>Service
+    participant DV as Deviation<br/>(Cross-Module)
+    participant CP as CAPA<br/>(Cross-Module)
+    participant CC as Change Control<br/>(Cross-Module)
+    participant CM as Complaint<br/>(Cross-Module)
+
+    rect rgb(232, 244, 248)
+        Note over RO,NS: Step 1: Create Risk Register (DRAFT)
+        RO->>API: POST /api/v1/risks/registers<br/>{title, description, riskType,<br/>methodology, scope, ownerId,<br/>departmentId, plantSiteId,<br/>reviewFrequencyMonths}
+        API->>DB: Generate register number (RR-2026-001)
+        API->>DB: INSERT risk_registers (status=DRAFT)
+        API->>DB: Audit trail: CREATED
+        API-->>RO: 201 Created (RiskRegisterResponse)
+    end
+
+    rect rgb(255, 248, 225)
+        Note over RO,NS: Step 2: Identify & Assess Risks (DRAFT -> IN_ASSESSMENT)
+        loop Hazard Identification
+            RO->>API: POST /api/v1/risks/registers/{registerId}/assessments<br/>{hazardDescription, harmDescription,<br/>riskCategory, processStep,<br/>initialSeverity, initialOccurrence,<br/>initialDetectability}
+            API->>DB: Generate assessment number (RA-2026-001)
+            API->>DB: Calculate initialRiskLevel<br/>(Severity x Occurrence x Detectability)
+            API->>DB: INSERT risk_assessments (status=IDENTIFIED)
+            API->>DB: Audit trail: RISK_IDENTIFIED
+        end
+
+        RO->>API: PATCH /api/v1/risks/registers/{id}/status<br/>{status: "IN_ASSESSMENT"}
+        API->>FL: startProcess("riskProcess", vars)<br/>{recordId, registerNumber, ownerId,<br/>methodology, riskType}
+        FL-->>FL: Create riskEvaluation task<br/>(candidateGroups: QA_REVIEWER)
+        API->>DB: Status = IN_ASSESSMENT
+        API->>DB: Workflow: "Draft" COMPLETED
+        API->>DB: Workflow: "Risk Evaluation" CURRENT
+        API->>DB: Audit trail: STATUS_CHANGED
+        API-->>RO: 200 OK
+    end
+
+    rect rgb(232, 244, 248)
+        Note over QR,NS: Step 3: Risk Evaluation & Prioritization (IN_ASSESSMENT -> EVALUATION)
+        QR->>API: GET /api/v1/tasks/inbox
+        API->>FL: Query tasks for QA_REVIEWER
+        FL-->>API: riskEvaluation task for RR-2026-001
+        API-->>QR: Task list
+
+        QR->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        Note over QR: Review all risk assessments<br/>using methodology (FMEA/HACCP/<br/>FTA/PHA) and risk matrix
+
+        loop For each risk assessment
+            QR->>API: PUT /api/v1/risks/assessments/{id}<br/>{riskAcceptance: "UNACCEPTABLE/ACCEPTABLE/<br/>ACCEPTABLE_WITH_CONTROLS",<br/>justification: "...",<br/>assessedById, assessedDate: now()}
+            API->>DB: UPDATE risk_assessments<br/>(riskAcceptance, justification)
+            API->>DB: Audit trail: RISK_EVALUATED
+        end
+
+        QR->>API: PATCH /api/v1/risks/registers/{id}/status<br/>{status: "EVALUATION"}
+        API->>FL: completeTask("riskEvaluation")
+        FL-->>FL: Create controlPlanning task<br/>(assignee: ownerId)
+        API->>DB: Status = EVALUATION
+        API->>DB: Workflow: "Risk Evaluation" COMPLETED
+        API->>DB: Workflow: "Control Planning" CURRENT
+        API-->>QR: 200 OK
+    end
+
+    rect rgb(255, 248, 225)
+        Note over RO,NS: Step 4: Risk Control Planning (EVALUATION -> CONTROL_IMPLEMENTATION)
+        loop For each unacceptable/conditional risk
+            RO->>API: POST /api/v1/risks/assessments/{assessmentId}/controls<br/>{controlType: "PREVENTIVE/DETECTIVE/CORRECTIVE",<br/>description, responsibleId,<br/>implementationDate}
+            API->>DB: Generate control number (RC-2026-001)
+            API->>DB: INSERT risk_controls (status=PLANNED)
+            API->>DB: Audit trail: CONTROL_PLANNED
+        end
+
+        RO->>API: PATCH /api/v1/risks/registers/{id}/status<br/>{status: "CONTROL_IMPLEMENTATION"}
+        API->>FL: completeTask("controlPlanning")
+        FL-->>FL: Create controlImplementation task<br/>(assignee: ownerId)
+        API->>DB: Status = CONTROL_IMPLEMENTATION
+        API->>DB: Workflow: "Control Planning" COMPLETED
+        API->>DB: Workflow: "Control Implementation" CURRENT
+        API-->>RO: 200 OK
+    end
+
+    rect rgb(232, 244, 248)
+        Note over RO,NS: Step 5: Control Implementation (CONTROL_IMPLEMENTATION)
+        loop For each planned control
+            RO->>API: PUT /api/v1/risks/controls/{id}<br/>{status: "IMPLEMENTED",<br/>implementationDate: now(),<br/>evidence: "implementation evidence"}
+            API->>DB: UPDATE risk_controls<br/>(status=IMPLEMENTED)
+            API->>DB: Audit trail: CONTROL_IMPLEMENTED
+        end
+
+        opt Cross-Module: Change Control for Process Changes
+            Note over CC: Significant process changes<br/>require Change Control
+            RO->>API: POST /api/v1/change-requests<br/>{title: "Process change from risk control",<br/>sourceType: "RISK_ASSESSMENT",<br/>sourceId: assessmentId}
+            API->>DB: INSERT change_requests
+            API->>DB: UPDATE risk_assessments<br/>SET linked_change_id = newChangeId
+            Note over CC: Change Control follows<br/>its own workflow
+        end
+
+        RO->>API: PATCH /api/v1/risks/registers/{id}/status<br/>{status: "RESIDUAL_RISK_REVIEW"}
+        API->>FL: completeTask("controlImplementation")
+        FL-->>FL: Create residualRiskReview task<br/>(candidateGroups: QA_REVIEWER, QA_APPROVER)
+        API->>DB: Status = RESIDUAL_RISK_REVIEW
+        API->>DB: Workflow: "Control Implementation" COMPLETED
+        API->>DB: Workflow: "Residual Risk Review" CURRENT
+        API-->>RO: 200 OK
+    end
+
+    rect rgb(255, 248, 225)
+        Note over QR,NS: Step 6: Residual Risk Assessment (RESIDUAL_RISK_REVIEW)
+        QR->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        loop For each controlled risk
+            QR->>API: PATCH /api/v1/risks/assessments/{id}/residual-risk<br/>{residualSeverity, residualOccurrence,<br/>residualDetectability}
+            API->>DB: Calculate residualRiskLevel
+            API->>DB: UPDATE risk_assessments<br/>(residual scores + level)
+            API->>DB: Audit trail: RESIDUAL_RISK_ASSESSED
+        end
+
+        loop Verify control effectiveness
+            QR->>API: PUT /api/v1/risks/controls/{id}<br/>{status: "VERIFIED",<br/>verificationDate: now(),<br/>effectivenessRating: "EFFECTIVE/PARTIALLY/<br/>INEFFECTIVE"}
+            API->>DB: UPDATE risk_controls
+        end
+
+        alt All Residual Risks Acceptable
+            QR->>API: PATCH /api/v1/risks/registers/{id}/status<br/>{status: "PENDING_APPROVAL"}
+            API->>FL: completeTask("residualRiskReview",<br/>{residualDecision: "ACCEPTABLE"})
+            FL-->>FL: Create registerApproval task<br/>(candidateGroups: QA_APPROVER)
+            API->>DB: Status = PENDING_APPROVAL
+            API->>DB: Workflow: "Residual Risk Review" COMPLETED
+            API->>DB: Workflow: "Register Approval" CURRENT
+        else Unacceptable Residual Risk
+            QR->>API: PATCH /api/v1/risks/registers/{id}/status<br/>{status: "CONTROL_IMPLEMENTATION",<br/>comments: "additional controls needed"}
+            API->>FL: completeTask("residualRiskReview",<br/>{residualDecision: "UNACCEPTABLE"})
+            FL-->>FL: Loop back to controlPlanning task
+            NS-->>RO: "Additional Controls Required" notification
+        end
+        API-->>QR: 200 OK
+    end
+
+    rect rgb(243, 229, 245)
+        Note over DV,CM: Cross-Module: Risk Triggers from Other Modules
+        Note over DV: Deviations with HIGH risk<br/>auto-create risk assessments
+        DV->>API: POST /api/v1/risks/registers/{registerId}/assessments<br/>{hazardDescription: deviation.description,<br/>linkedDeviationId: deviationId}
+        API->>DB: INSERT risk_assessments<br/>(linkedDeviation FK set)
+
+        Note over CP: CAPA risk assessment step<br/>feeds into Risk Register
+        CP->>API: POST /api/v1/risks/registers/{registerId}/assessments<br/>{hazardDescription: capa.rootCause,<br/>linkedCapaId: capaId}
+        API->>DB: INSERT risk_assessments<br/>(linkedCapa FK set)
+
+        Note over CM: Complaint patterns identify<br/>emerging product risks
+        CM->>API: POST /api/v1/risks/registers/{registerId}/assessments<br/>{hazardDescription: complaint.rootCause,<br/>processStep: complaint.productCode}
+        API->>DB: INSERT risk_assessments
+    end
+
+    rect rgb(232, 244, 248)
+        Note over QA,NS: Step 7: Register Approval (PENDING_APPROVAL -> APPROVED)
+        QA->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        Note over QA: Review overall risk-benefit analysis<br/>and residual risk acceptability
+        Note over QA: E-Signature Dialog opens
+
+        QA->>API: PATCH /api/v1/risks/registers/{id}/status<br/>{status: "APPROVED"}<br/>(with e-signature)
+        API->>DB: approvedById, approvedDate = now()
+        API->>DB: nextReviewDate = now() + reviewFrequencyMonths
+        API->>FL: completeTask("registerApproval")
+        FL-->>FL: notifyApproved service task fires
+        FL->>NS: notificationDelegate<br/>"Risk Register Approved: RR-2026-001"
+        NS->>DB: INSERT notification (STATUS_CHANGE)
+        NS-->>RO: "Risk Register Approved" notification
+
+        API->>DB: Status = APPROVED
+        API->>DB: Workflow: "Register Approval" COMPLETED
+        API->>DB: Workflow: "Approved" COMPLETED
+        API->>DB: Audit trail: STATUS_CHANGED -> APPROVED
+        FL-->>FL: Process ends
+
+        API-->>QA: 200 OK
+
+        opt Periodic Review (boundary timer)
+            FL->>NS: notificationDelegate<br/>"Risk Register Review Due: RR-2026-001"<br/>(triggered by reviewFrequencyMonths)
+            NS-->>RO: Periodic review reminder
+            NS-->>QR: Periodic review reminder
+            API->>DB: lastReviewDate = now()
+            API->>DB: nextReviewDate recalculated
+        end
+    end

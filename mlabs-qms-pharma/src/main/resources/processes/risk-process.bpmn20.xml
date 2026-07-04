@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://qmspharma.com/risk"
+             id="riskDefinitions">
+
+    <process id="riskRegisterProcess" name="Risk Management Process" isExecutable="true">
+
+        <!-- Process Variables:
+             recordId, registerNumber, ownerId, methodology, riskType -->
+
+        <startEvent id="start" name="Risk Register Created"/>
+
+        <sequenceFlow id="flow-start-evaluation" sourceRef="start" targetRef="riskEvaluation"/>
+
+        <!-- Step 1: Risk Evaluation & Prioritization -->
+        <userTask id="riskEvaluation" name="Risk Evaluation"
+                  flowable:candidateGroups="QA_REVIEWER"
+                  flowable:formKey="risk-evaluate">
+            <documentation>Evaluate risks using methodology (FMEA/HACCP/FTA/PHA). Score: Severity x Occurrence x Detectability</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-evaluation-control" sourceRef="riskEvaluation" targetRef="controlPlanning"/>
+
+        <!-- Step 2a: Control Planning -->
+        <userTask id="controlPlanning" name="Control Planning"
+                  flowable:assignee="${ownerId}"
+                  flowable:formKey="risk-controls">
+            <documentation>Define preventive, detective, and corrective controls for identified risks</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-control-implement" sourceRef="controlPlanning" targetRef="controlImplementation"/>
+
+        <!-- Step 2b: Control Implementation -->
+        <userTask id="controlImplementation" name="Control Implementation"
+                  flowable:assignee="${ownerId}"
+                  flowable:formKey="risk-implement">
+            <documentation>Implement planned controls and collect evidence of implementation</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-implement-residual" sourceRef="controlImplementation" targetRef="residualRiskReview"/>
+
+        <!-- Step 3: Residual Risk Assessment -->
+        <userTask id="residualRiskReview" name="Residual Risk Review"
+                  flowable:candidateGroups="QA_REVIEWER,QA_APPROVER"
+                  flowable:formKey="risk-residual">
+            <documentation>Re-score risks with controls applied. Verify control effectiveness</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-residual-gw" sourceRef="residualRiskReview" targetRef="residualGateway"/>
+
+        <!-- Gateway: Residual Risk Acceptable? -->
+        <exclusiveGateway id="residualGateway" name="Residual Risk Decision"/>
+
+        <sequenceFlow id="flow-acceptable" sourceRef="residualGateway" targetRef="registerApproval">
+            <conditionExpression>${residualDecision == 'ACCEPTABLE'}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow-unacceptable" sourceRef="residualGateway" targetRef="controlPlanning">
+            <conditionExpression>${residualDecision == 'UNACCEPTABLE'}</conditionExpression>
+        </sequenceFlow>
+
+        <!-- Step 4: Register Approval -->
+        <userTask id="registerApproval" name="Register Approval"
+                  flowable:candidateGroups="QA_APPROVER"
+                  flowable:formKey="risk-approve">
+            <documentation>Final approval of risk register. E-Signature required. Risk-benefit analysis</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow-approval-end" sourceRef="registerApproval" targetRef="endApproved"/>
+
+        <!-- End Event -->
+        <endEvent id="endApproved" name="Risk Register Approved"/>
+
+    </process>
+</definitions>

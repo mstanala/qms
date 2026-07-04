@@ -1,0 +1,66 @@
+package com.qmspharma.controller;
+
+import com.qmspharma.model.dto.response.AttachmentResponse;
+import com.qmspharma.service.AttachmentService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/v1/attachments")
+@RequiredArgsConstructor
+public class AttachmentController {
+
+    private final AttachmentService attachmentService;
+
+    @PostMapping
+    public ResponseEntity<AttachmentResponse> upload(@RequestParam("file") MultipartFile file,
+                                                      @RequestParam String recordType,
+                                                      @RequestParam UUID recordId,
+                                                      @RequestParam(required = false) String category,
+                                                      @RequestParam(required = false) String description) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(attachmentService.upload(file, recordType, recordId, category, description));
+    }
+
+    @GetMapping
+    public ResponseEntity<List<AttachmentResponse>> list(@RequestParam String recordType, @RequestParam UUID recordId) {
+        return ResponseEntity.ok(attachmentService.listByRecord(recordType, recordId));
+    }
+
+    @GetMapping("/{id}/download")
+    public ResponseEntity<Map<String, String>> download(@PathVariable UUID id,
+                                                        @RequestParam(defaultValue = "false") boolean download) {
+        return ResponseEntity.ok(Map.of("url", attachmentService.getDownloadUrl(id, download)));
+    }
+
+    @GetMapping("/{id}/content")
+    public ResponseEntity<byte[]> content(@PathVariable UUID id,
+                                          @RequestParam(defaultValue = "false") boolean download) {
+        AttachmentService.AttachmentContent content = attachmentService.getContent(id);
+        ContentDisposition disposition = (download ? ContentDisposition.attachment() : ContentDisposition.inline())
+                .filename(content.fileName(), StandardCharsets.UTF_8)
+                .build();
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(content.contentType()))
+                .contentLength(content.bytes().length)
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(content.bytes());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable UUID id) {
+        attachmentService.softDelete(id);
+        return ResponseEntity.noContent().build();
+    }
+}

@@ -1,0 +1,91 @@
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#00838f', 'primaryTextColor': '#fff', 'primaryBorderColor': '#006064', 'lineColor': '#333', 'secondaryColor': '#ED8B00', 'tertiaryColor': '#f5f7fa'}}}%%
+
+flowchart TD
+    Start([Start Event<br/>Supplier Registered]) --> documentReview
+
+    subgraph DOCUMENT_PHASE ["Step 1: Document Review"]
+        documentReview[/"<b>Document Review</b><br/>Candidate: QA_REVIEWER<br/>Form: supplier-doc-review<br/>GMP/ISO/FDA certificates,<br/>Quality agreements, COAs"/]
+    end
+
+    documentReview --> docGW{{"Document<br/>Decision?"}}
+
+    docGW -->|"documentDecision<br/>= REJECTED"| rejectedEnd([Rejected End<br/>Supplier Rejected])
+    docGW -->|"documentDecision<br/>= AUDIT_REQUIRED"| supplierAudit
+    docGW -->|"documentDecision<br/>= NO_AUDIT"| qualificationApproval
+
+    subgraph AUDIT_PHASE ["Step 2: Supplier Audit"]
+        supplierAudit[/"<b>Supplier Audit</b><br/>Candidate: QA_REVIEWER, AUDITOR<br/>Form: supplier-audit<br/>On-site/Remote GMP audit"/]
+        scheduleAudit["Schedule Audit<br/>(auditDelegate)<br/>Cross-Module: Audit Mgmt<br/>auditType: SUPPLIER"]
+    end
+
+    scheduleAudit --> supplierAudit
+
+    supplierAudit --> auditGW{{"Audit<br/>Result?"}}
+
+    auditGW -->|"auditResult<br/>= PASSED"| qualificationApproval
+    auditGW -->|"auditResult<br/>= FAILED"| correctiveAction
+
+    subgraph CORRECTIVE_PHASE ["Step 2a: Corrective Action"]
+        correctiveAction[/"<b>Supplier Corrective Action</b><br/>Assignee: Procurement Owner<br/>Form: supplier-capa<br/>Supplier CAPA response"/]
+    end
+
+    correctiveAction --> qualificationApproval
+
+    subgraph APPROVAL_PHASE ["Step 3: Qualification Approval"]
+        qualificationApproval[/"<b>Qualification Approval</b><br/>Candidate: QA_APPROVER<br/>Form: supplier-approve<br/>E-Signature Required"/]
+        qualificationApproval --> notifyQualified["Notify Qualified<br/>(notificationDelegate)<br/>STATUS_CHANGE to:<br/>Procurement, QA"]
+    end
+
+    notifyQualified --> qualified([Supplier Qualified<br/>Status: QUALIFIED])
+
+    subgraph MONITORING_PHASE ["Ongoing: Performance Monitoring"]
+        requalTimer>"Boundary Timer<br/>requalificationFrequencyMonths<br/>Non-interrupting"] -.- qualified
+        requalTimer --> requalReminder["Re-qualification Reminder<br/>(notificationDelegate)<br/>REQUALIFICATION_DUE"]
+        requalReminder --> requalAudit["Schedule Re-qualification<br/>Audit (auditDelegate)<br/>Cross-Module: Audit Mgmt"]
+        requalAudit --> supplierAudit
+    end
+
+    subgraph NC_CROSS_MODULE ["Cross-Module: Incoming Material NC"]
+        materialNC["Nonconformance Detected<br/>ncType: MATERIAL<br/>supplier FK linked"]
+        materialNC --> ncScoreImpact["Update Supplier Scores<br/>quality/delivery/compliance"]
+    end
+
+    ncScoreImpact --> scoreGW{{"Score Below<br/>Threshold?"}}
+    scoreGW -->|Yes| probation
+    scoreGW -->|No| qualified
+
+    subgraph PROBATION_PHASE ["Probation"]
+        probation["Status: ON_PROBATION<br/>Increased monitoring<br/>Supplier improvement plan"]
+    end
+
+    probation --> probationGW{{"Improvement<br/>Achieved?"}}
+    probationGW -->|Yes| qualified
+    probationGW -->|No| disqualification
+
+    subgraph DISQUALIFICATION_PHASE ["Disqualification"]
+        disqualification["Status: DISQUALIFIED<br/>E-Signature Required"]
+        disqualification --> ccForAlternate["Create Change Request<br/>(changeInitiationDelegate)<br/>Alternate supplier sourcing<br/>Supply chain impact"]
+    end
+
+    ccForAlternate --> disqualifiedEnd([End Event<br/>Supplier Disqualified])
+
+    %% Styling
+    classDef startEnd fill:#00838f,stroke:#006064,color:#fff,stroke-width:2px
+    classDef qualified fill:#2e7d32,stroke:#1b5e20,color:#fff,stroke-width:2px
+    classDef userTask fill:#fff,stroke:#00838f,color:#333,stroke-width:2px
+    classDef gateway fill:#ED8B00,stroke:#D4760A,color:#fff,stroke-width:2px
+    classDef serviceTask fill:#f5f7fa,stroke:#667085,color:#333,stroke-width:1px
+    classDef timer fill:#fff3e0,stroke:#ED8B00,color:#333,stroke-width:1px
+    classDef crossModule fill:#e8eaf6,stroke:#5c6bc0,color:#333,stroke-width:1px
+    classDef rejected fill:#c62828,stroke:#b71c1c,color:#fff,stroke-width:2px
+    classDef probation fill:#ff8f00,stroke:#e65100,color:#fff,stroke-width:2px
+
+    class Start,disqualifiedEnd startEnd
+    class rejectedEnd rejected
+    class qualified qualified
+    class probation probation
+    class documentReview,supplierAudit,correctiveAction,qualificationApproval,disqualification userTask
+    class docGW,auditGW,scoreGW,probationGW gateway
+    class notifyQualified,requalReminder,scheduleAudit,requalAudit,ncScoreImpact serviceTask
+    class requalTimer timer
+    class materialNC,ccForAlternate crossModule

@@ -1,0 +1,146 @@
+%%{init: {'theme': 'base', 'themeVariables': {'actorBkg': '#2C5F7C', 'actorTextColor': '#fff', 'actorBorder': '#1B3A4B', 'signalColor': '#333', 'noteBkgColor': '#fff8e1', 'noteBorderColor': '#ED8B00'}}}%%
+
+sequenceDiagram
+    autonumber
+
+    participant QE as Quality Engineer<br/>(END_USER)
+    participant API as Spring Boot API<br/>(CapaService)
+    participant FL as Flowable Engine<br/>(capaProcess)
+    participant DB as PostgreSQL<br/>(Database)
+    participant QR as QA Reviewer<br/>(QA_REVIEWER)
+    participant CO as CAPA Owner<br/>(OWNER)
+    participant QA as QA Approver<br/>(QA_APPROVER)
+    participant NS as Notification<br/>Service
+
+    rect rgb(232, 244, 248)
+        Note over QE,NS: Step 1: CAPA Initiation (INITIATED)
+        QE->>API: POST /api/v1/capas<br/>{title, description, type, priority, owner...}
+        API->>DB: Generate CAPA number (CAPA-2026-001)
+        API->>DB: INSERT capas (status=INITIATED)
+        API->>FL: startProcess("capaProcess", vars)
+        FL-->>FL: Create qaReview task<br/>(candidate: QA_REVIEWER)
+        API->>DB: Record workflow step: "Initiation" COMPLETED
+        API->>DB: Record workflow step: "QA Review" CURRENT
+        API->>DB: Audit trail: CREATED
+        API->>NS: Notify CAPA Owner: "CAPA Assigned"
+        NS->>DB: INSERT notification (TASK_ASSIGNED)
+        API-->>QE: 201 Created (ChangeRequestResponse)
+    end
+
+    rect rgb(255, 248, 225)
+        Note over QR,NS: Step 2: QA Review (UNDER_REVIEW)
+        QR->>API: GET /api/v1/tasks/inbox
+        API->>FL: Query tasks (candidate: QA_REVIEWER)
+        FL-->>API: qaReview task for CAPA-2026-001
+        API-->>QR: Task list with recordType=CAPA
+
+        QR->>API: PATCH /api/v1/capas/{id}/status<br/>{status: "UNDER_REVIEW"}
+
+        alt APPROVED
+            QR->>API: PATCH /api/v1/capas/{id}/status<br/>{status: "INVESTIGATION"}
+            API->>FL: completeTask("qaReview", {reviewDecision: APPROVED})
+            FL-->>FL: Gateway routes to investigation task
+            API->>DB: Update status = INVESTIGATION
+            API->>DB: Workflow step: "QA Review" COMPLETED
+            API->>DB: Workflow step: "Investigation" CURRENT
+        else REJECTED
+            QR->>API: PATCH /api/v1/capas/{id}/status<br/>{status: "REJECTED", comments: "reason"}
+            API->>FL: completeTask("qaReview", {reviewDecision: REJECTED})
+            FL-->>FL: Gateway routes to rejectedEnd
+            API->>DB: Update status = REJECTED
+            API->>DB: Audit trail: STATUS_CHANGED (REJECTED)
+        end
+    end
+
+    rect rgb(232, 244, 248)
+        Note over CO,NS: Step 3: Investigation & Root Cause Analysis (INVESTIGATION)
+        CO->>API: Perform root cause analysis<br/>(5 Whys, Fishbone, etc.)
+        CO->>API: PATCH /api/v1/capas/{id}/status<br/>{status: "ROOT_CAUSE_IDENTIFIED"}
+        API->>FL: completeTask("investigation")
+        FL-->>FL: Create riskAssessment task
+        API->>DB: Workflow step: "Investigation" COMPLETED
+        API->>DB: Workflow step: "Risk Assessment" CURRENT
+    end
+
+    rect rgb(255, 248, 225)
+        Note over CO,NS: Step 4: Risk Assessment (ROOT_CAUSE_IDENTIFIED)
+        CO->>API: Submit risk assessment data
+        CO->>API: PATCH /api/v1/capas/{id}/status<br/>{status: "ACTION_PLANNING"}
+        API->>FL: completeTask("riskAssessment")
+        FL-->>FL: Create actionPlanning task
+        API->>DB: Workflow step: "Risk Assessment" COMPLETED
+        API->>DB: Workflow step: "Action Planning" CURRENT
+    end
+
+    rect rgb(232, 244, 248)
+        Note over CO,NS: Step 5: Action Planning (ACTION_PLANNING)
+        CO->>API: POST /api/v1/capas/{id}/actions<br/>{title, type: CORRECTIVE, assignee, dueDate}
+        API->>DB: INSERT capa_actions
+        CO->>API: POST /api/v1/capas/{id}/actions<br/>{title, type: PREVENTIVE, assignee, dueDate}
+        API->>DB: INSERT capa_actions
+
+        CO->>API: POST /api/v1/capas/{id}/start-action-execution
+        API->>FL: completeTask("actionPlanning")
+        FL-->>FL: Create actionExecution task<br/>+ Start boundary timer (R3/P7D)
+        API->>DB: Workflow step: "Action Planning" COMPLETED
+        API->>DB: Workflow step: "Action Execution" CURRENT
+    end
+
+    rect rgb(255, 243, 224)
+        Note over CO,NS: Step 6: Action Execution (ACTION_IN_PROGRESS)
+        loop For each action
+            CO->>API: PUT /api/v1/capas/{id}/actions/{actionId}<br/>{status: "COMPLETED", completedDate}
+            API->>DB: UPDATE capa_actions
+        end
+
+        opt Every 7 days (up to 3 times)
+            FL->>NS: Boundary Timer fires reminderDelegate
+            NS->>DB: INSERT notification (OVERDUE_ALERT)
+            NS-->>CO: "CAPA Action Overdue Reminder"
+        end
+
+        CO->>API: POST /api/v1/capas/{id}/complete-action-execution
+        API->>FL: completeTask("actionExecution")
+        FL-->>FL: Create effectivenessCheck task
+        API->>DB: Workflow step: "Action Execution" COMPLETED
+        API->>DB: Workflow step: "Effectiveness Check" CURRENT
+    end
+
+    rect rgb(232, 244, 248)
+        Note over QR,NS: Step 7: Effectiveness Check (EFFECTIVENESS_CHECK)
+        QR->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        QR->>API: Submit effectiveness review data<br/>{checkDate, criteria, overallEffective, summary}
+
+        alt EFFECTIVE
+            QR->>API: PATCH /api/v1/capas/{id}/status<br/>{status: "PENDING_CLOSURE"}
+            API->>FL: completeTask("effectivenessCheck",<br/>{effectivenessResult: "EFFECTIVE"})
+            FL-->>FL: Gateway routes to qaApproval task
+            API->>DB: Workflow step: "Effectiveness" COMPLETED
+            API->>DB: Workflow step: "QA Approval" CURRENT
+        else NOT EFFECTIVE
+            QR->>API: PATCH /api/v1/capas/{id}/status<br/>{status: "ACTION_PLANNING", comments: "reason"}
+            API->>FL: completeTask("effectivenessCheck",<br/>{effectivenessResult: "NOT_EFFECTIVE"})
+            FL-->>FL: Gateway loops back to actionPlanning
+            Note over CO,QR: Cycle repeats from Action Planning
+        end
+    end
+
+    rect rgb(255, 248, 225)
+        Note over QA,NS: Step 8: QA Approval & Closure (PENDING_CLOSURE -> CLOSED)
+        QA->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        QA->>API: PATCH /api/v1/capas/{id}/status<br/>{status: "CLOSED"}<br/>(with e-signature)
+        API->>FL: completeTask("qaApproval")
+        FL-->>FL: notifyClosed service task fires
+        FL->>NS: notificationDelegate<br/>"CAPA Closed: CAPA-2026-001"
+        NS->>DB: INSERT notification (STATUS_CHANGE)
+        NS-->>QE: "CAPA Closed" notification
+        API->>DB: Update status = CLOSED, closedDate = now()
+        API->>DB: Workflow step: "QA Approval" COMPLETED
+        API->>DB: Workflow step: "Closed" COMPLETED
+        API->>DB: Audit trail: STATUS_CHANGED -> CLOSED
+        FL-->>FL: Process ends
+    end

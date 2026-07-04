@@ -1,0 +1,60 @@
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2C5F7C', 'primaryTextColor': '#fff', 'primaryBorderColor': '#1B3A4B', 'lineColor': '#333', 'secondaryColor': '#ED8B00', 'tertiaryColor': '#f5f7fa'}}}%%
+
+flowchart TD
+    Start([Start Event<br/>CAPA Created]) --> qaReview
+
+    subgraph INITIATION ["Step 1: Initiation"]
+        qaReview[/"<b>QA Review</b><br/>Candidate: QA_REVIEWER<br/>Form: capa-review"/]
+    end
+
+    qaReview --> reviewGW{{"Review<br/>Decision?"}}
+
+    reviewGW -->|REJECTED| rejectedEnd([Rejected End<br/>CAPA Rejected])
+    reviewGW -->|APPROVED| investigation
+
+    subgraph INVESTIGATION_PHASE ["Step 2-3: Investigation & Risk"]
+        investigation[/"<b>Investigation</b><br/>Assignee: CAPA Owner<br/>Form: capa-rca<br/>Due: targetCompletionDate"/]
+        investigation --> riskAssessment[/"<b>Risk Assessment</b><br/>Assignee: CAPA Owner<br/>Form: capa-risk"/]
+    end
+
+    riskAssessment --> actionPlanning
+
+    subgraph ACTION_PHASE ["Step 4-5: Action Planning & Execution"]
+        actionPlanning[/"<b>Action Planning</b><br/>Assignee: CAPA Owner<br/>Form: capa-actions"/]
+        actionPlanning --> actionExecution[/"<b>Action Execution</b><br/>Assignee: CAPA Owner<br/>Form: capa-execute"/]
+        actionTimer>"Boundary Timer<br/>R3/P7D<br/>(3 reminders, every 7 days)"] -.- actionExecution
+        actionTimer --> reminderTask["Reminder Delegate<br/>Send Overdue Alert"]
+    end
+
+    actionExecution --> effectivenessCheck
+
+    subgraph EFFECTIVENESS_PHASE ["Step 6: Effectiveness Check"]
+        effectivenessCheck[/"<b>Effectiveness Check</b><br/>Candidate: QA_REVIEWER, QA_APPROVER<br/>Form: capa-effectiveness"/]
+    end
+
+    effectivenessCheck --> effectivenessGW{{"Effectiveness<br/>Result?"}}
+
+    effectivenessGW -->|NOT EFFECTIVE| actionPlanning
+    effectivenessGW -->|EFFECTIVE| qaApproval
+
+    subgraph CLOSURE_PHASE ["Step 7: Closure"]
+        qaApproval[/"<b>QA Approval</b><br/>Candidate: QA_APPROVER<br/>Form: capa-approve"/]
+        qaApproval --> notifyClosed["Notify Closure<br/>(notificationDelegate)<br/>Send to: Initiator"]
+    end
+
+    notifyClosed --> closedEnd([End Event<br/>CAPA Closed])
+
+    %% Styling
+    classDef startEnd fill:#2C5F7C,stroke:#1B3A4B,color:#fff,stroke-width:2px
+    classDef userTask fill:#fff,stroke:#2C5F7C,color:#333,stroke-width:2px
+    classDef gateway fill:#ED8B00,stroke:#D4760A,color:#fff,stroke-width:2px
+    classDef serviceTask fill:#f5f7fa,stroke:#667085,color:#333,stroke-width:1px
+    classDef timer fill:#fff3e0,stroke:#ED8B00,color:#333,stroke-width:1px
+    classDef rejected fill:#c62828,stroke:#b71c1c,color:#fff,stroke-width:2px
+
+    class Start,closedEnd startEnd
+    class rejectedEnd rejected
+    class qaReview,investigation,riskAssessment,actionPlanning,actionExecution,effectivenessCheck,qaApproval userTask
+    class reviewGW,effectivenessGW gateway
+    class notifyClosed,reminderTask serviceTask
+    class actionTimer timer

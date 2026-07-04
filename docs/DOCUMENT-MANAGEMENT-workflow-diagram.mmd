@@ -1,0 +1,56 @@
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#5c6bc0', 'primaryTextColor': '#fff', 'primaryBorderColor': '#3949ab', 'lineColor': '#333', 'secondaryColor': '#ED8B00', 'tertiaryColor': '#f5f7fa'}}}%%
+
+flowchart TD
+    Start([Start Event<br/>Document Drafted]) --> draftReview
+
+    subgraph REVIEW_PHASE ["Step 1: Draft Review"]
+        draftReview[/"<b>Document Draft Review</b><br/>Candidate: DOC_REVIEWER, QA_REVIEWER<br/>Form: document-review"/]
+    end
+
+    draftReview --> reviewGW{{"Review<br/>Decision?"}}
+
+    reviewGW -->|"reviewDecision<br/>= APPROVED"| qaApproval
+    reviewGW -->|"reviewDecision<br/>= REVISION_REQUIRED"| authorRevision
+
+    subgraph REVISION_PHASE ["Revision Loop"]
+        authorRevision[/"<b>Author Revision</b><br/>Assignee: authorId<br/>Form: document-revise"/]
+    end
+
+    authorRevision --> draftReview
+
+    subgraph APPROVAL_PHASE ["Step 2: QA Approval"]
+        qaApproval[/"<b>QA Approval</b><br/>Candidate: QA_APPROVER<br/>Form: document-approve<br/>E-Signature Required"/]
+    end
+
+    qaApproval --> approvalGW{{"Approval<br/>Decision?"}}
+
+    approvalGW -->|"approvalDecision<br/>= APPROVED"| training
+    approvalGW -->|"approvalDecision<br/>= REJECTED"| authorRevision
+
+    subgraph TRAINING_PHASE ["Step 3: Training Assignment"]
+        training[/"<b>Training Assignment</b><br/>Candidate: TRAINING_COORDINATOR,<br/>QA_REVIEWER<br/>Form: document-training"/]
+    end
+
+    training --> makeEffective
+
+    subgraph EFFECTIVE_PHASE ["Step 4: Make Effective & Notify"]
+        makeEffective["Make Document Effective<br/>(documentEffectiveDelegate)<br/>Set effectiveDate, nextReviewDate"]
+        makeEffective --> notifyEffective["Notify Document Effective<br/>(notificationDelegate)<br/>STATUS_CHANGE to Author"]
+        periodicTimer>"Boundary Timer<br/>P365D (1 year)<br/>Non-interrupting"] -.- makeEffective
+        periodicTimer --> periodicReminder["Periodic Review Reminder<br/>(notificationDelegate)<br/>PERIODIC_REVIEW_DUE"]
+    end
+
+    notifyEffective --> closedEnd([End Event<br/>Document Effective])
+
+    %% Styling
+    classDef startEnd fill:#5c6bc0,stroke:#3949ab,color:#fff,stroke-width:2px
+    classDef userTask fill:#fff,stroke:#5c6bc0,color:#333,stroke-width:2px
+    classDef gateway fill:#ED8B00,stroke:#D4760A,color:#fff,stroke-width:2px
+    classDef serviceTask fill:#f5f7fa,stroke:#667085,color:#333,stroke-width:1px
+    classDef timer fill:#fff3e0,stroke:#ED8B00,color:#333,stroke-width:1px
+
+    class Start,closedEnd startEnd
+    class draftReview,authorRevision,qaApproval,training userTask
+    class reviewGW,approvalGW gateway
+    class makeEffective,notifyEffective,periodicReminder serviceTask
+    class periodicTimer timer

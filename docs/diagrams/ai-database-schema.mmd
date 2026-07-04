@@ -1,0 +1,115 @@
+---
+title: AI Agent Database Schema (Flyway V24)
+---
+
+erDiagram
+    AI_CONVERSATIONS {
+        uuid id PK
+        uuid user_id FK
+        varchar title
+        varchar status "ACTIVE|ARCHIVED|DELETED"
+        varchar module_context
+        uuid record_id
+        varchar record_type
+        jsonb metadata
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    AI_MESSAGES {
+        uuid id PK
+        uuid conversation_id FK
+        varchar role "USER|ASSISTANT|SYSTEM|TOOL"
+        text content
+        varchar agent_type
+        jsonb tool_calls
+        jsonb tool_results
+        integer tokens_used
+        varchar model_id
+        integer latency_ms
+        timestamptz created_at
+    }
+
+    AI_AGENT_EXECUTIONS {
+        uuid id PK
+        uuid conversation_id FK
+        uuid message_id FK
+        varchar agent_type
+        varchar agent_action
+        text input_summary
+        text output_summary
+        varchar status "RUNNING|COMPLETED|FAILED|TIMEOUT"
+        text error_message
+        jsonb tools_used
+        jsonb records_accessed
+        jsonb records_modified
+        integer tokens_input
+        integer tokens_output
+        integer latency_ms
+        uuid initiated_by FK
+        uuid approved_by FK
+        boolean requires_approval
+        timestamptz created_at
+        timestamptz completed_at
+    }
+
+    AI_AUDIT_TRAIL {
+        uuid id PK
+        uuid execution_id FK
+        uuid user_id FK
+        varchar agent_type
+        varchar action
+        varchar record_type
+        uuid record_id
+        varchar record_number
+        text description
+        jsonb input_data
+        jsonb output_data
+        decimal confidence
+        boolean human_approved
+        uuid approved_by FK
+        timestamptz approved_at
+        varchar ip_address
+        timestamptz created_at
+    }
+
+    AI_PROMPT_TEMPLATES {
+        uuid id PK
+        varchar name UK
+        varchar agent_type
+        integer version
+        text system_prompt
+        text user_template
+        varchar description
+        boolean is_active
+        jsonb variables
+        uuid created_by FK
+        uuid updated_by FK
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    AI_AGENT_CONFIG {
+        uuid id PK
+        varchar agent_type UK
+        varchar display_name
+        varchar description
+        boolean is_enabled
+        varchar model_id
+        decimal temperature
+        integer max_tokens
+        jsonb tools_enabled
+        integer rate_limit_rpm
+        jsonb requires_approval_for
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    USERS ||--o{ AI_CONVERSATIONS : "creates"
+    AI_CONVERSATIONS ||--o{ AI_MESSAGES : "contains"
+    AI_CONVERSATIONS ||--o{ AI_AGENT_EXECUTIONS : "triggers"
+    AI_MESSAGES ||--o| AI_AGENT_EXECUTIONS : "generates"
+    AI_AGENT_EXECUTIONS ||--o{ AI_AUDIT_TRAIL : "logged in"
+    USERS ||--o{ AI_AUDIT_TRAIL : "performed by"
+    AI_AGENT_CONFIG ||--o{ AI_AGENT_EXECUTIONS : "configures"
+    AI_PROMPT_TEMPLATES ||--o{ AI_AGENT_CONFIG : "used by"

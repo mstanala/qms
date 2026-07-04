@@ -1,0 +1,158 @@
+%%{init: {'theme': 'base', 'themeVariables': {'actorBkg': '#5c6bc0', 'actorTextColor': '#fff', 'actorBorder': '#3949ab', 'signalColor': '#333', 'noteBkgColor': '#fff8e1', 'noteBorderColor': '#ED8B00'}}}%%
+
+sequenceDiagram
+    autonumber
+
+    participant AU as Document Author<br/>(END_USER)
+    participant API as Spring Boot API<br/>(DocumentService)
+    participant FL as Flowable Engine<br/>(documentProcess)
+    participant DB as PostgreSQL<br/>(Database)
+    participant RV as Document Reviewer<br/>(DOC_REVIEWER/QA_REVIEWER)
+    participant QA as QA Approver<br/>(QA_APPROVER)
+    participant TC as Training Coordinator<br/>(TRAINING_COORDINATOR)
+    participant NS as Notification<br/>Service
+    participant CC as Change Control<br/>(Cross-Module)
+
+    rect rgb(232, 244, 248)
+        Note over AU,NS: Step 1: Create Document (DRAFT)
+        AU->>API: POST /api/v1/documents<br/>{title, description, documentType,<br/>category, subCategory, departmentId,<br/>plantSiteId, reviewPeriodMonths,<br/>confidentialityLevel, regulatoryReference,<br/>keywords}
+        API->>DB: Generate DOC number (DOC-2026-001)
+        API->>DB: INSERT documents (status=DRAFT)
+        API->>DB: Audit trail: CREATED
+
+        opt File Upload
+            AU->>API: POST /api/v1/attachments<br/>{file, recordType: DOCUMENT, recordId}
+            API->>DB: Store file metadata + upload to storage
+        end
+
+        API-->>AU: 201 Created (DocumentResponse)
+    end
+
+    rect rgb(255, 248, 225)
+        Note over AU,NS: Step 2: Submit for Review (DRAFT -> PENDING_REVIEW)
+        AU->>API: PATCH /api/v1/documents/{id}/status<br/>{status: "PENDING_REVIEW"}
+        API->>FL: startProcess("documentProcess", vars)
+        FL-->>FL: Create draftReview task<br/>(candidateGroups: DOC_REVIEWER,<br/>QA_REVIEWER)
+        API->>DB: Status = PENDING_REVIEW
+        API->>DB: Audit trail: STATUS_CHANGED
+        API-->>AU: 200 OK
+    end
+
+    rect rgb(232, 244, 248)
+        Note over RV,NS: Step 3: Draft Review (UNDER_REVIEW)
+        RV->>API: GET /api/v1/tasks/inbox
+        API->>FL: Query tasks for DOC_REVIEWER/QA_REVIEWER
+        FL-->>API: draftReview task for DOC-2026-001
+        API-->>RV: Task list
+
+        RV->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        Note over RV: Review document for technical<br/>accuracy and compliance
+
+        alt Review Approved
+            RV->>API: PATCH /api/v1/documents/{id}/status<br/>{status: "PENDING_APPROVAL"}
+            API->>FL: completeTask("draftReview",<br/>{reviewDecision: "APPROVED"})
+            FL-->>FL: reviewGateway -> qaApproval task<br/>(candidateGroups: QA_APPROVER)
+            API->>DB: Status = PENDING_APPROVAL
+            API->>DB: Audit trail: REVIEW_APPROVED
+        else Revision Required
+            RV->>API: PATCH /api/v1/documents/{id}/status<br/>{status: "DRAFT", comments: "revision feedback"}
+            API->>FL: completeTask("draftReview",<br/>{reviewDecision: "REVISION_REQUIRED"})
+            FL-->>FL: reviewGateway -> authorRevision task<br/>(assignee: authorId)
+            API->>DB: Status = DRAFT
+            API->>DB: Audit trail: REVISION_REQUESTED
+            Note over AU,RV: Author revises and resubmits<br/>(loops back to draftReview)
+        end
+    end
+
+    rect rgb(243, 229, 245)
+        Note over AU,RV: Step 3a: Author Revision (Loop)
+        AU->>API: Revise document based on feedback
+        AU->>API: Upload revised document file
+        AU->>API: PATCH /api/v1/documents/{id}/status<br/>{status: "PENDING_REVIEW"}
+        API->>FL: completeTask("authorRevision")
+        FL-->>FL: Loop back to draftReview task<br/>(candidateGroups: DOC_REVIEWER,<br/>QA_REVIEWER)
+        Note over RV: Review cycle repeats until approved
+    end
+
+    rect rgb(255, 248, 225)
+        Note over QA,NS: Step 4: QA Approval (PENDING_APPROVAL -> APPROVED)
+        QA->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        Note over QA: Review for regulatory compliance
+        Note over QA: E-Signature Dialog opens
+
+        alt Approved
+            QA->>API: PATCH /api/v1/documents/{id}/status<br/>{status: "APPROVED"}<br/>(with e-signature)
+            API->>DB: INSERT document_approvals<br/>(decision=APPROVED, electronic_signature_id)
+            API->>FL: completeTask("qaApproval",<br/>{approvalDecision: "APPROVED"})
+            FL-->>FL: approvalGateway -> training task<br/>(candidateGroups: TRAINING_COORDINATOR,<br/>QA_REVIEWER)
+            API->>DB: Status = APPROVED
+            API->>DB: Audit trail: APPROVED
+        else Rejected
+            QA->>API: PATCH /api/v1/documents/{id}/status<br/>{status: "DRAFT", comments: "rejection reason"}
+            API->>FL: completeTask("qaApproval",<br/>{approvalDecision: "REJECTED"})
+            FL-->>FL: approvalGateway -> authorRevision task<br/>(assignee: authorId)
+            API->>DB: Audit trail: REJECTED
+            Note over AU,QA: Loops back to revision cycle
+        end
+    end
+
+    rect rgb(232, 244, 248)
+        Note over TC,NS: Step 5: Training Assignment (APPROVED)
+        TC->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        TC->>API: Assign training to affected personnel
+        API->>DB: INSERT document_distribution<br/>(recipient, training_required=true)
+        API->>DB: INSERT training_assignments<br/>(reason=SOP_REVISION, document link)
+        NS->>DB: INSERT notification (TASK_ASSIGNED)<br/>for each trainee
+
+        TC->>API: Complete training assignment task
+        API->>FL: completeTask("training")
+        FL-->>FL: Proceed to makeEffective service task
+    end
+
+    rect rgb(255, 243, 224)
+        Note over API,NS: Step 6: Make Effective (Automatic)
+        FL->>API: documentEffectiveDelegate executes
+        API->>DB: effectiveDate = now()
+        API->>DB: nextReviewDate = now() + reviewPeriodMonths
+        API->>DB: Status = EFFECTIVE
+        API->>DB: document_versions.status = EFFECTIVE
+
+        opt Previous Version Exists
+            API->>DB: Previous version status = SUPERSEDED
+            API->>DB: Previous version supersededDate = now()
+        end
+
+        FL->>NS: notificationDelegate<br/>"Document Effective: DOC-2026-001 v1.0"
+        NS->>DB: INSERT notification (STATUS_CHANGE)
+        NS-->>AU: "Document Effective" notification
+
+        FL-->>FL: Process ends (Document Effective)
+
+        opt After 365 days (P365D boundary timer)
+            FL->>NS: notificationDelegate<br/>"Periodic Review Due: DOC-2026-001"
+            NS-->>AU: Periodic review reminder
+        end
+    end
+
+    rect rgb(240, 240, 240)
+        Note over CC,NS: Cross-Module: Change Control Integration
+        Note over CC: During Change Control process,<br/>affected documents are identified
+
+        CC->>API: POST /api/v1/change-requests/{id}/<br/>affected-documents<br/>{documentNumber: "DOC-2026-001",<br/>action: "REVISE"}
+        API->>DB: INSERT change_affected_documents<br/>(action=REVISE, status=PENDING)
+
+        Note over CC: During Implementation phase,<br/>document revision triggered
+
+        AU->>API: Create new version of DOC-2026-001
+        API->>DB: INSERT document_versions (v2.0)
+        Note over AU,QA: New version goes through<br/>full review/approval cycle
+
+        CC->>API: Update affected document status
+        API->>DB: UPDATE change_affected_documents<br/>SET status = COMPLETED
+    end

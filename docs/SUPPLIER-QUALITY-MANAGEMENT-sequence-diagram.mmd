@@ -1,0 +1,197 @@
+%%{init: {'theme': 'base', 'themeVariables': {'actorBkg': '#00838f', 'actorTextColor': '#fff', 'actorBorder': '#006064', 'signalColor': '#333', 'noteBkgColor': '#fff8e1', 'noteBorderColor': '#ED8B00'}}}%%
+
+sequenceDiagram
+    autonumber
+
+    participant PM as Procurement<br/>(END_USER)
+    participant API as Spring Boot API<br/>(SupplierService)
+    participant FL as Flowable Engine<br/>(supplierProcess)
+    participant DB as PostgreSQL<br/>(Database)
+    participant QR as QA Reviewer<br/>(QA_REVIEWER)
+    participant QA as QA Approver<br/>(QA_APPROVER)
+    participant NS as Notification<br/>Service
+    participant AU as Audit Mgmt<br/>(Cross-Module)
+    participant NC as Nonconformance<br/>(Cross-Module)
+    participant DV as Deviation<br/>(Cross-Module)
+    participant CP as CAPA<br/>(Cross-Module)
+    participant CC as Change Control<br/>(Cross-Module)
+
+    rect rgb(232, 244, 248)
+        Note over PM,NS: Step 1: Register New Supplier (PENDING_QUALIFICATION)
+        PM->>API: POST /api/v1/suppliers<br/>{name, legalName, supplierType,<br/>category, address, city, state,<br/>country, postalCode,<br/>primaryContactName, primaryContactEmail,<br/>primaryContactPhone, gmpCertification,<br/>isoCertification, fdaRegistration,<br/>dunsNumber, ownerId, plantSiteId,<br/>requalificationFrequencyMonths}
+        API->>DB: Generate supplier number (SUP-2026-001)
+        API->>DB: INSERT suppliers (status=PENDING_QUALIFICATION)
+        API->>FL: startProcess("supplierProcess", vars)<br/>{recordId, supplierNumber, ownerId,<br/>supplierType, category}
+        FL-->>FL: Create documentReview task<br/>(candidateGroups: QA_REVIEWER)
+        API->>DB: Workflow: "Pending" COMPLETED
+        API->>DB: Workflow: "Document Review" CURRENT
+        API->>DB: Audit trail: CREATED
+        API-->>PM: 201 Created (SupplierResponse)
+    end
+
+    rect rgb(255, 248, 225)
+        Note over QR,NS: Step 2: Document Review & Risk Assessment (PENDING_QUALIFICATION -> UNDER_EVALUATION)
+        QR->>API: GET /api/v1/tasks/inbox
+        API->>FL: Query tasks for QA_REVIEWER
+        FL-->>API: documentReview task for SUP-2026-001
+        API-->>QR: Task list
+
+        QR->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        Note over QR: Review supplier documentation:<br/>- GMP certificate validity<br/>- ISO certifications<br/>- FDA registration status<br/>- Drug master files (DMFs)<br/>- Quality agreements<br/>- COA samples
+
+        QR->>API: PUT /api/v1/suppliers/{id}<br/>{qualityScore, complianceScore}
+        API->>DB: UPDATE suppliers
+
+        alt Documents Satisfactory - Audit Required
+            QR->>API: PATCH /api/v1/suppliers/{id}/status<br/>{status: "UNDER_EVALUATION"}
+            API->>FL: completeTask("documentReview",<br/>{documentDecision: "AUDIT_REQUIRED"})
+            FL-->>FL: Create supplierAudit task<br/>(candidateGroups: QA_REVIEWER, AUDITOR)
+            API->>DB: Status = UNDER_EVALUATION
+            API->>DB: Workflow: "Document Review" COMPLETED
+            API->>DB: Workflow: "Supplier Audit" CURRENT
+
+            Note over AU: Cross-Module: Schedule Supplier Audit
+            QR->>API: POST /api/v1/audits<br/>{title: "Supplier Qualification Audit",<br/>auditType: "SUPPLIER",<br/>supplierId: supplierId,<br/>auditScope: "GMP Compliance"}
+            API->>DB: INSERT audits (auditType=SUPPLIER,<br/>linked to supplier)
+            Note over AU: Audit follows its own<br/>workflow lifecycle
+        else Documents Satisfactory - No Audit Needed
+            QR->>API: PATCH /api/v1/suppliers/{id}/status<br/>{status: "UNDER_EVALUATION"}
+            API->>FL: completeTask("documentReview",<br/>{documentDecision: "NO_AUDIT"})
+            FL-->>FL: Skip audit -> qualificationApproval task
+        else Documents Rejected
+            QR->>API: PATCH /api/v1/suppliers/{id}/status<br/>{status: "REJECTED"}
+            API->>FL: completeTask("documentReview",<br/>{documentDecision: "REJECTED"})
+            FL-->>FL: Process ends (Rejected)
+            API->>DB: Audit trail: SUPPLIER_REJECTED
+        end
+        API-->>QR: 200 OK
+    end
+
+    rect rgb(232, 244, 248)
+        Note over QR,NS: Step 3: Supplier Audit (UNDER_EVALUATION)
+        Note over QR: Conduct on-site or remote audit<br/>(managed by Audit Management module)
+
+        QR->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        alt Audit Passed
+            QR->>API: PATCH /api/v1/suppliers/{id}/status<br/>{status: "PENDING_APPROVAL"}
+            API->>FL: completeTask("supplierAudit",<br/>{auditResult: "PASSED"})
+            FL-->>FL: Create qualificationApproval task<br/>(candidateGroups: QA_APPROVER)
+            API->>DB: Status = PENDING_APPROVAL
+            API->>DB: Workflow: "Supplier Audit" COMPLETED
+            API->>DB: Workflow: "Qualification Approval" CURRENT
+        else Audit Failed - Findings Raised
+            Note over AU: Audit findings recorded<br/>in Audit Management module
+            QR->>API: PATCH /api/v1/suppliers/{id}/status<br/>{status: "CORRECTIVE_ACTION_REQUIRED"}
+            API->>FL: completeTask("supplierAudit",<br/>{auditResult: "FAILED"})
+            FL-->>FL: Create supplierCorrectiveAction task<br/>(assignee: ownerId)
+            API->>DB: Status = CORRECTIVE_ACTION_REQUIRED
+            NS-->>PM: "Supplier Corrective Action Required"
+        end
+        API-->>QR: 200 OK
+    end
+
+    rect rgb(243, 229, 245)
+        Note over PM,NS: Step 3a: Supplier Corrective Action [Conditional]
+        PM->>API: Communicate findings to supplier
+        PM->>API: Receive supplier CAPA response
+        PM->>API: PUT /api/v1/suppliers/{id}<br/>{corrective actions documented}
+
+        PM->>API: PATCH /api/v1/suppliers/{id}/status<br/>{status: "PENDING_APPROVAL"}
+        API->>FL: completeTask("supplierCorrectiveAction")
+        FL-->>FL: Create qualificationApproval task<br/>(candidateGroups: QA_APPROVER)
+        API->>DB: Workflow: "Corrective Action" COMPLETED
+        API->>DB: Workflow: "Qualification Approval" CURRENT
+        API-->>PM: 200 OK
+    end
+
+    rect rgb(255, 248, 225)
+        Note over QA,NS: Step 4: Qualification Approval (PENDING_APPROVAL -> QUALIFIED)
+        QA->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        Note over QA: Review all qualification evidence<br/>- Documents, audit results, scores
+        Note over QA: E-Signature Dialog opens
+
+        QA->>API: PATCH /api/v1/suppliers/{id}/status<br/>{status: "QUALIFIED"}<br/>(with e-signature)
+        API->>DB: qualificationDate = now()
+        API->>DB: nextRequalificationDate =<br/>now() + requalificationFrequencyMonths
+        API->>DB: Calculate overallScore<br/>(quality + delivery + compliance)
+        API->>FL: completeTask("qualificationApproval")
+        FL-->>FL: notifyQualified service task fires
+        FL->>NS: notificationDelegate<br/>"Supplier Qualified: SUP-2026-001"
+        NS->>DB: INSERT notification (STATUS_CHANGE)
+        NS-->>PM: "Supplier Qualified" notification
+
+        API->>DB: Status = QUALIFIED
+        API->>DB: Workflow: "Qualification Approval" COMPLETED
+        API->>DB: Workflow: "Qualified" COMPLETED
+        API->>DB: Audit trail: SUPPLIER_QUALIFIED
+        FL-->>FL: Process ends
+
+        API-->>QA: 200 OK
+    end
+
+    rect rgb(232, 244, 248)
+        Note over QR,NS: Ongoing: Performance Monitoring (QUALIFIED)
+        Note over QR: Continuous monitoring of<br/>supplier quality performance
+
+        opt Incoming Material Nonconformance
+            Note over NC: Cross-Module: Material NC from supplier
+            PM->>API: POST /api/v1/nonconformances<br/>{title: "Incoming material OOS",<br/>ncType: "MATERIAL",<br/>supplierId: supplierId,<br/>productName, batchNumber,<br/>quantityAffected}
+            API->>DB: INSERT nonconformances<br/>(supplier FK linked)
+            Note over NC: NC follows its own workflow<br/>(may trigger CAPA/Deviation)
+        end
+
+        opt Supplier-Related Deviation
+            Note over DV: Cross-Module: Deviation from<br/>supplier material/component
+            QR->>API: POST /api/v1/deviations<br/>{title: "Supplier material deviation",<br/>sourceArea: "INCOMING_QC",<br/>supplierId: supplierId}
+            Note over DV: Deviation workflow may<br/>trigger supplier CAPA
+        end
+
+        opt Supplier Score Update
+            QR->>API: PUT /api/v1/suppliers/{id}<br/>{qualityScore: updated,<br/>deliveryScore: updated,<br/>complianceScore: updated}
+            API->>DB: Recalculate overallScore
+            API->>DB: Audit trail: SCORE_UPDATED
+
+            alt Score Below Threshold
+                API->>DB: Status = ON_PROBATION
+                NS-->>PM: "Supplier On Probation" alert
+                NS-->>QA: "Supplier Score Below Threshold"
+            end
+        end
+    end
+
+    rect rgb(255, 248, 225)
+        Note over QR,NS: Periodic: Re-qualification (Every N months)
+        opt Re-qualification Due (boundary timer)
+            FL->>NS: notificationDelegate<br/>"Supplier Re-qualification Due: SUP-2026-001"
+            NS-->>QR: Re-qualification reminder
+            NS-->>PM: Re-qualification reminder
+        end
+
+        QR->>API: Initiate re-qualification process
+        Note over AU: Schedule re-qualification audit
+        QR->>API: POST /api/v1/audits<br/>{title: "Supplier Re-qualification Audit",<br/>auditType: "SUPPLIER",<br/>supplierId: supplierId}
+        Note over QR: Re-qualification follows<br/>same audit + approval flow
+
+        QR->>API: PUT /api/v1/suppliers/{id}<br/>{qualificationDate: now(),<br/>nextRequalificationDate: recalculated}
+        API->>DB: lastReviewDate updated
+        API->>DB: Audit trail: REQUALIFICATION_COMPLETED
+    end
+
+    rect rgb(240, 240, 240)
+        Note over PM,NS: Disqualification (QUALIFIED -> DISQUALIFIED)
+        opt Critical Quality Failure or Regulatory Issue
+            QA->>API: PATCH /api/v1/suppliers/{id}/status<br/>{status: "DISQUALIFIED"}
+            API->>DB: Status = DISQUALIFIED
+            API->>DB: Audit trail: SUPPLIER_DISQUALIFIED
+
+            Note over CC: Cross-Module: Change Control<br/>for alternate supplier sourcing
+            QA->>API: POST /api/v1/change-requests<br/>{title: "Supplier Disqualification",<br/>category: "SUPPLIER",<br/>sourceType: "SUPPLIER",<br/>sourceId: supplierId}
+            Note over CC: Change Control for supply<br/>chain impact assessment
+        end
+    end

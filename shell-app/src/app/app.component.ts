@@ -14,6 +14,7 @@ import { catchError, debounceTime, distinctUntilChanged, filter, switchMap, tap 
 import { AuthService, AuthUser } from './auth/auth.service';
 import { ProfileApiService, SearchResult } from './profile/profile-api.service';
 import { TaskPanelComponent } from './tasks/task-panel.component';
+import { AiCopilotPanelComponent } from './ai/ai-copilot-panel.component';
 
 const API_BASE_URL = 'http://localhost:8082/api/v1';
 
@@ -48,6 +49,7 @@ interface NotificationItem {
     MatTooltipModule,
     MatDividerModule,
     TaskPanelComponent,
+    AiCopilotPanelComponent,
   ],
   template: `
     <router-outlet *ngIf="isLoginRoute"></router-outlet>
@@ -57,7 +59,7 @@ interface NotificationItem {
       <div class="title-bar">
         <div class="title-bar-left">
           <mat-icon class="app-logo">verified</mat-icon>
-          <span class="app-name">Mlabs QMS</span>
+          <span class="app-name">MLabs Quality</span>
           <span class="app-divider">|</span>
           <span class="app-module">{{ activeModuleLabel }}</span>
         </div>
@@ -179,6 +181,16 @@ interface NotificationItem {
           </button>
         </mat-menu>
 
+        <button class="menu-item" [matMenuTriggerFor]="aiMenu">AI</button>
+        <mat-menu #aiMenu="matMenu">
+          <button mat-menu-item routerLink="/ai/dashboard">
+            <mat-icon>dashboard</mat-icon>AI Dashboard
+          </button>
+          <mat-divider></mat-divider>
+          <button mat-menu-item disabled><mat-icon>tune</mat-icon>Agent Configuration</button>
+          <button mat-menu-item disabled><mat-icon>history</mat-icon>AI Audit Trail</button>
+        </mat-menu>
+
         <button class="menu-item" [matMenuTriggerFor]="helpMenu">Help</button>
         <mat-menu #helpMenu="matMenu">
           <button mat-menu-item disabled><mat-icon>menu_book</mat-icon>Documentation</button>
@@ -195,6 +207,8 @@ interface NotificationItem {
           <mat-icon>dashboard</mat-icon>
           <span>Dashboard</span>
         </a>
+
+        <!-- Quality Events: Deviations · Nonconformance · Complaints -->
         <button class="mod-tab mod-tab-dropdown" [matMenuTriggerFor]="qualityEventsMenu"
                 [class.active]="isQualityEventsActive()"
                 [class.disabled-tab]="!canAccessQualityEvents"
@@ -203,82 +217,109 @@ interface NotificationItem {
           <span>Quality Events</span>
           <mat-icon class="dropdown-arrow">arrow_drop_down</mat-icon>
         </button>
-        <mat-menu #qualityEventsMenu="matMenu" class="quality-events-dropdown">
+        <mat-menu #qualityEventsMenu="matMenu">
           <button mat-menu-item routerLink="/deviations" [disabled]="!canReadDeviation">
             <mat-icon>report_problem</mat-icon>
             <span>Deviations</span>
           </button>
-          <button mat-menu-item routerLink="/capa" [disabled]="!canReadCapa">
-            <mat-icon>assignment_turned_in</mat-icon>
-            <span>CAPA</span>
-          </button>
-          <button mat-menu-item routerLink="/change-control" [disabled]="!canReadChange">
-            <mat-icon>swap_horiz</mat-icon>
-            <span>Change Controls</span>
+          <button mat-menu-item routerLink="/nonconformance" [disabled]="!canReadNonconformance">
+            <mat-icon>block</mat-icon>
+            <span>Nonconformance</span>
           </button>
           <button mat-menu-item routerLink="/complaint" [disabled]="!canReadComplaint">
             <mat-icon>feedback</mat-icon>
             <span>Complaints</span>
           </button>
         </mat-menu>
-        <a class="mod-tab" routerLink="/documents" routerLinkActive="active"
-           [class.disabled-tab]="!canReadDocument"
-           [attr.aria-disabled]="!canReadDocument"
-           [tabIndex]="canReadDocument ? 0 : -1"
-           (click)="guardNav($event, canReadDocument)">
-          <mat-icon>description</mat-icon>
-          <span>Document Mgmt</span>
-        </a>
-        <a class="mod-tab" routerLink="/training" routerLinkActive="active"
-           [class.disabled-tab]="!canReadTraining"
-           [attr.aria-disabled]="!canReadTraining"
-           [tabIndex]="canReadTraining ? 0 : -1"
-           (click)="guardNav($event, canReadTraining)">
-          <mat-icon>school</mat-icon>
-          <span>Training Mgmt</span>
-        </a>
-        <a class="mod-tab" routerLink="/risk" routerLinkActive="active"
-           [class.disabled-tab]="!canReadRisk"
-           [attr.aria-disabled]="!canReadRisk"
-           [tabIndex]="canReadRisk ? 0 : -1"
-           (click)="guardNav($event, canReadRisk)">
-          <mat-icon>warning_amber</mat-icon>
-          <span>Risk Mgmt</span>
-        </a>
-        <button class="mod-tab mod-tab-dropdown" [matMenuTriggerFor]="auditsActionsMenu"
-                [class.active]="isAuditsActionsActive()"
-                [class.disabled-tab]="!canAccessAuditsActions"
-                [disabled]="!canAccessAuditsActions">
-          <mat-icon>fact_check</mat-icon>
-          <span>Audits & Actions</span>
+
+        <!-- CAPA & Change: CAPA · Change Control -->
+        <button class="mod-tab mod-tab-dropdown" [matMenuTriggerFor]="capaChangeMenu"
+                [class.active]="isCapaChangeActive()"
+                [class.disabled-tab]="!canAccessCapaChange"
+                [disabled]="!canAccessCapaChange">
+          <mat-icon>assignment_turned_in</mat-icon>
+          <span>CAPA & Change</span>
           <mat-icon class="dropdown-arrow">arrow_drop_down</mat-icon>
         </button>
-        <mat-menu #auditsActionsMenu="matMenu">
+        <mat-menu #capaChangeMenu="matMenu">
+          <button mat-menu-item routerLink="/capa" [disabled]="!canReadCapa">
+            <mat-icon>assignment_turned_in</mat-icon>
+            <span>CAPA</span>
+          </button>
+          <button mat-menu-item routerLink="/change-control" [disabled]="!canReadChange">
+            <mat-icon>swap_horiz</mat-icon>
+            <span>Change Control</span>
+          </button>
+        </mat-menu>
+
+        <!-- Audits & Suppliers: Audit Management · Supplier Quality -->
+        <button class="mod-tab mod-tab-dropdown" [matMenuTriggerFor]="auditsSuppliersMenu"
+                [class.active]="isAuditsSuppliersActive()"
+                [class.disabled-tab]="!canAccessAuditsSuppliers"
+                [disabled]="!canAccessAuditsSuppliers">
+          <mat-icon>fact_check</mat-icon>
+          <span>Audits & Suppliers</span>
+          <mat-icon class="dropdown-arrow">arrow_drop_down</mat-icon>
+        </button>
+        <mat-menu #auditsSuppliersMenu="matMenu">
           <button mat-menu-item routerLink="/audit" [disabled]="!canReadAudit">
             <mat-icon>fact_check</mat-icon>
             <span>Audit Management</span>
           </button>
           <button mat-menu-item routerLink="/supplier" [disabled]="!canReadSupplier">
             <mat-icon>local_shipping</mat-icon>
-            <span>Suppliers</span>
-          </button>
-          <button mat-menu-item routerLink="/nonconformance" [disabled]="!canReadNonconformance">
-            <mat-icon>block</mat-icon>
-            <span>Nonconformance</span>
-          </button>
-          <button mat-menu-item routerLink="/equipment" [disabled]="!canReadEquipment">
-            <mat-icon>precision_manufacturing</mat-icon>
-            <span>Equipment</span>
+            <span>Supplier Quality</span>
           </button>
         </mat-menu>
+
+        <!-- Documents & Training: Document Management · Training Management -->
+        <button class="mod-tab mod-tab-dropdown" [matMenuTriggerFor]="docsTrainingMenu"
+                [class.active]="isDocsTrainingActive()"
+                [class.disabled-tab]="!canAccessDocsTraining"
+                [disabled]="!canAccessDocsTraining">
+          <mat-icon>description</mat-icon>
+          <span>Documents & Training</span>
+          <mat-icon class="dropdown-arrow">arrow_drop_down</mat-icon>
+        </button>
+        <mat-menu #docsTrainingMenu="matMenu">
+          <button mat-menu-item routerLink="/documents" [disabled]="!canReadDocument">
+            <mat-icon>description</mat-icon>
+            <span>Document Management</span>
+          </button>
+          <button mat-menu-item routerLink="/training" [disabled]="!canReadTraining">
+            <mat-icon>school</mat-icon>
+            <span>Training Management</span>
+          </button>
+        </mat-menu>
+
+        <!-- Risk Management (standalone) -->
+        <a class="mod-tab" routerLink="/risk" routerLinkActive="active"
+           [class.disabled-tab]="!canReadRisk"
+           [attr.aria-disabled]="!canReadRisk"
+           [tabIndex]="canReadRisk ? 0 : -1"
+           (click)="guardNav($event, canReadRisk)">
+          <mat-icon>warning_amber</mat-icon>
+          <span>Risk Management</span>
+        </a>
+
+        <!-- Equipment (standalone) -->
+        <a class="mod-tab" routerLink="/equipment" routerLinkActive="active"
+           [class.disabled-tab]="!canReadEquipment"
+           [attr.aria-disabled]="!canReadEquipment"
+           [tabIndex]="canReadEquipment ? 0 : -1"
+           (click)="guardNav($event, canReadEquipment)">
+          <mat-icon>precision_manufacturing</mat-icon>
+          <span>Equipment</span>
+        </a>
+
         <div class="tab-spacer"></div>
         <div class="tab-actions">
           <button class="quick-action-btn" [matMenuTriggerFor]="quickCreate" matTooltip="Quick Create" [disabled]="!canQuickCreate">
             <mat-icon>add</mat-icon> New
           </button>
           <mat-menu #quickCreate="matMenu">
-            <button mat-menu-item routerLink="/capa/create" [disabled]="!canCreateCapa"><mat-icon>assignment_turned_in</mat-icon>New CAPA</button>
             <button mat-menu-item routerLink="/deviations/create" [disabled]="!canCreateDeviation"><mat-icon>report_problem</mat-icon>New Deviation</button>
+            <button mat-menu-item routerLink="/capa/create" [disabled]="!canCreateCapa"><mat-icon>assignment_turned_in</mat-icon>New CAPA</button>
             <button mat-menu-item routerLink="/change-control/create" [disabled]="!canCreateChange"><mat-icon>swap_horiz</mat-icon>New Change Request</button>
             <button mat-menu-item routerLink="/documents/create" [disabled]="!canCreateDocument"><mat-icon>description</mat-icon>New Document</button>
             <button mat-menu-item routerLink="/training/curricula/create" [disabled]="!canCreateTraining"><mat-icon>school</mat-icon>New Curriculum</button>
@@ -305,12 +346,13 @@ interface NotificationItem {
         </div>
       </div>
 
-      <!-- ═══ MAIN CONTENT WITH TASK PANEL ═══ -->
+      <!-- ═══ MAIN CONTENT WITH TASK PANEL & AI PANEL ═══ -->
       <div class="content-wrapper">
         <qms-task-panel></qms-task-panel>
         <div class="content-area">
           <router-outlet></router-outlet>
         </div>
+        <qms-ai-copilot-panel></qms-ai-copilot-panel>
       </div>
 
       <!-- ═══ STATUS BAR ═══ -->
@@ -548,7 +590,9 @@ export class AppComponent implements OnDestroy {
   canReadEquipment = false;
   canCreateEquipment = false;
   canAccessQualityEvents = false;
-  canAccessAuditsActions = false;
+  canAccessCapaChange = false;
+  canAccessAuditsSuppliers = false;
+  canAccessDocsTraining = false;
   canQuickCreate = false;
   searchTerm = '';
   searchResults: SearchResult[] = [];
@@ -657,12 +701,22 @@ export class AppComponent implements OnDestroy {
 
   isQualityEventsActive(): boolean {
     const url = this.router.url;
-    return url.startsWith('/deviations') || url.startsWith('/capa') || url.startsWith('/change-control') || url.startsWith('/complaint');
+    return url.startsWith('/deviations') || url.startsWith('/nonconformance') || url.startsWith('/complaint');
   }
 
-  isAuditsActionsActive(): boolean {
+  isCapaChangeActive(): boolean {
     const url = this.router.url;
-    return url.startsWith('/audit') || url.startsWith('/supplier') || url.startsWith('/nonconformance') || url.startsWith('/equipment');
+    return url.startsWith('/capa') || url.startsWith('/change-control');
+  }
+
+  isAuditsSuppliersActive(): boolean {
+    const url = this.router.url;
+    return url.startsWith('/audit') || url.startsWith('/supplier');
+  }
+
+  isDocsTrainingActive(): boolean {
+    const url = this.router.url;
+    return url.startsWith('/documents') || url.startsWith('/training');
   }
 
   notificationIcon(notification: NotificationItem): string {
@@ -701,6 +755,7 @@ export class AppComponent implements OnDestroy {
     else if (url.startsWith('/complaint')) this.activeModuleLabel = 'Complaints';
     else if (url.startsWith('/nonconformance')) this.activeModuleLabel = 'Nonconformance';
     else if (url.startsWith('/equipment')) this.activeModuleLabel = 'Equipment';
+    else if (url.startsWith('/ai')) this.activeModuleLabel = 'AI Agents';
     else if (url.startsWith('/admin')) this.activeModuleLabel = 'Administration';
     else if (url.startsWith('/tools')) this.activeModuleLabel = 'Tools';
     else if (url.startsWith('/profile')) this.activeModuleLabel = 'My Account';
@@ -790,8 +845,10 @@ export class AppComponent implements OnDestroy {
       this.canReadEquipment = this.authService.hasPermission('EQUIPMENT', 'READ', 'equipment') ||
         this.authService.hasPermission('EQUIPMENT', 'READ', 'calibration');
       this.canCreateEquipment = this.authService.hasPermission('EQUIPMENT', 'CREATE', 'equipment');
-      this.canAccessQualityEvents = this.canReadDeviation || this.canReadCapa || this.canReadChange || this.canReadComplaint;
-      this.canAccessAuditsActions = this.canReadAudit || this.canReadSupplier || this.canReadNonconformance || this.canReadEquipment;
+      this.canAccessQualityEvents = this.canReadDeviation || this.canReadNonconformance || this.canReadComplaint;
+      this.canAccessCapaChange = this.canReadCapa || this.canReadChange;
+      this.canAccessAuditsSuppliers = this.canReadAudit || this.canReadSupplier;
+      this.canAccessDocsTraining = this.canReadDocument || this.canReadTraining;
       this.canQuickCreate = this.canCreateCapa || this.canCreateDeviation || this.canCreateChange ||
         this.canCreateDocument || this.canCreateTraining || this.canCreateRisk || this.canCreateSupplier ||
         this.canCreateComplaint || this.canCreateNonconformance || this.canCreateEquipment;
@@ -828,7 +885,9 @@ export class AppComponent implements OnDestroy {
     this.canReadEquipment = false;
     this.canCreateEquipment = false;
     this.canAccessQualityEvents = false;
-    this.canAccessAuditsActions = false;
+    this.canAccessCapaChange = false;
+    this.canAccessAuditsSuppliers = false;
+    this.canAccessDocsTraining = false;
     this.canQuickCreate = false;
   }
 }

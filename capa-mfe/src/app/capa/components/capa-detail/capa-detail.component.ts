@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -11,9 +12,15 @@ import { MatStepperModule } from '@angular/material/stepper';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { CapaService } from '../../services/capa.service';
 import { Capa, CapaStatus } from '../../models/capa.model';
 import { ESignatureDialogComponent } from '../e-signature-dialog/e-signature-dialog.component';
+import { CapaActionDialogComponent } from '../capa-action-dialog/capa-action-dialog.component';
+import { CapaEffectivenessDialogComponent } from '../capa-effectiveness-dialog/capa-effectiveness-dialog.component';
 
 function getUserRoleCodes(): string[] {
   const raw = localStorage.getItem('auth') || sessionStorage.getItem('auth');
@@ -49,6 +56,11 @@ interface WorkflowAction {
     MatTableModule,
     MatTooltipModule,
     MatDialogModule,
+    MatSnackBarModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
+    FormsModule,
   ],
   template: `
     <div class="capa-detail" *ngIf="capa">
@@ -80,6 +92,46 @@ interface WorkflowAction {
                 [disabled]="actionInProgress">
           {{ action.label }}
         </button>
+      </div>
+
+      <!-- Risk Assessment Form Overlay -->
+      <div class="overlay-backdrop" *ngIf="riskFormVisible" (click)="cancelRiskForm()"></div>
+      <div class="overlay-form" *ngIf="riskFormVisible">
+        <h3>Risk Assessment (S x O x D)</h3>
+        <div class="form-row">
+          <mat-form-field appearance="outline">
+            <mat-label>Severity (1-5)</mat-label>
+            <mat-select [(ngModel)]="riskForm.severity">
+              <mat-option *ngFor="let v of [1,2,3,4,5]" [value]="v">{{ v }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Occurrence (1-5)</mat-label>
+            <mat-select [(ngModel)]="riskForm.occurrence">
+              <mat-option *ngFor="let v of [1,2,3,4,5]" [value]="v">{{ v }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Detection (1-5)</mat-label>
+            <mat-select [(ngModel)]="riskForm.detection">
+              <mat-option *ngFor="let v of [1,2,3,4,5]" [value]="v">{{ v }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+        <div class="rpn-display">
+          RPN: <strong>{{ riskForm.severity * riskForm.occurrence * riskForm.detection }}</strong>
+          &mdash; Risk Level: <strong>{{ computeRiskLevel() }}</strong>
+        </div>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Justification</mat-label>
+          <textarea matInput [(ngModel)]="riskForm.justification" rows="3"></textarea>
+        </mat-form-field>
+        <div class="form-actions">
+          <button mat-button (click)="cancelRiskForm()">Cancel</button>
+          <button mat-raised-button color="primary" [disabled]="riskSubmitting || !riskForm.justification" (click)="submitRiskForm()">
+            {{ riskSubmitting ? 'Submitting...' : 'Submit & Proceed' }}
+          </button>
+        </div>
       </div>
 
       <!-- Workflow Progress -->
@@ -274,7 +326,12 @@ interface WorkflowAction {
         <mat-tab label="Actions">
           <div class="tab-content">
             <mat-card class="info-card">
-              <h3>Corrective Actions ({{ capa.correctiveActions.length }})</h3>
+              <div class="section-header">
+                <h3>Corrective Actions ({{ capa.correctiveActions.length }})</h3>
+                <button mat-raised-button color="primary" *ngIf="capa.status === 'ACTION_PLANNING'" (click)="openAddActionDialog('CORRECTIVE')">
+                  <mat-icon>add</mat-icon> Add Corrective Action
+                </button>
+              </div>
               <div class="actions-list" *ngIf="capa.correctiveActions.length; else noActions">
                 <div class="action-item" *ngFor="let action of capa.correctiveActions">
                   <div class="action-header">
@@ -291,12 +348,25 @@ interface WorkflowAction {
                       <mat-icon>check</mat-icon> Completed: {{ action.completedDate | date:'dd-MMM-yyyy' }}
                     </span>
                   </div>
+                  <div class="action-buttons" *ngIf="capa.status === 'ACTION_IN_PROGRESS'">
+                    <button mat-stroked-button color="primary" *ngIf="action.status === 'PENDING' || action.status === 'IN_PROGRESS'" (click)="completeAction(action)">
+                      <mat-icon>check_circle</mat-icon> Complete
+                    </button>
+                    <button mat-stroked-button color="accent" *ngIf="action.status === 'COMPLETED'" (click)="verifyAction(action)">
+                      <mat-icon>verified</mat-icon> Verify
+                    </button>
+                  </div>
                 </div>
               </div>
             </mat-card>
 
             <mat-card class="info-card">
-              <h3>Preventive Actions ({{ capa.preventiveActions.length }})</h3>
+              <div class="section-header">
+                <h3>Preventive Actions ({{ capa.preventiveActions.length }})</h3>
+                <button mat-raised-button color="primary" *ngIf="capa.status === 'ACTION_PLANNING'" (click)="openAddActionDialog('PREVENTIVE')">
+                  <mat-icon>add</mat-icon> Add Preventive Action
+                </button>
+              </div>
               <div class="actions-list" *ngIf="capa.preventiveActions.length; else noActions">
                 <div class="action-item" *ngFor="let action of capa.preventiveActions">
                   <div class="action-header">
@@ -312,6 +382,14 @@ interface WorkflowAction {
                     <span *ngIf="action.completedDate">
                       <mat-icon>check</mat-icon> Completed: {{ action.completedDate | date:'dd-MMM-yyyy' }}
                     </span>
+                  </div>
+                  <div class="action-buttons" *ngIf="capa.status === 'ACTION_IN_PROGRESS'">
+                    <button mat-stroked-button color="primary" *ngIf="action.status === 'PENDING' || action.status === 'IN_PROGRESS'" (click)="completeAction(action)">
+                      <mat-icon>check_circle</mat-icon> Complete
+                    </button>
+                    <button mat-stroked-button color="accent" *ngIf="action.status === 'COMPLETED'" (click)="verifyAction(action)">
+                      <mat-icon>verified</mat-icon> Verify
+                    </button>
                   </div>
                 </div>
               </div>
@@ -369,6 +447,9 @@ interface WorkflowAction {
                 <mat-icon>verified</mat-icon>
                 <h3>Effectiveness Check Not Yet Due</h3>
                 <p>The effectiveness verification will be available after all actions are completed.</p>
+                <button mat-raised-button color="primary" *ngIf="capa.status === 'EFFECTIVENESS_CHECK'" (click)="openEffectivenessDialog()">
+                  <mat-icon>fact_check</mat-icon> Submit Effectiveness Check
+                </button>
               </mat-card>
             </ng-template>
           </div>
@@ -866,6 +947,32 @@ interface WorkflowAction {
       margin-top: 4px;
     }
 
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .section-header h3 {
+      margin: 0;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    .action-buttons button mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      margin-right: 4px;
+    }
+
     .empty-state {
       text-align: center;
       padding: 48px 20px;
@@ -887,6 +994,28 @@ interface WorkflowAction {
       margin-bottom: 16px;
     }
 
+    .overlay-backdrop {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.4); z-index: 1000;
+    }
+    .overlay-form {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      background: white; border-radius: 12px; padding: 24px; z-index: 1001;
+      width: 520px; max-width: 90vw; box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+    .overlay-form h3 { margin: 0 0 16px; }
+    .overlay-form .form-row {
+      display: flex; gap: 12px;
+    }
+    .overlay-form .form-row mat-form-field { flex: 1; }
+    .overlay-form .full-width { width: 100%; }
+    .overlay-form .rpn-display {
+      margin: -8px 0 12px; font-size: 14px; color: #555;
+    }
+    .overlay-form .form-actions {
+      display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px;
+    }
+
     @media (max-width: 768px) {
       .detail-grid {
         grid-template-columns: 1fr;
@@ -902,12 +1031,16 @@ interface WorkflowAction {
 export class CapaDetailComponent implements OnInit {
   capa: Capa | null = null;
   actionInProgress = false;
+  riskFormVisible = false;
+  riskSubmitting = false;
+  riskForm = { severity: 3, occurrence: 3, detection: 3, justification: '' };
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private capaService: CapaService,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private snackBar: MatSnackBar
   ) {}
 
   ngOnInit(): void {
@@ -992,7 +1125,7 @@ export class CapaDetailComponent implements OnInit {
       [CapaStatus.EFFECTIVENESS_CHECK]: [
         { label: 'Approve Effectiveness', targetStatus: CapaStatus.PENDING_CLOSURE, type: 'primary', requiresESign: true,
           requiredRoles: ['QA_APPROVER', 'VAULT_ADMIN'] },
-        { label: 'Reopen Actions', targetStatus: CapaStatus.ACTION_IN_PROGRESS, type: 'danger', requiresComment: true,
+        { label: 'Reopen Actions', targetStatus: CapaStatus.ACTION_PLANNING, type: 'danger', requiresComment: true,
           requiredRoles: ['QA_REVIEWER', 'QA_APPROVER', 'VAULT_ADMIN'] },
       ],
       [CapaStatus.PENDING_CLOSURE]: [
@@ -1006,6 +1139,47 @@ export class CapaDetailComponent implements OnInit {
 
   executeWorkflowAction(action: WorkflowAction): void {
     if (!this.capa) return;
+
+    // Intercept transitions that need dedicated API calls
+    if (action.targetStatus === CapaStatus.ACTION_IN_PROGRESS) {
+      this.actionInProgress = true;
+      this.capaService.startActionExecution(this.capa.id).subscribe({
+        next: () => {
+          this.actionInProgress = false;
+          this.snackBar.open('Action execution started', 'OK', { duration: 3000 });
+          this.reloadCapa();
+        },
+        error: (err) => {
+          this.actionInProgress = false;
+          const msg = err.error?.message || err.error?.error || 'Failed to start action execution';
+          this.snackBar.open(msg, 'Close', { duration: 5000 });
+        },
+      });
+      return;
+    }
+
+    if (action.targetStatus === CapaStatus.EFFECTIVENESS_CHECK && this.capa.status === CapaStatus.ACTION_IN_PROGRESS) {
+      this.actionInProgress = true;
+      this.capaService.completeActionExecution(this.capa.id).subscribe({
+        next: () => {
+          this.actionInProgress = false;
+          this.snackBar.open('Action execution completed', 'OK', { duration: 3000 });
+          this.reloadCapa();
+        },
+        error: (err) => {
+          this.actionInProgress = false;
+          const msg = err.error?.message || err.error?.error || 'Failed to complete action execution';
+          this.snackBar.open(msg, 'Close', { duration: 5000 });
+        },
+      });
+      return;
+    }
+
+    if (action.targetStatus === CapaStatus.ACTION_PLANNING && this.capa.status === CapaStatus.ROOT_CAUSE_IDENTIFIED) {
+      // Need risk assessment before proceeding to action planning
+      this.openRiskAssessmentForm();
+      return;
+    }
 
     if (action.requiresESign) {
       const dialogRef = this.dialog.open(ESignatureDialogComponent, {
@@ -1039,15 +1213,123 @@ export class CapaDetailComponent implements OnInit {
     this.capaService.updateCapaStatus(this.capa.id, targetStatus, comments).subscribe({
       next: (updated) => {
         this.actionInProgress = false;
-        this.capaService.getCapaById(this.capa!.id).subscribe((full) => {
-          if (full) this.capa = full;
-        });
+        if (updated) this.capa = updated;
+        this.snackBar.open('Status updated successfully', 'OK', { duration: 3000 });
       },
       error: (err) => {
         this.actionInProgress = false;
-        console.error('Status change failed:', err);
-        alert('Failed to update status. Please try again.');
+        const msg = err.error?.message || err.error?.error || 'Failed to update status. Please try again.';
+        this.snackBar.open(msg, 'Close', { duration: 5000 });
       },
+    });
+  }
+
+  private reloadCapa(): void {
+    if (!this.capa) return;
+    this.capaService.getCapaById(this.capa.id).subscribe((full) => {
+      if (full) this.capa = full;
+    });
+  }
+
+  openRiskAssessmentForm(): void {
+    this.riskForm = { severity: 3, occurrence: 3, detection: 3, justification: '' };
+    this.riskFormVisible = true;
+  }
+
+  cancelRiskForm(): void {
+    this.riskFormVisible = false;
+  }
+
+  computeRiskLevel(): string {
+    const rpn = this.riskForm.severity * this.riskForm.occurrence * this.riskForm.detection;
+    if (rpn >= 60) return 'CRITICAL';
+    if (rpn >= 30) return 'HIGH';
+    if (rpn >= 10) return 'MEDIUM';
+    return 'LOW';
+  }
+
+  submitRiskForm(): void {
+    if (!this.capa) return;
+    this.riskSubmitting = true;
+    const payload = {
+      severity: this.riskForm.severity,
+      occurrence: this.riskForm.occurrence,
+      detection: this.riskForm.detection,
+      riskLevel: this.computeRiskLevel(),
+      justification: this.riskForm.justification,
+    };
+    this.capaService.submitRiskAssessment(this.capa.id, payload).subscribe({
+      next: () => {
+        this.riskSubmitting = false;
+        this.riskFormVisible = false;
+        this.snackBar.open('Risk assessment submitted, proceeding to Action Planning', 'OK', { duration: 3000 });
+        this.reloadCapa();
+      },
+      error: (err) => {
+        this.riskSubmitting = false;
+        const msg = err.error?.message || err.error?.error || 'Failed to submit risk assessment';
+        this.snackBar.open(msg, 'Close', { duration: 5000 });
+      },
+    });
+  }
+
+  openAddActionDialog(type: 'CORRECTIVE' | 'PREVENTIVE'): void {
+    if (!this.capa) return;
+    const dialogRef = this.dialog.open(CapaActionDialogComponent, {
+      width: '520px',
+      data: { capaId: this.capa.id, actionType: type },
+    });
+    dialogRef.afterClosed().subscribe((result) => {
+      if (result?.saved) {
+        this.snackBar.open(`${type === 'CORRECTIVE' ? 'Corrective' : 'Preventive'} action added`, 'OK', { duration: 3000 });
+        this.reloadCapa();
+      }
+    });
+  }
+
+  completeAction(action: any): void {
+    if (!this.capa) return;
+    const evidence = prompt('Provide completion evidence:');
+    if (evidence === null || !evidence.trim()) return;
+    this.capaService.completeAction(this.capa.id, action.id, { evidence }).subscribe({
+      next: () => {
+        this.snackBar.open('Action marked as completed', 'OK', { duration: 3000 });
+        this.reloadCapa();
+      },
+      error: (err) => {
+        console.error('Complete action failed:', err);
+        alert('Failed to complete action.');
+      },
+    });
+  }
+
+  verifyAction(action: any): void {
+    if (!this.capa) return;
+    const comments = prompt('Provide verification comments:');
+    if (comments === null || !comments.trim()) return;
+    this.capaService.verifyAction(this.capa.id, action.id, { verificationComments: comments }).subscribe({
+      next: () => {
+        this.snackBar.open('Action verified', 'OK', { duration: 3000 });
+        this.reloadCapa();
+      },
+      error: (err) => {
+        console.error('Verify action failed:', err);
+        alert('Failed to verify action.');
+      },
+    });
+  }
+
+  openEffectivenessDialog(): void {
+    if (!this.capa) return;
+    const dialogRef = this.dialog.open(CapaEffectivenessDialogComponent, {
+      width: '560px',
+      data: { capaId: this.capa.id },
+    });
+    dialogRef.afterClosed().subscribe((result) => {
+      if (result?.saved) {
+        this.snackBar.open('Effectiveness check submitted', 'OK', { duration: 3000 });
+        this.reloadCapa();
+      }
     });
   }
 }

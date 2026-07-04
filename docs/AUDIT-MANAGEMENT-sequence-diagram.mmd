@@ -1,0 +1,204 @@
+%%{init: {'theme': 'base', 'themeVariables': {'actorBkg': '#37474f', 'actorTextColor': '#fff', 'actorBorder': '#263238', 'signalColor': '#333', 'noteBkgColor': '#fff8e1', 'noteBorderColor': '#ED8B00'}}}%%
+
+sequenceDiagram
+    autonumber
+
+    participant QM as QA Manager<br/>(QA_APPROVER)
+    participant API as Spring Boot API<br/>(AuditService)
+    participant FL as Flowable Engine<br/>(auditProcess)
+    participant DB as PostgreSQL<br/>(Database)
+    participant LA as Lead Auditor<br/>(AUDITOR)
+    participant AU as Auditee<br/>(END_USER)
+    participant QR as QA Reviewer<br/>(QA_REVIEWER)
+    participant NS as Notification<br/>Service
+    participant CP as CAPA<br/>(Cross-Module)
+    participant DV as Deviation<br/>(Cross-Module)
+    participant CC as Change Control<br/>(Cross-Module)
+
+    rect rgb(232, 244, 248)
+        Note over QM,NS: Step 1: Create Annual Audit Plan (DRAFT)
+        QM->>API: POST /api/v1/audits/plans<br/>{title, description, planYear,<br/>auditType, departmentId, plantSiteId,<br/>ownerId}
+        API->>DB: Generate plan number (AP-2026-001)
+        API->>DB: INSERT audit_plans (status=DRAFT)
+        API->>DB: Audit trail: CREATED
+        API-->>QM: 201 Created (AuditPlanResponse)
+
+        QM->>API: PATCH /api/v1/audits/plans/{id}/status<br/>{status: "APPROVED"}
+        API->>DB: Status = APPROVED, approvedDate = now()
+        API->>DB: Audit trail: PLAN_APPROVED
+        API-->>QM: 200 OK
+    end
+
+    rect rgb(255, 248, 225)
+        Note over QM,NS: Step 2: Schedule Audit (PLANNED)
+        QM->>API: POST /api/v1/audits<br/>{auditPlanId, title, description,<br/>auditType, auditScope, category,<br/>scheduledStartDate, scheduledEndDate,<br/>reportDueDate, leadAuditorId,<br/>auditeeDepartmentId, auditeeContactId,<br/>plantSiteId, areaAudited, frequency,<br/>standardsReference}
+        API->>DB: Generate audit number (AUD-2026-001)
+        API->>DB: INSERT audits (status=PLANNED,<br/>lifecycleState=DRAFT)
+        API->>FL: startProcess("auditProcess", vars)<br/>{recordId, auditNumber, leadAuditorId,<br/>auditeeContactId, auditType,<br/>scheduledStartDate, reportDueDate}
+        FL-->>FL: Create conductAudit task<br/>(assignee: leadAuditorId)
+        API->>DB: Workflow: "Planning" COMPLETED
+        API->>DB: Workflow: "Conduct Audit" CURRENT
+        API->>DB: Audit trail: AUDIT_SCHEDULED
+        NS->>DB: INSERT notification (TASK_ASSIGNED)
+        NS-->>LA: "Audit Assigned" notification
+        NS-->>AU: "Upcoming Audit" notification
+        API-->>QM: 201 Created (AuditResponse)
+    end
+
+    rect rgb(232, 244, 248)
+        Note over LA,NS: Step 3: Conduct Audit (PLANNED -> IN_PROGRESS)
+        LA->>API: PATCH /api/v1/audits/{id}/status<br/>{status: "IN_PROGRESS"}
+        API->>DB: Status = IN_PROGRESS
+        API->>DB: actualStartDate = now()
+        API->>DB: Audit trail: STATUS_CHANGED
+
+        Note over LA: Conduct audit activities:<br/>- Document review<br/>- Process observation<br/>- Personnel interviews<br/>- Evidence collection
+
+        loop Record Findings
+            LA->>API: POST /api/v1/audits/{auditId}/findings<br/>{title, description, classification,<br/>area, standardReference,<br/>objectiveEvidence, responseDueDate}
+            API->>DB: Generate finding number (AF-2026-001)
+            API->>DB: INSERT audit_findings (status=OPEN)
+            API->>DB: Audit trail: FINDING_RECORDED
+            NS->>DB: INSERT notification (FINDING_RAISED)
+            NS-->>AU: "Audit Finding Raised" notification
+        end
+
+        LA->>API: PUT /api/v1/audits/{id}<br/>{executiveSummary, findingsSummary}
+        API->>DB: UPDATE audits
+        API-->>LA: 200 OK
+    end
+
+    rect rgb(255, 248, 225)
+        Note over LA,NS: Step 4: Complete Audit & Submit Report (IN_PROGRESS -> COMPLETED)
+        LA->>API: PATCH /api/v1/audits/{id}/status<br/>{status: "COMPLETED"}
+        API->>DB: Status = COMPLETED
+        API->>DB: actualEndDate = now()
+        API->>FL: completeTask("conductAudit")
+        FL-->>FL: Create auditeeResponse task<br/>(assignee: auditeeContactId)
+        API->>DB: Workflow: "Conduct Audit" COMPLETED
+        API->>DB: Workflow: "Auditee Response" CURRENT
+        API->>DB: Audit trail: AUDIT_COMPLETED
+        NS-->>AU: "Audit Report Available -<br/>Response Required" notification
+        API-->>LA: 200 OK
+
+        opt After reportDueDate (boundary timer)
+            FL->>NS: escalationDelegate<br/>AUDIT_REPORT_OVERDUE
+            NS-->>LA: Overdue escalation notification
+        end
+    end
+
+    rect rgb(232, 244, 248)
+        Note over AU,NS: Step 5: Auditee Response (Finding Response)
+        loop For each OPEN finding
+            AU->>API: PUT /api/v1/audits/findings/{findingId}<br/>{auditeeResponse: "corrective action plan",<br/>capaRequired: true/false}
+            API->>DB: UPDATE audit_findings<br/>(auditeeResponse recorded)
+            API->>DB: Audit trail: AUDITEE_RESPONSE
+
+            alt CAPA Required
+                Note over AU,CP: Cross-Module: CAPA Initiation
+                AU->>API: Flag finding as capaRequired = true
+                API->>DB: UPDATE audit_findings<br/>SET capaRequired = true
+            end
+        end
+
+        AU->>API: Submit all responses
+        API->>FL: completeTask("auditeeResponse")
+        FL-->>FL: Create reviewResponse task<br/>(candidateGroups: QA_REVIEWER, AUDITOR)
+        API->>DB: Workflow: "Auditee Response" COMPLETED
+        API->>DB: Workflow: "Review Response" CURRENT
+        API-->>AU: 200 OK
+    end
+
+    rect rgb(243, 229, 245)
+        Note over CP,CC: Cross-Module: CAPA Creation from Findings
+        Note over CP: For findings where capaRequired = true
+
+        QR->>API: POST /api/v1/capas<br/>{sourceType: "AUDIT_FINDING",<br/>sourceId: findingId,<br/>title: finding.title,<br/>description: finding.objectiveEvidence}
+        API->>DB: INSERT capas (linked to audit finding)
+        API->>DB: UPDATE audit_findings<br/>SET capa_id = newCapaId
+        API->>DB: Audit trail: CAPA_INITIATED_FROM_FINDING
+        Note over CP: CAPA follows its own<br/>workflow lifecycle
+
+        opt Finding triggers Deviation
+            Note over DV: Critical finding may require<br/>Deviation report
+            QR->>API: POST /api/v1/deviations<br/>{sourceType: "AUDIT_FINDING",<br/>sourceId: findingId}
+            API->>DB: INSERT deviations<br/>(linked to audit finding)
+        end
+
+        opt Finding triggers Change Control
+            Note over CC: Systemic finding may require<br/>process/document change
+            QR->>API: POST /api/v1/change-requests<br/>{sourceType: "AUDIT_FINDING",<br/>sourceId: findingId}
+            API->>DB: INSERT change_requests<br/>(linked to audit finding)
+        end
+    end
+
+    rect rgb(255, 248, 225)
+        Note over QR,NS: Step 6: Review Auditee Response
+        QR->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        Note over QR: Review adequacy of responses<br/>and corrective action plans
+
+        alt Responses Adequate
+            QR->>API: PATCH /api/v1/audits/{id}/status<br/>{status: "FOLLOW_UP"}
+            API->>FL: completeTask("reviewResponse",<br/>{responseDecision: "ACCEPTED"})
+            FL-->>FL: Create verifyFindings task<br/>(candidateGroups: AUDITOR, QA_REVIEWER)
+            API->>DB: Workflow: "Review Response" COMPLETED
+            API->>DB: Workflow: "Verify Findings" CURRENT
+        else Responses Inadequate
+            QR->>API: Return findings for additional response
+            API->>FL: completeTask("reviewResponse",<br/>{responseDecision: "REVISION_REQUIRED"})
+            FL-->>FL: Loop back to auditeeResponse task
+            NS-->>AU: "Additional Response Required" notification
+        end
+        API-->>QR: 200 OK
+    end
+
+    rect rgb(232, 244, 248)
+        Note over LA,NS: Step 7: Verify Finding Closure (FOLLOW_UP)
+        LA->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        loop For each finding
+            Note over LA: Verify corrective actions<br/>have been implemented
+
+            LA->>API: PUT /api/v1/audits/findings/{findingId}<br/>{status: "CLOSED",<br/>verifiedBy: userId,<br/>verifiedDate: now(),<br/>verificationComments: "evidence verified"}
+            API->>DB: UPDATE audit_findings<br/>(status=CLOSED, verification data)
+            API->>DB: Audit trail: FINDING_VERIFIED
+        end
+
+        LA->>API: All findings verified
+        API->>FL: completeTask("verifyFindings")
+        FL-->>FL: Create closeAudit task<br/>(candidateGroups: QA_APPROVER)
+        API->>DB: Workflow: "Verify Findings" COMPLETED
+        API->>DB: Workflow: "Close Audit" CURRENT
+        API-->>LA: 200 OK
+    end
+
+    rect rgb(255, 248, 225)
+        Note over QM,NS: Step 8: Close Audit (FOLLOW_UP -> CLOSED)
+        QM->>API: POST /api/v1/tasks/{taskId}/claim
+        API->>FL: claimTask(taskId, userId)
+
+        Note over QM: Final review of all findings,<br/>responses, and verifications
+        Note over QM: E-Signature Dialog opens
+
+        QM->>API: PATCH /api/v1/audits/{id}/status<br/>{status: "CLOSED"}<br/>(with e-signature)
+
+        API->>API: validateClosureRules()<br/>- All findings CLOSED?<br/>- All CAPAs initiated (if required)?<br/>- All responses reviewed?
+
+        API->>FL: completeTask("closeAudit")
+        FL-->>FL: notifyClosed service task fires
+        FL->>NS: notificationDelegate<br/>"Audit Closed: AUD-2026-001"
+        NS->>DB: INSERT notification (STATUS_CHANGE)
+        NS-->>LA: "Audit Closed" notification
+        NS-->>AU: "Audit Closed" notification
+
+        API->>DB: Status = CLOSED
+        API->>DB: Workflow: "Close Audit" COMPLETED
+        API->>DB: Workflow: "Closed" COMPLETED
+        API->>DB: Audit trail: STATUS_CHANGED -> CLOSED
+        FL-->>FL: Process ends
+
+        API-->>QM: 200 OK
+    end
