@@ -755,7 +755,7 @@ export class AppComponent implements OnDestroy {
     else if (url.startsWith('/complaint')) this.activeModuleLabel = 'Complaints';
     else if (url.startsWith('/nonconformance')) this.activeModuleLabel = 'Nonconformance';
     else if (url.startsWith('/equipment')) this.activeModuleLabel = 'Equipment';
-    else if (url.startsWith('/ai')) this.activeModuleLabel = 'AI Dashboard';
+    else if (url.startsWith('/ai')) this.activeModuleLabel = 'AI Agents';
     else if (url.startsWith('/admin')) this.activeModuleLabel = 'Administration';
     else if (url.startsWith('/tools')) this.activeModuleLabel = 'Tools';
     else if (url.startsWith('/profile')) this.activeModuleLabel = 'My Account';

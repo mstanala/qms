@@ -72,14 +72,6 @@ import { AuthService } from '../../auth/auth.service';
               {{ isSubmitting ? 'Signing in...' : 'Sign in' }}
             </button>
           </form>
-
-          <div class="demo-credentials">
-            <mat-icon>info</mat-icon>
-            <div>
-              <strong>Demo Access</strong>
-              <span>Username: <code>demo.user</code> &nbsp;|&nbsp; Password: <code>Password&#64;123</code></span>
-            </div>
-          </div>
         </mat-card>
       </section>
     </div>
@@ -146,26 +138,11 @@ import { AuthService } from '../../auth/auth.service';
       margin-top: 2px;
     }
     .login-btn mat-icon { margin-right: 6px; }
-    .demo-credentials {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      margin-top: 16px;
-      padding: 12px 14px;
-      border-radius: 6px;
-      background: #f0f7ff;
-      border: 1px solid #bdd7ee;
-    }
-    .demo-credentials mat-icon { width: 18px; height: 18px; font-size: 18px; color: #2C5F7C; margin-top: 1px; }
-    .demo-credentials div { display: flex; flex-direction: column; gap: 2px; }
-    .demo-credentials strong { font-size: 12px; color: #1B3A4B; }
-    .demo-credentials span { font-size: 12px; color: #475569; }
-    .demo-credentials code { background: #e2ecf4; padding: 1px 5px; border-radius: 3px; font-family: monospace; font-size: 12px; color: #1B3A4B; }
   `],
 })
 export class LoginComponent implements OnInit {
   loginForm = this.fb.group({
-    username: ['demo.user', Validators.required],
+    username: ['rajesh.kumar', Validators.required],
     password: ['Password@123', Validators.required],
   });
   showPassword = false;

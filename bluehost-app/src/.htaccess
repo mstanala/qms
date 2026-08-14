@@ -1,5 +1,5 @@
 RewriteEngine On
-RewriteBase /eqms/
+RewriteBase /pharma-eqms/
 
 # Proper MIME types for JS and CSS (in case server defaults are wrong)
 AddType application/javascript .js
