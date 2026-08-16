@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { HttpErrorResponse } from '@angular/common/http';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -120,7 +121,16 @@ import { QmsDocument } from '../../models/document.model';
                 </tr>
               </tbody>
             </table>
-            <div class="empty" *ngIf="!attachments.length">No files uploaded for this document</div>
+            <div class="empty error" *ngIf="attachmentsError">
+              <mat-icon>error_outline</mat-icon>
+              <span>{{ attachmentsError }}</span>
+              <button type="button" class="icon-action" title="Retry" (click)="retryAttachments()">
+                <mat-icon>refresh</mat-icon>
+              </button>
+            </div>
+            <div class="empty" *ngIf="!attachments.length && !attachmentsError && !attachmentsLoading">
+              No files uploaded for this document
+            </div>
           </div>
         </mat-tab>
 
@@ -293,12 +303,16 @@ import { QmsDocument } from '../../models/document.model';
     .clickable mat-icon { color: #888; font-size: 18px; }
     .clickable:hover mat-icon { color: #388e3c; }
     .empty { text-align: center; padding: 24px; color: #888; font-size: 12px; }
+    .empty.error { color: #c62828; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .empty.error mat-icon { font-size: 18px; width: 18px; height: 18px; }
     .loading { text-align: center; padding: 40px; color: #888; }
   `],
 })
 export class DocDetailComponent implements OnInit {
   doc: QmsDocument | null = null;
   attachments: AttachmentFile[] = [];
+  attachmentsLoading = false;
+  attachmentsError: string | null = null;
   actionInProgress = false;
 
   constructor(private route: ActivatedRoute, private router: Router, private docService: DocumentService) {}
@@ -400,19 +414,29 @@ export class DocDetailComponent implements OnInit {
   }
 
   openAttachment(file: AttachmentFile, download: boolean): void {
-    this.docService.getAttachmentContent(file.id, download).subscribe(blob => {
-      const url = URL.createObjectURL(blob);
-      if (download) {
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = file.fileName || 'attachment';
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-      } else {
-        window.open(url, '_blank', 'noopener');
-      }
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    this.attachmentsError = null;
+
+    this.docService.getAttachmentContent(file.id, download).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        if (download) {
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = file.fileName || 'attachment';
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        } else {
+          window.open(url, '_blank', 'noopener');
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      },
+      // Without this the button silently did nothing on any failure, which is
+      // indistinguishable from a slow network or a blocked popup.
+      error: (error: unknown) => {
+        this.attachmentsError = this.describeAttachmentError(error);
+        console.error('Failed to open attachment', file.id, error);
+      },
     });
   }
 
@@ -431,11 +455,53 @@ export class DocDetailComponent implements OnInit {
     return 'insert_drive_file';
   }
 
+  retryAttachments(): void {
+    const id = this.doc?.id || this.route.snapshot.paramMap.get('id');
+    if (id) {
+      this.loadAttachments(id);
+    }
+  }
+
+  /**
+   * Loads the file list, keeping "the fetch failed" distinct from "there are no
+   * files". Swallowing the error and rendering an empty list made a failed
+   * request indistinguishable from an empty one -- in an eQMS that means a user
+   * can conclude a record has no attachments when the call actually errored.
+   */
   private loadAttachments(documentId: string): void {
+    this.attachmentsLoading = true;
+    this.attachmentsError = null;
+
     this.docService.getAttachments('DOCUMENT', documentId).subscribe({
-      next: files => this.attachments = files,
-      error: () => this.attachments = [],
+      next: files => {
+        this.attachments = files;
+        this.attachmentsLoading = false;
+      },
+      error: (error: unknown) => {
+        this.attachments = [];
+        this.attachmentsLoading = false;
+        this.attachmentsError = this.describeAttachmentError(error);
+        console.error('Failed to load attachments for document', documentId, error);
+      },
     });
+  }
+
+  private describeAttachmentError(error: unknown): string {
+    if (error instanceof HttpErrorResponse) {
+      if (error.status === 400) {
+        // The usual cause: the route carries something that is not a document
+        // UUID, e.g. /documents/detail/doc-001.
+        return 'Could not load files: this document reference is not valid.';
+      }
+      if (error.status === 401 || error.status === 403) {
+        return 'Could not load files: you are not authorised, or your session expired.';
+      }
+      if (error.status === 0) {
+        return 'Could not load files: the server could not be reached.';
+      }
+      return `Could not load files (error ${error.status}).`;
+    }
+    return 'Could not load files.';
   }
 
   private isCurrentCandidateUser(): boolean {

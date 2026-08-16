@@ -3,13 +3,14 @@ import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 import { AuthService } from './auth.service';
-
-const API_BASE_URL = 'http://localhost:8082/api/v1';
+import { isBackendApiUrl } from '../core/api-base';
 
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const router = inject(Router);
   const authService = inject(AuthService);
-  const isBackendApi = request.url.startsWith(API_BASE_URL);
+  // Must accept the rewritten host too: apiUrlInterceptor runs first and has
+  // already replaced localhost with environment.apiBaseUrl by this point.
+  const isBackendApi = isBackendApiUrl(request.url);
   const isLoginRequest = request.url.endsWith('/auth/login') || request.url.endsWith('/auth/refresh');
   const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
 
